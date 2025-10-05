@@ -1,9 +1,5 @@
 node_modules
-npm-debug.log
+*.log
+*.png
 .env
 .git
-*.png
-*.jpg
-logs/
-test-*.js
-debug-*.js
