@@ -7,7 +7,20 @@ const path = require('path');
 class StockCommands {
   constructor() {
     this.subscriptionsFile = path.join(__dirname, '../../subscriptions.json');
+    this.tickerService = null;
     this.loadSubscriptions();
+  }
+
+  // Lazy load ticker service to avoid circular dependency
+  getTickerService() {
+    if (!this.tickerService) {
+      try {
+        this.tickerService = require('../services/ticker.service');
+      } catch (error) {
+        logger.warn('Ticker service not available');
+      }
+    }
+    return this.tickerService;
   }
 
   loadSubscriptions() {
@@ -37,14 +50,12 @@ class StockCommands {
 
   async searchStock(query) {
     try {
-      // Search instruments
       const instruments = await zerodhaService.kite.getInstruments('NSE');
       
-      // Filter by search query
       const results = instruments.filter(inst => 
         inst.tradingsymbol.toLowerCase().includes(query.toLowerCase()) ||
         (inst.name && inst.name.toLowerCase().includes(query.toLowerCase()))
-      ).slice(0, 5); // Top 5 results
+      ).slice(0, 5);
 
       return results;
     } catch (error) {
@@ -54,7 +65,6 @@ class StockCommands {
   }
 
   async subscribeStock(symbol) {
-    // Format: NSE:SYMBOL
     const formattedSymbol = symbol.startsWith('NSE:') ? symbol : `NSE:${symbol}`;
     
     if (marketData.subscribedStocks.includes(formattedSymbol)) {
@@ -65,6 +75,17 @@ class StockCommands {
     this.saveSubscriptions(marketData.subscribedStocks);
 
     logger.info(`Subscribed to ${formattedSymbol}`);
+    
+    // Add to ticker stream if available
+    const ticker = this.getTickerService();
+    if (ticker && ticker.isConnected) {
+      try {
+        await ticker.addStock(formattedSymbol);
+        logger.info(`Added ${formattedSymbol} to ticker stream`);
+      } catch (error) {
+        logger.warn(`Could not add to ticker stream: ${error.message}`);
+      }
+    }
     
     // Get initial data
     const quote = await marketData.getQuote([formattedSymbol]);
@@ -84,6 +105,17 @@ class StockCommands {
     this.saveSubscriptions(marketData.subscribedStocks);
 
     logger.info(`Unsubscribed from ${formattedSymbol}`);
+    
+    // Remove from ticker stream if available
+    const ticker = this.getTickerService();
+    if (ticker && ticker.isConnected) {
+      try {
+        await ticker.removeStock(formattedSymbol);
+        logger.info(`Removed ${formattedSymbol} from ticker stream`);
+      } catch (error) {
+        logger.warn(`Could not remove from ticker stream: ${error.message}`);
+      }
+    }
     
     return { success: true, symbol: formattedSymbol };
   }

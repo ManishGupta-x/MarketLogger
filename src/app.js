@@ -1,6 +1,7 @@
 require('dotenv').config();
 const discordService = require('./services/discord.service');
 const zerodhaService = require('./services/zerodha.service');
+const tickerService = require('./services/ticker.service');
 const tradingService = require('./services/trading.service');
 const scheduledAuth = require('./services/scheduled-auth.service');
 const stockCommands = require('./commands/stock.commands');
@@ -30,22 +31,38 @@ async function start() {
     stockCommands.loadSubscriptions();
     logger.info('✅ Stock subscriptions loaded');
 
-    // Start watching subscribed stocks (updates every 5 minutes)
-    if (marketData.subscribedStocks.length > 0) {
-      marketData.startWatching(300); // 5 minutes
-      logger.info(`✅ Market data service started (${marketData.subscribedStocks.length} stocks)`);
+    // Initialize WebSocket ticker for live streaming
+    if (connected && marketData.subscribedStocks.length > 0) {
+      await tickerService.initialize();
+      logger.info('✅ WebSocket ticker started');
+    } else if (!connected) {
+      logger.warn('⚠️ Ticker not started - waiting for Zerodha connection');
+    } else {
+      logger.info('ℹ️ No subscribed stocks - ticker will start after first subscription');
     }
+
+    // Optional: Start watching (polling) for less frequent updates
+    // Disable this if you only want WebSocket updates
+    // if (marketData.subscribedStocks.length > 0) {
+    //   marketData.startWatching(300); // 5 minutes
+    //   logger.info(`✅ Market data polling started (${marketData.subscribedStocks.length} stocks)`);
+    // }
 
     // Start trading service
     await tradingService.start();
     logger.info('✅ Trading service started');
+
+    const tickerStatus = connected && marketData.subscribedStocks.length > 0 
+      ? '✅ WebSocket ticker: Active' 
+      : '⏸️ WebSocket ticker: Waiting';
 
     await discordService.log(
       '🚀 **Trading Bot Started Successfully**\n' +
       `Mode: ${process.env.TRADING_MODE || 'paper'}\n` +
       `Auto-login: Enabled (5:45 AM IST daily)\n` +
       `Commands: Active (type !help)\n` +
-      `Subscribed stocks: ${marketData.subscribedStocks.length}`,
+      `Subscribed stocks: ${marketData.subscribedStocks.length}\n` +
+      tickerStatus,
       'success'
     );
 
@@ -63,8 +80,10 @@ async function start() {
 process.on('SIGTERM', async () => {
   logger.info('SIGTERM received, shutting down...');
   
-  // Stop market data watching
+  // Stop all services
   marketData.stopWatching();
+  await tickerService.stop();
+  await tradingService.stop();
   
   await discordService.log('🛑 Bot shutting down gracefully', 'warning');
   
@@ -86,8 +105,10 @@ process.on('unhandledRejection', async (error) => {
 process.on('SIGINT', async () => {
   logger.info('SIGINT received, shutting down...');
   
-  // Stop market data watching
+  // Stop all services
   marketData.stopWatching();
+  await tickerService.stop();
+  await tradingService.stop();
   
   await discordService.log('🛑 Bot stopped by user', 'warning');
   
