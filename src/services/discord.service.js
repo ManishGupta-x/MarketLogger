@@ -21,7 +21,7 @@ class DiscordService {
         this.logChannel = this.client.channels.cache.get(process.env.DISCORD_LOG_CHANNEL_ID);
         this.isReady = true;
         logger.info(`Discord bot logged in as ${this.client.user.tag}`);
-        
+
         this.setupCommands();
         resolve();
       });
@@ -33,7 +33,7 @@ class DiscordService {
   setupCommands() {
     // Only import stock commands after Discord is ready
     const stockCommands = require('../commands/stock.commands');
-    
+
     this.client.on('messageCreate', async (message) => {
       if (message.author.bot) return;
       if (message.channel.id !== process.env.DISCORD_LOG_CHANNEL_ID) return;
@@ -58,59 +58,123 @@ class DiscordService {
       case 'search':
         await this.searchCommand(args, message, stockCommands);
         break;
-      
+
       case 'sub':
       case 'subscribe':
         await this.subscribeCommand(args, message, stockCommands);
         break;
-      
+
       case 'unsub':
       case 'unsubscribe':
         await this.unsubscribeCommand(args, message, stockCommands);
         break;
-      
+
       case 'list':
         await this.listCommand(message, stockCommands);
         break;
-      
+
       case 'help':
         await this.helpCommand(message);
         break;
-      
+      case 'debug':
+      case 'status':
+        await this.debugCommand(message);
+        break;
+
       default:
         await this.stockInfoCommand(command, args, message, stockCommands);
     }
   }
 
+
+  async debugCommand(message) {
+    try {
+      const tickerService = require('./ticker.service');
+      const zerodhaService = require('./zerodha.service');
+      const marketData = require('./market-data.service');
+
+      const status = tickerService.getStatus();
+      const now = new Date();
+      const istTime = now.toLocaleString('en-IN', { timeZone: 'Asia/Kolkata' });
+      const hour = now.getHours();
+      const isMarketHours = hour >= 9 && hour < 16;
+
+      let debug = `🔍 **System Debug Status**\n\n`;
+
+      // Zerodha Status
+      debug += `**Zerodha Connection:**\n`;
+      debug += `${zerodhaService.isConnected ? '✅' : '❌'} Zerodha API: ${zerodhaService.isConnected ? 'Connected' : 'Disconnected'}\n\n`;
+
+      // WebSocket Status
+      debug += `**WebSocket Ticker:**\n`;
+      debug += `${status.connected ? '✅' : '❌'} WebSocket: ${status.connected ? 'Connected' : 'Disconnected'}\n`;
+      debug += `📊 Subscribed Tokens: ${status.subscribedTokens}\n`;
+      debug += `📈 Stocks with Data: ${status.stocksWithData}\n`;
+      debug += `🎫 Total Ticks Received: ${status.totalTicks}\n`;
+
+      if (status.lastTick) {
+        const secAgo = Math.floor((Date.now() - status.lastTick) / 1000);
+        debug += `⏱️ Last Tick: ${secAgo}s ago\n`;
+      } else {
+        debug += `⏱️ Last Tick: Never\n`;
+      }
+      debug += `\n`;
+
+      // Discord Status
+      debug += `**Discord Ticker:**\n`;
+      const tickerChannel = this.client.channels.cache.get(status.channelId);
+      debug += `${tickerChannel ? '✅' : '❌'} Channel Found: ${tickerChannel ? 'Yes' : 'No'}\n`;
+      debug += `${status.messageCreated ? '✅' : '❌'} Message Created: ${status.messageCreated ? 'Yes' : 'No'}\n`;
+      debug += `📺 Channel ID: ${status.channelId || 'Not Set'}\n\n`;
+
+      // Market Status
+      debug += `**Market Status:**\n`;
+      debug += `⏰ Current Time: ${istTime}\n`;
+      debug += `${isMarketHours ? '✅' : '⏸️'} Market: ${isMarketHours ? 'OPEN (9:15 AM - 3:30 PM)' : 'CLOSED'}\n\n`;
+
+      // Subscriptions
+      debug += `**Subscriptions:**\n`;
+      debug += `📋 Total: ${marketData.subscribedStocks.length}\n`;
+      if (marketData.subscribedStocks.length > 0) {
+        debug += `Stocks: ${marketData.subscribedStocks.map(s => s.replace('NSE:', '')).join(', ')}\n`;
+      }
+
+      await message.reply(debug);
+
+    } catch (error) {
+      await message.reply(`❌ Debug error: ${error.message}`);
+    }
+  }
+
   async stockInfoCommand(stockName, options, message, stockCommands) {
     const symbol = stockName.toUpperCase();
-    
+
     if (options.length === 0) {
       await this.showBasicInfo(symbol, message, stockCommands);
     } else {
       const action = options[0].toLowerCase();
-      
+
       switch (action) {
         case 'sub':
         case 'subscribe':
           await this.quickSubscribe(symbol, message, stockCommands);
           break;
-        
+
         case 'unsub':
         case 'unsubscribe':
           await this.quickUnsubscribe(symbol, message, stockCommands);
           break;
-        
+
         case 'full':
         case 'detail':
         case 'details':
           await this.showFullInfo(symbol, message, stockCommands);
           break;
-        
+
         case 'ohlc':
           await this.showOHLC(symbol, message, stockCommands);
           break;
-        
+
         default:
           await message.reply(`❓ Unknown option: ${action}\n\nAvailable options:\n\`!${symbol} subscribe\` - Subscribe\n\`!${symbol} full\` - Full details\n\`!${symbol} ohlc\` - OHLC data`);
       }
@@ -260,13 +324,36 @@ class DiscordService {
 
     await message.reply(reply);
   }
-
   async helpCommand(message) {
-    const help = `📚 **Bot Commands**\n\n**Quick Stock Info:**\n\`!SYMBOL\` - Get basic stock info\n\n**Stock with Options:**\n\`!SYMBOL subscribe\` - Subscribe to stock\n\`!SYMBOL full\` - Full details\n\`!SYMBOL ohlc\` - OHLC data\n\n**Search & Manage:**\n\`!search <name>\` - Search for stocks\n\`!subscribe <SYMBOL>\` - Subscribe\n\`!unsubscribe <SYMBOL>\` - Unsubscribe\n\`!list\` - Show subscriptions\n\n**Examples:**\n\`!search reliance\`\n\`!RELIANCE\`\n\`!RELIANCE subscribe\`\n\`!TCS full\``;
+    const help = `📚 **Bot Commands**
+
+**Quick Stock Info:**
+\`!SYMBOL\` - Get basic stock info
+
+**Stock with Options:**
+\`!SYMBOL subscribe\` - Subscribe to stock
+\`!SYMBOL full\` - Full details
+\`!SYMBOL ohlc\` - OHLC data
+
+**Search & Manage:**
+\`!search <name>\` - Search for stocks
+\`!subscribe <SYMBOL>\` - Subscribe
+\`!unsubscribe <SYMBOL>\` - Unsubscribe
+\`!list\` - Show subscriptions
+
+**System:**
+\`!debug\` or \`!status\` - Check system status
+\`!help\` - Show this message
+
+**Examples:**
+\`!search reliance\`
+\`!RELIANCE\`
+\`!RELIANCE subscribe\`
+\`!TCS full\`
+\`!debug\``;
 
     await message.reply(help);
   }
-
   async log(message, type = 'info') {
     // Check if Discord is ready before logging
     if (!this.isReady || !this.logChannel) {
@@ -284,7 +371,7 @@ class DiscordService {
 
     const prefix = emoji[type] || emoji.info;
     const timestamp = new Date().toLocaleString('en-IN', { timeZone: 'Asia/Kolkata' });
-    
+
     const formattedMessage = `${prefix} **[${timestamp}]**\n${message}`;
 
     try {

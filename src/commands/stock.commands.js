@@ -6,9 +6,38 @@ const path = require('path');
 
 class StockCommands {
   constructor() {
-    this.subscriptionsFile = path.join(__dirname, '../../subscriptions.json');
     this.tickerService = null;
+    this.setupStoragePath();
     this.loadSubscriptions();
+  }
+
+  setupStoragePath() {
+    // Detect Railway environment
+    const isRailway = !!process.env.RAILWAY_ENVIRONMENT || process.env.NODE_ENV === 'production';
+    
+    if (isRailway) {
+      // Railway: use persistent volume
+      const volumePath = '/app/data';
+      this.subscriptionsFile = path.join(volumePath, 'subscriptions.json');
+      
+      // Ensure volume directory exists
+      try {
+        if (!fs.existsSync(volumePath)) {
+          fs.mkdirSync(volumePath, { recursive: true });
+          logger.info('📁 Created volume directory');
+        }
+        logger.info(`💾 Using Railway volume: ${this.subscriptionsFile}`);
+      } catch (error) {
+        logger.error('Failed to create volume directory:', error);
+        // Fallback to local path if volume fails
+        this.subscriptionsFile = path.join(__dirname, '../../subscriptions.json');
+        logger.warn(`⚠️ Falling back to local path: ${this.subscriptionsFile}`);
+      }
+    } else {
+      // Local development: use project directory
+      this.subscriptionsFile = path.join(__dirname, '../../subscriptions.json');
+      logger.info(`💾 Using local file: ${this.subscriptionsFile}`);
+    }
   }
 
   // Lazy load ticker service to avoid circular dependency
@@ -29,22 +58,42 @@ class StockCommands {
         const data = fs.readFileSync(this.subscriptionsFile, 'utf8');
         const subs = JSON.parse(data);
         marketData.subscribedStocks = subs;
-        logger.info(`Loaded ${subs.length} subscribed stocks`);
+        logger.info(`✅ Loaded ${subs.length} subscribed stocks`);
+        
+        if (subs.length > 0) {
+          logger.info(`📊 Stocks: ${subs.map(s => s.replace('NSE:', '')).join(', ')}`);
+        }
       } else {
+        logger.info('📝 No subscriptions file found, creating new one');
         this.saveSubscriptions([]);
       }
     } catch (error) {
-      logger.error('Error loading subscriptions:', error);
+      logger.error('❌ Error loading subscriptions:', error);
+      console.error('Subscriptions load error:', error.message);
       marketData.subscribedStocks = [];
     }
   }
 
   saveSubscriptions(stocks) {
     try {
+      // Ensure directory exists
+      const dir = path.dirname(this.subscriptionsFile);
+      if (!fs.existsSync(dir)) {
+        fs.mkdirSync(dir, { recursive: true });
+      }
+      
       fs.writeFileSync(this.subscriptionsFile, JSON.stringify(stocks, null, 2));
-      logger.info('Subscriptions saved to file');
+      logger.info(`💾 Subscriptions saved: ${stocks.length} stocks`);
+      
+      // Log saved location for debugging
+      if (process.env.RAILWAY_ENVIRONMENT || process.env.NODE_ENV === 'production') {
+        logger.info('✅ Saved to Railway volume (persistent)');
+      } else {
+        logger.info('✅ Saved to local file');
+      }
     } catch (error) {
-      logger.error('Error saving subscriptions:', error);
+      logger.error('❌ Error saving subscriptions:', error);
+      console.error('Save error:', error.message);
     }
   }
 
@@ -74,23 +123,27 @@ class StockCommands {
     marketData.subscribedStocks.push(formattedSymbol);
     this.saveSubscriptions(marketData.subscribedStocks);
 
-    logger.info(`Subscribed to ${formattedSymbol}`);
+    logger.info(`➕ Subscribed to ${formattedSymbol}`);
     
     // Add to ticker stream if available
     const ticker = this.getTickerService();
     if (ticker && ticker.isConnected) {
       try {
         await ticker.addStock(formattedSymbol);
-        logger.info(`Added ${formattedSymbol} to ticker stream`);
+        logger.info(`📊 Added ${formattedSymbol} to ticker stream`);
       } catch (error) {
         logger.warn(`Could not add to ticker stream: ${error.message}`);
       }
     }
     
     // Get initial data
-    const quote = await marketData.getQuote([formattedSymbol]);
-    
-    return { success: true, symbol: formattedSymbol, quote: quote };
+    try {
+      const quote = await marketData.getQuote([formattedSymbol]);
+      return { success: true, symbol: formattedSymbol, quote: quote };
+    } catch (error) {
+      logger.warn('Could not fetch initial quote:', error.message);
+      return { success: true, symbol: formattedSymbol, quote: null };
+    }
   }
 
   async unsubscribeStock(symbol) {
@@ -104,14 +157,14 @@ class StockCommands {
     marketData.subscribedStocks.splice(index, 1);
     this.saveSubscriptions(marketData.subscribedStocks);
 
-    logger.info(`Unsubscribed from ${formattedSymbol}`);
+    logger.info(`➖ Unsubscribed from ${formattedSymbol}`);
     
     // Remove from ticker stream if available
     const ticker = this.getTickerService();
     if (ticker && ticker.isConnected) {
       try {
         await ticker.removeStock(formattedSymbol);
-        logger.info(`Removed ${formattedSymbol} from ticker stream`);
+        logger.info(`📊 Removed ${formattedSymbol} from ticker stream`);
       } catch (error) {
         logger.warn(`Could not remove from ticker stream: ${error.message}`);
       }
