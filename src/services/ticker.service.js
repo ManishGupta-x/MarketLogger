@@ -17,6 +17,7 @@ class TickerService {
     this.instrumentsCache = new Map();
     this.lastTickTime = null;
     this.tickCount = 0;
+    this.channelWarningShown = false;
   }
 
   async initialize() {
@@ -163,21 +164,30 @@ class TickerService {
 
   async subscribeToStocks() {
     try {
-      const subsPath = path.join(__dirname, '../../subscriptions.json');
+      // Try multiple possible paths
+      let subsPath = path.join(__dirname, '../../subscriptions.json');
+      
+      // Check Railway volume path first
+      if (process.env.RAILWAY_ENVIRONMENT && fs.existsSync('/app/data/subscriptions.json')) {
+        subsPath = '/app/data/subscriptions.json';
+      }
       
       if (!fs.existsSync(subsPath)) {
         logger.warn('⚠️ No subscriptions file found');
         console.log('\n⚠️  subscriptions.json not found. Use !subscribe SYMBOL to add stocks.\n');
+        console.log('💡 Ticker will start automatically after first subscription.\n');
         return;
       }
 
-      const subscriptions = JSON.parse(fs.readFileSync(subsPath, 'utf8'));
+      const data = fs.readFileSync(subsPath, 'utf8');
+      const subscriptions = JSON.parse(data);
       
       logger.info(`📋 Found ${subscriptions.length} subscriptions: ${subscriptions.join(', ')}`);
       
       if (subscriptions.length === 0) {
         logger.info('ℹ️ No stocks to subscribe');
         console.log('\n💡 No stocks subscribed. Use !subscribe SYMBOL to add stocks.\n');
+        console.log('💡 Ticker will start automatically after first subscription.\n');
         return;
       }
 
