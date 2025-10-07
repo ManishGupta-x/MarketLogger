@@ -85,30 +85,42 @@ class TickerService {
       logger.info('🔌 WebSocket connected successfully!');
       this.isConnected = true;
       console.log('\n✅ WebSocket is CONNECTED and ready!\n');
+      console.log('Waiting for ticks from exchange...\n');
     });
 
-    this.ticker.on('disconnect', () => {
-      logger.warn('⚠️ WebSocket disconnected');
+    this.ticker.on('disconnect', (error) => {
+      logger.warn('⚠️ WebSocket disconnected', error);
       this.isConnected = false;
       console.log('\n⚠️  WebSocket DISCONNECTED\n');
     });
 
     this.ticker.on('error', (error) => {
       logger.error('❌ WebSocket error:', error);
-      console.error('\n❌ WebSocket Error:', error.message, '\n');
+      console.error('\n❌ WebSocket Error:', JSON.stringify(error), '\n');
     });
 
-    this.ticker.on('close', () => {
-      logger.info('🔌 WebSocket closed');
+    this.ticker.on('close', (code, reason) => {
+      logger.info('🔌 WebSocket closed', code, reason);
       this.isConnected = false;
+    });
+
+    this.ticker.on('reconnect', (reconnect_attempt, reconnect_interval) => {
+      logger.info(`🔄 Reconnecting... Attempt ${reconnect_attempt}, Interval: ${reconnect_interval}ms`);
+    });
+
+    this.ticker.on('noreconnect', () => {
+      logger.error('❌ Reconnection failed - maximum attempts reached');
     });
 
     this.ticker.on('ticks', (ticks) => {
       this.tickCount += ticks.length;
       this.lastTickTime = new Date();
       
-      if (this.tickCount < 10) {
-        logger.info(`📊 Received tick #${this.tickCount}:`, ticks[0]?.instrument_token);
+      logger.info(`📊 Received ${ticks.length} ticks! Total: ${this.tickCount}`);
+      
+      if (this.tickCount <= 10) {
+        console.log('\n✅ TICK DATA RECEIVED!\n');
+        console.log('First tick:', JSON.stringify(ticks[0], null, 2));
       }
       
       this.processTicks(ticks);
@@ -116,6 +128,10 @@ class TickerService {
 
     this.ticker.on('order_update', (order) => {
       logger.info('📋 Order update received:', order.order_id);
+    });
+
+    this.ticker.on('message', (data) => {
+      logger.info('📩 WebSocket message:', data);
     });
   }
 

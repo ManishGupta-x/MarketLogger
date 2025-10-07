@@ -21,7 +21,7 @@ class DiscordService {
         this.logChannel = this.client.channels.cache.get(process.env.DISCORD_LOG_CHANNEL_ID);
         this.isReady = true;
         logger.info(`Discord bot logged in as ${this.client.user.tag}`);
-        
+
         this.setupCommands();
         resolve();
       });
@@ -32,7 +32,7 @@ class DiscordService {
 
   setupCommands() {
     const stockCommands = require('../commands/stock.commands');
-    
+
     this.client.on('messageCreate', async (message) => {
       if (message.author.bot) return;
       if (message.channel.id !== process.env.DISCORD_LOG_CHANNEL_ID) return;
@@ -57,72 +57,160 @@ class DiscordService {
       case 'search':
         await this.searchCommand(args, message, stockCommands);
         break;
-      
+
       case 'sub':
       case 'subscribe':
         await this.subscribeCommand(args, message, stockCommands);
         break;
-      
+
       case 'unsub':
       case 'unsubscribe':
         await this.unsubscribeCommand(args, message, stockCommands);
         break;
-      
+
       case 'list':
         await this.listCommand(message, stockCommands);
         break;
-      
+
       case 'debug':
       case 'status':
         await this.debugCommand(message);
         break;
-      
+
       case 'ticker':
         await this.tickerCommand(args, message);
         break;
-      
+
       case 'time':
         await this.timeCommand(message);
         break;
-      
+
       case 'help':
         await this.helpCommand(message);
         break;
-      
+      case 'test':
+        await this.testCommand(args, message);
+        break;
       default:
         await this.stockInfoCommand(command, args, message, stockCommands);
     }
   }
 
+
+  async testCommand(args, message) {
+    try {
+      const zerodhaService = require('./zerodha.service');
+      const marketData = require('./market-data.service');
+
+      await message.reply('🧪 Running diagnostic tests...');
+
+      let results = '📋 **Diagnostic Results**\n\n';
+
+      // Test 1: Check if we can get instruments
+      try {
+        const instruments = await zerodhaService.kite.getInstruments('NSE');
+        results += `✅ Can fetch instruments: ${instruments.length} total\n`;
+
+        // Check if our stocks exist
+        const pfs = instruments.find(i => i.tradingsymbol === 'PFS');
+        const tcs = instruments.find(i => i.tradingsymbol === 'TCS');
+
+        if (pfs) {
+          results += `✅ PFS found - Token: ${pfs.instrument_token}\n`;
+        } else {
+          results += `❌ PFS not found in NSE instruments\n`;
+        }
+
+        if (tcs) {
+          results += `✅ TCS found - Token: ${tcs.instrument_token}\n`;
+        } else {
+          results += `❌ TCS not found in NSE instruments\n`;
+        }
+
+      } catch (error) {
+        results += `❌ Failed to fetch instruments: ${error.message}\n`;
+      }
+
+      results += '\n';
+
+      // Test 2: Try to get quotes for subscribed stocks
+      if (marketData.subscribedStocks.length > 0) {
+        results += `**Testing Subscribed Stocks:**\n`;
+
+        for (const symbol of marketData.subscribedStocks) {
+          try {
+            const quote = await marketData.getQuote([symbol]);
+            if (quote && quote[symbol]) {
+              results += `✅ ${symbol}: ₹${quote[symbol].last_price}\n`;
+            } else {
+              results += `⚠️ ${symbol}: No data returned\n`;
+            }
+          } catch (error) {
+            results += `❌ ${symbol}: ${error.message}\n`;
+          }
+        }
+      } else {
+        results += `⚠️ No subscribed stocks to test\n`;
+      }
+
+      results += '\n';
+
+      // Test 3: Check WebSocket status
+      const tickerService = require('./ticker.service');
+      const status = tickerService.getStatus();
+
+      results += `**WebSocket Status:**\n`;
+      results += `Connection: ${status.connected ? '✅ Connected' : '❌ Disconnected'}\n`;
+      results += `Subscribed tokens: ${status.subscribedTokens}\n`;
+      results += `Ticks received: ${status.totalTicks}\n`;
+
+      if (status.subscribedTokens === 0) {
+        results += `\n⚠️ **Issue Found:** No tokens subscribed to WebSocket!\n`;
+        results += `Try: \`!ticker restart\`\n`;
+      } else if (status.totalTicks === 0) {
+        results += `\n⚠️ **Issue Found:** WebSocket connected but no ticks\n`;
+        results += `Possible reasons:\n`;
+        results += `- Market is closed or it's a holiday\n`;
+        results += `- Stocks are not trading today\n`;
+        results += `- Access token issue\n`;
+      }
+
+      await message.reply(results);
+
+    } catch (error) {
+      await message.reply(`❌ Test failed: ${error.message}`);
+    }
+  }
+
   async stockInfoCommand(stockName, options, message, stockCommands) {
     const symbol = stockName.toUpperCase();
-    
+
     if (options.length === 0) {
       await this.showBasicInfo(symbol, message, stockCommands);
     } else {
       const action = options[0].toLowerCase();
-      
+
       switch (action) {
         case 'sub':
         case 'subscribe':
           await this.quickSubscribe(symbol, message, stockCommands);
           break;
-        
+
         case 'unsub':
         case 'unsubscribe':
           await this.quickUnsubscribe(symbol, message, stockCommands);
           break;
-        
+
         case 'full':
         case 'detail':
         case 'details':
           await this.showFullInfo(symbol, message, stockCommands);
           break;
-        
+
         case 'ohlc':
           await this.showOHLC(symbol, message, stockCommands);
           break;
-        
+
         default:
           await message.reply(`❓ Unknown option: ${action}\n\nAvailable options:\n\`!${symbol} subscribe\` - Subscribe\n\`!${symbol} full\` - Full details\n\`!${symbol} ohlc\` - OHLC data`);
       }
@@ -193,7 +281,7 @@ class DiscordService {
     }
 
     const stockInfo = result.quote && result.quote[result.symbol];
-    
+
     if (stockInfo) {
       const change = stockInfo.last_price - stockInfo.ohlc.close;
       const changePercent = ((change / stockInfo.ohlc.close) * 100).toFixed(2);
@@ -283,29 +371,29 @@ class DiscordService {
       const tickerService = require('./ticker.service');
       const zerodhaService = require('./zerodha.service');
       const marketData = require('./market-data.service');
-      
+
       const status = tickerService.getStatus();
       const now = new Date();
       const istTime = now.toLocaleString('en-IN', { timeZone: 'Asia/Kolkata' });
-      
-      const istHour = parseInt(new Date().toLocaleString('en-IN', { 
-        timeZone: 'Asia/Kolkata', 
-        hour: 'numeric', 
-        hour12: false 
+
+      const istHour = parseInt(new Date().toLocaleString('en-IN', {
+        timeZone: 'Asia/Kolkata',
+        hour: 'numeric',
+        hour12: false
       }));
       const isMarketHours = istHour >= 9 && istHour < 16;
-      
+
       let debug = `🔍 **System Debug Status**\n\n`;
-      
+
       debug += `**Zerodha Connection:**\n`;
       debug += `${zerodhaService.isConnected ? '✅' : '❌'} Zerodha API: ${zerodhaService.isConnected ? 'Connected' : 'Disconnected'}\n\n`;
-      
+
       debug += `**WebSocket Ticker:**\n`;
       debug += `${status.connected ? '✅' : '❌'} WebSocket: ${status.connected ? 'Connected' : 'Disconnected'}\n`;
       debug += `📊 Subscribed Tokens: ${status.subscribedTokens}\n`;
       debug += `📈 Stocks with Data: ${status.stocksWithData}\n`;
       debug += `🎫 Total Ticks Received: ${status.totalTicks}\n`;
-      
+
       if (status.lastTick) {
         const secAgo = Math.floor((Date.now() - status.lastTick) / 1000);
         debug += `⏱️ Last Tick: ${secAgo}s ago\n`;
@@ -313,17 +401,17 @@ class DiscordService {
         debug += `⏱️ Last Tick: Never\n`;
       }
       debug += `\n`;
-      
+
       debug += `**Discord Ticker:**\n`;
       const tickerChannel = this.client.channels.cache.get(status.channelId);
       debug += `${tickerChannel ? '✅' : '❌'} Channel Found: ${tickerChannel ? 'Yes' : 'No'}\n`;
       debug += `${status.messageCreated ? '✅' : '❌'} Message Created: ${status.messageCreated ? 'Yes' : 'No'}\n`;
       debug += `📺 Channel ID: ${status.channelId || 'Not Set'}\n\n`;
-      
+
       debug += `**Market Status:**\n`;
       debug += `⏰ Current IST Time: ${istTime}\n`;
       debug += `${isMarketHours ? '✅' : '⏸️'} Market: ${isMarketHours ? 'OPEN (9:15 AM - 3:30 PM)' : 'CLOSED'}\n\n`;
-      
+
       debug += `**Subscriptions:**\n`;
       debug += `📋 Total: ${marketData.subscribedStocks.length}\n`;
       if (marketData.subscribedStocks.length > 0) {
@@ -331,15 +419,15 @@ class DiscordService {
       } else {
         debug += `⚠️ No stocks subscribed. Use \`!subscribe SYMBOL\`\n`;
       }
-      
+
       if (!status.connected && marketData.subscribedStocks.length > 0) {
         debug += `\n💡 Try: \`!ticker restart\``;
       } else if (marketData.subscribedStocks.length === 0) {
         debug += `\n💡 Try: \`!subscribe RELIANCE\``;
       }
-      
+
       await message.reply(debug);
-      
+
     } catch (error) {
       await message.reply(`❌ Debug error: ${error.message}`);
     }
@@ -347,7 +435,7 @@ class DiscordService {
 
   async tickerCommand(args, message) {
     const tickerService = require('./ticker.service');
-    
+
     if (args.length === 0 || args[0] === 'status') {
       const status = tickerService.getStatus();
       let reply = `📊 **Ticker Status**\n\n`;
@@ -355,18 +443,18 @@ class DiscordService {
       reply += `Subscribed: ${status.subscribedTokens} stocks\n`;
       reply += `Data received: ${status.stocksWithData} stocks\n`;
       reply += `Total ticks: ${status.totalTicks}\n`;
-      
+
       if (status.lastTick) {
         const secAgo = Math.floor((Date.now() - status.lastTick) / 1000);
         reply += `Last tick: ${secAgo}s ago\n`;
       }
-      
+
       await message.reply(reply);
       return;
     }
-    
+
     const action = args[0].toLowerCase();
-    
+
     switch (action) {
       case 'start':
       case 'restart':
@@ -380,12 +468,12 @@ class DiscordService {
           await message.reply(`❌ Failed to restart: ${error.message}`);
         }
         break;
-      
+
       case 'stop':
         await tickerService.stop();
         await message.reply('🛑 Ticker service stopped');
         break;
-      
+
       default:
         await message.reply('Usage: `!ticker [status|start|restart|stop]`');
     }
@@ -393,30 +481,30 @@ class DiscordService {
 
   async timeCommand(message) {
     const now = new Date();
-    
-    const istTime = now.toLocaleString('en-IN', { 
+
+    const istTime = now.toLocaleString('en-IN', {
       timeZone: 'Asia/Kolkata',
       dateStyle: 'full',
       timeStyle: 'long'
     });
-    
-    const istHour = parseInt(new Date().toLocaleString('en-IN', { 
-      timeZone: 'Asia/Kolkata', 
-      hour: 'numeric', 
-      hour12: false 
+
+    const istHour = parseInt(new Date().toLocaleString('en-IN', {
+      timeZone: 'Asia/Kolkata',
+      hour: 'numeric',
+      hour12: false
     }));
-    
-    const dayOfWeek = now.toLocaleString('en-IN', { 
-      timeZone: 'Asia/Kolkata', 
-      weekday: 'long' 
+
+    const dayOfWeek = now.toLocaleString('en-IN', {
+      timeZone: 'Asia/Kolkata',
+      weekday: 'long'
     });
     const isWeekend = dayOfWeek === 'Saturday' || dayOfWeek === 'Sunday';
-    
+
     let reply = `🕐 **Time Information**\n\n`;
     reply += `**IST Time:** ${istTime}\n`;
     reply += `**IST Hour:** ${istHour}:00\n`;
     reply += `**Day:** ${dayOfWeek}\n\n`;
-    
+
     reply += `**Market Status:**\n`;
     if (isWeekend) {
       reply += `⏸️ Weekend - Market closed\n`;
@@ -427,9 +515,9 @@ class DiscordService {
     } else {
       reply += `⏸️ After hours - Market closed\n`;
     }
-    
+
     reply += `\n**Server Time:** ${now.toString()}`;
-    
+
     await message.reply(reply);
   }
 
@@ -483,7 +571,7 @@ class DiscordService {
 
     const prefix = emoji[type] || emoji.info;
     const timestamp = new Date().toLocaleString('en-IN', { timeZone: 'Asia/Kolkata' });
-    
+
     const formattedMessage = `${prefix} **[${timestamp}]**\n${message}`;
 
     try {
