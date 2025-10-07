@@ -12,26 +12,21 @@ async function start() {
   try {
     logger.info('🚀 Starting Zerodha Trading Bot...');
 
-    // Initialize Discord
     await discordService.initialize();
     logger.info('✅ Discord initialized');
 
-    // Initialize Zerodha (will auto-login if needed)
     const connected = await zerodhaService.initialize();
     
     if (!connected) {
       logger.warn('⚠️ Initial connection failed, will retry with auto-login');
     }
 
-    // Start scheduled auto-login (runs daily at 5:45 AM IST)
     scheduledAuth.start();
     logger.info('✅ Auto-login scheduler started');
 
-    // Load stock subscriptions from file
     stockCommands.loadSubscriptions();
     logger.info('✅ Stock subscriptions loaded');
 
-    // Initialize WebSocket ticker for live streaming
     if (connected && marketData.subscribedStocks.length > 0) {
       await tickerService.initialize();
       logger.info('✅ WebSocket ticker started');
@@ -41,14 +36,6 @@ async function start() {
       logger.info('ℹ️ No subscribed stocks - ticker will start after first subscription');
     }
 
-    // Optional: Start watching (polling) for less frequent updates
-    // Disable this if you only want WebSocket updates
-    // if (marketData.subscribedStocks.length > 0) {
-    //   marketData.startWatching(300); // 5 minutes
-    //   logger.info(`✅ Market data polling started (${marketData.subscribedStocks.length} stocks)`);
-    // }
-
-    // Start trading service
     await tradingService.start();
     logger.info('✅ Trading service started');
 
@@ -76,18 +63,15 @@ async function start() {
   }
 }
 
-// Graceful shutdown
 process.on('SIGTERM', async () => {
   logger.info('SIGTERM received, shutting down...');
   
-  // Stop all services
   marketData.stopWatching();
   await tickerService.stop();
   await tradingService.stop();
   
   await discordService.log('🛑 Bot shutting down gracefully', 'warning');
   
-  // Wait a bit for Discord message to send
   setTimeout(() => {
     process.exit(0);
   }, 1000);
@@ -101,11 +85,9 @@ process.on('unhandledRejection', async (error) => {
   );
 });
 
-// Handle Ctrl+C
 process.on('SIGINT', async () => {
   logger.info('SIGINT received, shutting down...');
   
-  // Stop all services
   marketData.stopWatching();
   await tickerService.stop();
   await tradingService.stop();

@@ -81,6 +81,10 @@ class DiscordService {
         await this.tickerCommand(args, message);
         break;
       
+      case 'time':
+        await this.timeCommand(message);
+        break;
+      
       case 'help':
         await this.helpCommand(message);
         break;
@@ -283,16 +287,19 @@ class DiscordService {
       const status = tickerService.getStatus();
       const now = new Date();
       const istTime = now.toLocaleString('en-IN', { timeZone: 'Asia/Kolkata' });
-      const istHour = parseInt(istTime.split(',')[1].trim().split(':')[0]);
+      
+      const istHour = parseInt(new Date().toLocaleString('en-IN', { 
+        timeZone: 'Asia/Kolkata', 
+        hour: 'numeric', 
+        hour12: false 
+      }));
       const isMarketHours = istHour >= 9 && istHour < 16;
       
       let debug = `🔍 **System Debug Status**\n\n`;
       
-      // Zerodha Status
       debug += `**Zerodha Connection:**\n`;
       debug += `${zerodhaService.isConnected ? '✅' : '❌'} Zerodha API: ${zerodhaService.isConnected ? 'Connected' : 'Disconnected'}\n\n`;
       
-      // WebSocket Status
       debug += `**WebSocket Ticker:**\n`;
       debug += `${status.connected ? '✅' : '❌'} WebSocket: ${status.connected ? 'Connected' : 'Disconnected'}\n`;
       debug += `📊 Subscribed Tokens: ${status.subscribedTokens}\n`;
@@ -307,19 +314,16 @@ class DiscordService {
       }
       debug += `\n`;
       
-      // Discord Status
       debug += `**Discord Ticker:**\n`;
       const tickerChannel = this.client.channels.cache.get(status.channelId);
       debug += `${tickerChannel ? '✅' : '❌'} Channel Found: ${tickerChannel ? 'Yes' : 'No'}\n`;
       debug += `${status.messageCreated ? '✅' : '❌'} Message Created: ${status.messageCreated ? 'Yes' : 'No'}\n`;
       debug += `📺 Channel ID: ${status.channelId || 'Not Set'}\n\n`;
       
-      // Market Status
       debug += `**Market Status:**\n`;
       debug += `⏰ Current IST Time: ${istTime}\n`;
       debug += `${isMarketHours ? '✅' : '⏸️'} Market: ${isMarketHours ? 'OPEN (9:15 AM - 3:30 PM)' : 'CLOSED'}\n\n`;
       
-      // Subscriptions
       debug += `**Subscriptions:**\n`;
       debug += `📋 Total: ${marketData.subscribedStocks.length}\n`;
       if (marketData.subscribedStocks.length > 0) {
@@ -328,7 +332,6 @@ class DiscordService {
         debug += `⚠️ No stocks subscribed. Use \`!subscribe SYMBOL\`\n`;
       }
       
-      // Quick actions
       if (!status.connected && marketData.subscribedStocks.length > 0) {
         debug += `\n💡 Try: \`!ticker restart\``;
       } else if (marketData.subscribedStocks.length === 0) {
@@ -346,7 +349,6 @@ class DiscordService {
     const tickerService = require('./ticker.service');
     
     if (args.length === 0 || args[0] === 'status') {
-      // Show ticker status
       const status = tickerService.getStatus();
       let reply = `📊 **Ticker Status**\n\n`;
       reply += `WebSocket: ${status.connected ? '✅ Connected' : '❌ Disconnected'}\n`;
@@ -389,6 +391,48 @@ class DiscordService {
     }
   }
 
+  async timeCommand(message) {
+    const now = new Date();
+    
+    const istTime = now.toLocaleString('en-IN', { 
+      timeZone: 'Asia/Kolkata',
+      dateStyle: 'full',
+      timeStyle: 'long'
+    });
+    
+    const istHour = parseInt(new Date().toLocaleString('en-IN', { 
+      timeZone: 'Asia/Kolkata', 
+      hour: 'numeric', 
+      hour12: false 
+    }));
+    
+    const dayOfWeek = now.toLocaleString('en-IN', { 
+      timeZone: 'Asia/Kolkata', 
+      weekday: 'long' 
+    });
+    const isWeekend = dayOfWeek === 'Saturday' || dayOfWeek === 'Sunday';
+    
+    let reply = `🕐 **Time Information**\n\n`;
+    reply += `**IST Time:** ${istTime}\n`;
+    reply += `**IST Hour:** ${istHour}:00\n`;
+    reply += `**Day:** ${dayOfWeek}\n\n`;
+    
+    reply += `**Market Status:**\n`;
+    if (isWeekend) {
+      reply += `⏸️ Weekend - Market closed\n`;
+    } else if (istHour < 9) {
+      reply += `⏸️ Pre-market - Opens at 9:15 AM\n`;
+    } else if (istHour >= 9 && istHour < 16) {
+      reply += `✅ Market is OPEN (9:15 AM - 3:30 PM)\n`;
+    } else {
+      reply += `⏸️ After hours - Market closed\n`;
+    }
+    
+    reply += `\n**Server Time:** ${now.toString()}`;
+    
+    await message.reply(reply);
+  }
+
   async helpCommand(message) {
     const help = `📚 **Bot Commands**
 
@@ -409,6 +453,7 @@ class DiscordService {
 **System:**
 \`!debug\` or \`!status\` - Check system status
 \`!ticker [status|restart|stop]\` - Manage ticker
+\`!time\` - Check IST time and market hours
 \`!help\` - Show this message
 
 **Examples:**
@@ -416,6 +461,7 @@ class DiscordService {
 \`!subscribe RELIANCE\`
 \`!RELIANCE full\`
 \`!ticker restart\`
+\`!time\`
 \`!debug\``;
 
     await message.reply(help);

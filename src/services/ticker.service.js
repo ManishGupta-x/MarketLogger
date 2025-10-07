@@ -32,10 +32,8 @@ class TickerService {
     logger.info(`📺 Ticker Channel ID: ${this.tickerChannelId}`);
 
     try {
-      // Load instruments to get tokens
       await this.loadInstruments();
 
-      // Initialize KiteTicker
       logger.info('🔌 Creating WebSocket connection...');
       this.ticker = new KiteTicker({
         api_key: process.env.ZERODHA_API_KEY,
@@ -44,17 +42,13 @@ class TickerService {
 
       this.setupTickerHandlers();
       
-      // Connect ticker
       logger.info('🔗 Connecting to Zerodha WebSocket...');
       this.ticker.connect();
       
-      // Wait a moment for connection
       await new Promise(resolve => setTimeout(resolve, 2000));
       
-      // Subscribe to current stocks
       await this.subscribeToStocks();
 
-      // Start Discord message updates
       this.startDiscordUpdates();
 
       logger.info('✅ Ticker service initialized');
@@ -70,7 +64,6 @@ class TickerService {
       logger.info('📥 Loading NSE instruments...');
       const instruments = await zerodhaService.kite.getInstruments('NSE');
       
-      // Cache instrument tokens
       instruments.forEach(inst => {
         const symbol = `NSE:${inst.tradingsymbol}`;
         this.instrumentsCache.set(symbol, {
@@ -110,12 +103,10 @@ class TickerService {
       this.isConnected = false;
     });
 
-    // Handle tick data
     this.ticker.on('ticks', (ticks) => {
       this.tickCount += ticks.length;
       this.lastTickTime = new Date();
       
-      // Log first few ticks for debugging
       if (this.tickCount < 10) {
         logger.info(`📊 Received tick #${this.tickCount}:`, ticks[0]?.instrument_token);
       }
@@ -145,7 +136,6 @@ class TickerService {
           timestamp: new Date()
         });
         
-        // Log data updates occasionally
         if (this.tickCount % 20 === 0) {
           logger.info(`📈 ${symbol}: ₹${tick.last_price}`);
         }
@@ -164,10 +154,8 @@ class TickerService {
 
   async subscribeToStocks() {
     try {
-      // Try multiple possible paths
       let subsPath = path.join(__dirname, '../../subscriptions.json');
       
-      // Check Railway volume path first
       if (process.env.RAILWAY_ENVIRONMENT && fs.existsSync('/app/data/subscriptions.json')) {
         subsPath = '/app/data/subscriptions.json';
       }
@@ -220,11 +208,15 @@ class TickerService {
         logger.info(`📊 Subscribed to ${tokens.length} stocks on WebSocket`);
         console.log(`\n✅ Now streaming ${tokens.length} stocks in real-time!\n`);
         
-        // Log market hours info
         const now = new Date();
         const istTime = now.toLocaleString('en-IN', { timeZone: 'Asia/Kolkata', hour12: false });
-        const hour = now.getHours();
-        const inMarketHours = hour >= 9 && hour < 16;
+        
+        const istHour = parseInt(new Date().toLocaleString('en-IN', { 
+          timeZone: 'Asia/Kolkata', 
+          hour: 'numeric', 
+          hour12: false 
+        }));
+        const inMarketHours = istHour >= 9 && istHour < 16;
         
         logger.info(`⏰ Current time: ${istTime}`);
         if (inMarketHours) {
@@ -294,7 +286,6 @@ class TickerService {
   startDiscordUpdates() {
     logger.info('🔄 Starting Discord ticker updates...');
     
-    // Update Discord message every 3 seconds
     this.updateInterval = setInterval(async () => {
       await this.updateDiscordMessage();
     }, 3000);
@@ -318,7 +309,6 @@ class TickerService {
 
       const message = this.formatTickerMessage();
 
-      // Create or update message
       if (!this.tickerMessage) {
         logger.info('📤 Creating initial ticker message...');
         this.tickerMessage = await tickerChannel.send(message);
@@ -327,7 +317,6 @@ class TickerService {
       } else {
         await this.tickerMessage.edit(message);
         
-        // Log occasionally
         if (this.tickCount % 60 === 0) {
           logger.info(`🔄 Ticker updated (${this.tickCount} ticks received)`);
         }
@@ -335,7 +324,6 @@ class TickerService {
     } catch (error) {
       logger.error('❌ Error updating Discord ticker:', error);
       console.error('Discord update error:', error.message);
-      // Reset message on error
       this.tickerMessage = null;
     }
   }
@@ -365,16 +353,20 @@ class TickerService {
         message += `⏱️ Last tick: ${secAgo}s ago\n`;
       }
       
-      // Check market hours
-      const hour = new Date().getHours();
-      if (hour < 9 || hour >= 16) {
+      const istHour = parseInt(new Date().toLocaleString('en-IN', { 
+        timeZone: 'Asia/Kolkata', 
+        hour: 'numeric', 
+        hour12: false 
+      }));
+      if (istHour < 9 || istHour >= 16) {
         message += `\n⏰ Market closed (Opens 9:15 AM IST)\n`;
+      } else {
+        message += `\n✅ Market is open - waiting for ticks...\n`;
       }
       
       return message;
     }
 
-    // Sort by symbol name
     const sortedData = Array.from(this.stockData.entries()).sort((a, b) => 
       a[0].localeCompare(b[0])
     );
@@ -411,7 +403,6 @@ class TickerService {
     logger.info('✅ Ticker service stopped');
   }
 
-  // Debug status
   getStatus() {
     return {
       connected: this.isConnected,

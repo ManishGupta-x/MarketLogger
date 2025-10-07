@@ -12,15 +12,12 @@ class StockCommands {
   }
 
   setupStoragePath() {
-    // Detect Railway environment
     const isRailway = !!process.env.RAILWAY_ENVIRONMENT || process.env.NODE_ENV === 'production';
     
     if (isRailway) {
-      // Railway: use persistent volume
       const volumePath = '/app/data';
       this.subscriptionsFile = path.join(volumePath, 'subscriptions.json');
       
-      // Ensure volume directory exists
       try {
         if (!fs.existsSync(volumePath)) {
           fs.mkdirSync(volumePath, { recursive: true });
@@ -29,18 +26,15 @@ class StockCommands {
         logger.info(`💾 Using Railway volume: ${this.subscriptionsFile}`);
       } catch (error) {
         logger.error('Failed to create volume directory:', error);
-        // Fallback to local path if volume fails
         this.subscriptionsFile = path.join(__dirname, '../../subscriptions.json');
         logger.warn(`⚠️ Falling back to local path: ${this.subscriptionsFile}`);
       }
     } else {
-      // Local development: use project directory
       this.subscriptionsFile = path.join(__dirname, '../../subscriptions.json');
       logger.info(`💾 Using local file: ${this.subscriptionsFile}`);
     }
   }
 
-  // Lazy load ticker service to avoid circular dependency
   getTickerService() {
     if (!this.tickerService) {
       try {
@@ -76,7 +70,6 @@ class StockCommands {
 
   saveSubscriptions(stocks) {
     try {
-      // Ensure directory exists
       const dir = path.dirname(this.subscriptionsFile);
       if (!fs.existsSync(dir)) {
         fs.mkdirSync(dir, { recursive: true });
@@ -85,7 +78,6 @@ class StockCommands {
       fs.writeFileSync(this.subscriptionsFile, JSON.stringify(stocks, null, 2));
       logger.info(`💾 Subscriptions saved: ${stocks.length} stocks`);
       
-      // Log saved location for debugging
       if (process.env.RAILWAY_ENVIRONMENT || process.env.NODE_ENV === 'production') {
         logger.info('✅ Saved to Railway volume (persistent)');
       } else {
@@ -125,7 +117,6 @@ class StockCommands {
 
     logger.info(`➕ Subscribed to ${formattedSymbol}`);
     
-    // Add to ticker stream if available
     const ticker = this.getTickerService();
     if (ticker && ticker.isConnected) {
       try {
@@ -136,7 +127,6 @@ class StockCommands {
       }
     }
     
-    // Get initial data
     try {
       const quote = await marketData.getQuote([formattedSymbol]);
       return { success: true, symbol: formattedSymbol, quote: quote };
@@ -159,7 +149,6 @@ class StockCommands {
 
     logger.info(`➖ Unsubscribed from ${formattedSymbol}`);
     
-    // Remove from ticker stream if available
     const ticker = this.getTickerService();
     if (ticker && ticker.isConnected) {
       try {
