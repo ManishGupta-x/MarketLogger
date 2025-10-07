@@ -96,7 +96,6 @@ class DiscordService {
     }
   }
 
-
   async testCommand(args, message) {
     try {
       const zerodhaService = require('./zerodha.service');
@@ -106,12 +105,10 @@ class DiscordService {
 
       let results = '📋 **Diagnostic Results**\n\n';
 
-      // Test 1: Check if we can get instruments
       try {
         const instruments = await zerodhaService.kite.getInstruments('NSE');
         results += `✅ Can fetch instruments: ${instruments.length} total\n`;
 
-        // Check if our stocks exist
         const pfs = instruments.find(i => i.tradingsymbol === 'PFS');
         const tcs = instruments.find(i => i.tradingsymbol === 'TCS');
 
@@ -133,7 +130,6 @@ class DiscordService {
 
       results += '\n';
 
-      // Test 2: Try to get quotes for subscribed stocks
       if (marketData.subscribedStocks.length > 0) {
         results += `**Testing Subscribed Stocks:**\n`;
 
@@ -155,7 +151,6 @@ class DiscordService {
 
       results += '\n';
 
-      // Test 3: Check WebSocket status
       const tickerService = require('./ticker.service');
       const status = tickerService.getStatus();
 
@@ -474,8 +469,89 @@ class DiscordService {
         await message.reply('🛑 Ticker service stopped');
         break;
 
+      case 'debug':
+        await this.tickerDebugCommand(message, tickerService);
+        break;
+
+      case 'test':
+        await this.tickerTestCommand(message);
+        break;
+
+      case 'resub':
+      case 'resubscribe':
+        await this.tickerResubCommand(message, tickerService);
+        break;
+
       default:
-        await message.reply('Usage: `!ticker [status|start|restart|stop]`');
+        await message.reply('Usage: `!ticker [status|start|restart|stop|debug|test|resub]`');
+    }
+  }
+
+  async tickerDebugCommand(message, tickerService) {
+    try {
+      await tickerService.debugSubscription();
+      
+      const status = tickerService.getStatus();
+      
+      const embed = {
+        title: '🔍 Ticker Debug Info',
+        color: status.connected ? 0x00ff00 : 0xff0000,
+        fields: [
+          { name: 'WebSocket', value: status.connected ? '✅ Connected' : '❌ Disconnected', inline: true },
+          { name: 'Subscribed Tokens', value: status.subscribedTokens.toString(), inline: true },
+          { name: 'Ticks Received', value: status.totalTicks.toString(), inline: true },
+          { name: 'Heartbeats', value: (status.heartbeats || 0).toString(), inline: true },
+          { name: 'Stocks with Data', value: status.stocksWithData.toString(), inline: true },
+          { name: 'Last Tick', value: status.lastTick ? new Date(status.lastTick).toLocaleTimeString('en-IN', { timeZone: 'Asia/Kolkata' }) : 'Never', inline: true }
+        ],
+        timestamp: new Date()
+      };
+      
+      await message.reply({ embeds: [embed] });
+    } catch (error) {
+      await message.reply(`❌ Debug failed: ${error.message}`);
+    }
+  }
+
+  async tickerTestCommand(message) {
+    const stockCommands = require('../commands/stock.commands');
+    
+    await message.reply('🧪 Testing with RELIANCE (high volume stock)...');
+    
+    try {
+      const result = await stockCommands.subscribeStock('RELIANCE');
+      
+      if (result.success) {
+        await message.reply('✅ Subscribed to RELIANCE. Check logs for ticks in 10-30 seconds.\n💡 Use `!ticker debug` to monitor status.');
+      } else {
+        await message.reply(`❌ Test failed: ${result.message}`);
+      }
+    } catch (error) {
+      await message.reply(`❌ Test failed: ${error.message}`);
+    }
+  }
+
+  async tickerResubCommand(message, tickerService) {
+    if (!tickerService.isConnected) {
+      await message.reply('❌ WebSocket not connected. Try `!ticker restart` first.');
+      return;
+    }
+    
+    if (!tickerService.subscribedTokens || tickerService.subscribedTokens.length === 0) {
+      await message.reply('❌ No stocks subscribed. Use `!subscribe SYMBOL` first.');
+      return;
+    }
+    
+    try {
+      await message.reply('🔄 Resubscribing to all stocks...');
+      
+      tickerService.ticker.subscribe(tickerService.subscribedTokens);
+      await new Promise(resolve => setTimeout(resolve, 500));
+      tickerService.ticker.setMode(tickerService.ticker.modeFull, tickerService.subscribedTokens);
+      
+      await message.reply(`✅ Resubscribed to ${tickerService.subscribedTokens.length} stocks. Check logs for ticks.`);
+    } catch (error) {
+      await message.reply(`❌ Resubscription failed: ${error.message}`);
     }
   }
 
@@ -540,17 +616,26 @@ class DiscordService {
 
 **System:**
 \`!debug\` or \`!status\` - Check system status
-\`!ticker [status|restart|stop]\` - Manage ticker
+\`!ticker [status|restart|stop|debug|test|resub]\` - Manage ticker
 \`!time\` - Check IST time and market hours
+\`!test\` - Run diagnostic tests
 \`!help\` - Show this message
+
+**Ticker Commands:**
+\`!ticker status\` - Show ticker status
+\`!ticker restart\` - Restart WebSocket
+\`!ticker debug\` - Detailed debug info with embed
+\`!ticker test\` - Test with RELIANCE stock
+\`!ticker resub\` - Resubscribe all stocks
 
 **Examples:**
 \`!search reliance\`
 \`!subscribe RELIANCE\`
 \`!RELIANCE full\`
-\`!ticker restart\`
+\`!ticker debug\`
+\`!ticker test\`
 \`!time\`
-\`!debug\``;
+\`!test\``;
 
     await message.reply(help);
   }

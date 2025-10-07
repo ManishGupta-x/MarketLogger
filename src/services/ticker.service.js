@@ -1,4 +1,5 @@
-const KiteTicker = require('kiteconnect').KiteTicker;
+const WebSocket = require('ws');
+const zlib = require('zlib');
 const zerodhaService = require('./zerodha.service');
 const discordService = require('./discord.service');
 const logger = require('../utils/logger');
@@ -7,7 +8,7 @@ const path = require('path');
 
 class TickerService {
   constructor() {
-    this.ticker = null;
+    this.ws = null;
     this.subscribedTokens = [];
     this.stockData = new Map();
     this.tickerMessage = null;
@@ -15,9 +16,14 @@ class TickerService {
     this.isConnected = false;
     this.tickerChannelId = process.env.DISCORD_TICKER_CHANNEL_ID;
     this.instrumentsCache = new Map();
+    this.tokenToSymbolMap = new Map();
     this.lastTickTime = null;
     this.tickCount = 0;
     this.channelWarningShown = false;
+    this.heartbeatCount = 0;
+    this.reconnectAttempts = 0;
+    this.maxReconnectAttempts = 10;
+    this.reconnectDelay = 5000;
   }
 
   async initialize() {
@@ -33,22 +39,8 @@ class TickerService {
 
     try {
       await this.loadInstruments();
-
-      logger.info('🔌 Creating WebSocket connection...');
-      this.ticker = new KiteTicker({
-        api_key: process.env.ZERODHA_API_KEY,
-        access_token: process.env.ZERODHA_ACCESS_TOKEN
-      });
-
-      this.setupTickerHandlers();
-      
-      logger.info('🔗 Connecting to Zerodha WebSocket...');
-      this.ticker.connect();
-      
-      await new Promise(resolve => setTimeout(resolve, 3000));
-      
+      await this.connectWebSocket();
       await this.subscribeToStocks();
-
       this.startDiscordUpdates();
 
       logger.info('✅ Ticker service initialized');
@@ -63,6 +55,7 @@ class TickerService {
     try {
       logger.info('📥 Loading NSE instruments...');
       const instruments = await zerodhaService.kite.getInstruments('NSE');
+      console.log(`📋 Fetched ${instruments.length} instruments from NSE`);
       
       instruments.forEach(inst => {
         const symbol = `NSE:${inst.tradingsymbol}`;
@@ -72,82 +65,237 @@ class TickerService {
           name: inst.name,
           exchange: inst.exchange
         });
+        
+        this.tokenToSymbolMap.set(inst.instrument_token, symbol);
       });
 
       logger.info(`✅ Loaded ${this.instrumentsCache.size} instruments`);
+      console.log(`✅ Instrument cache ready with ${this.instrumentsCache.size} entries\n`);
     } catch (error) {
       logger.error('❌ Error loading instruments:', error);
       throw error;
     }
   }
 
-  setupTickerHandlers() {
-    this.ticker.on('connect', () => {
-      logger.info('🔌 WebSocket connected successfully!');
-      this.isConnected = true;
-      console.log('\n✅ WebSocket is CONNECTED!\n');
-      
-      if (this.subscribedTokens.length > 0) {
-        logger.info('🔄 Re-subscribing to tokens after connect...');
-        this.ticker.subscribe(this.subscribedTokens);
-        this.ticker.setMode(this.ticker.modeFull, this.subscribedTokens);
+  async connectWebSocket() {
+    return new Promise((resolve, reject) => {
+      const API_KEY = process.env.ZERODHA_API_KEY;
+      const ACCESS_TOKEN = process.env.ZERODHA_ACCESS_TOKEN;
+      const WS_URL = `wss://ws.kite.trade?api_key=${API_KEY}&access_token=${ACCESS_TOKEN}`;
+
+      logger.info('🔌 Creating WebSocket connection...');
+      console.log('🔗 Connecting to Zerodha WebSocket...\n');
+
+      this.ws = new WebSocket(WS_URL);
+
+      const timeout = setTimeout(() => {
+        reject(new Error('WebSocket connection timeout'));
+      }, 10000);
+
+      this.ws.on('open', () => {
+        clearTimeout(timeout);
+        logger.info('✅ WebSocket connected successfully!');
+        console.log('✅ WebSocket is CONNECTED!\n');
+        this.isConnected = true;
+        this.reconnectAttempts = 0;
+        resolve();
+      });
+
+      this.ws.on('message', (message) => {
+        this.handleMessage(message);
+      });
+
+      this.ws.on('close', () => {
+        logger.warn('⚠️ WebSocket disconnected');
+        console.log('\n⚠️ WebSocket DISCONNECTED\n');
+        this.isConnected = false;
+        this.attemptReconnect();
+      });
+
+      this.ws.on('error', (err) => {
+        clearTimeout(timeout);
+        logger.error('❌ WebSocket error:', err.message);
+        console.error('\n❌ WebSocket Error:', err.message, '\n');
+        
+        if (!this.isConnected) {
+          reject(err);
+        }
+      });
+    });
+  }
+
+  handleMessage(message) {
+    if (Buffer.isBuffer(message)) {
+      // Heartbeat
+      if (message.length === 1) {
+        this.heartbeatCount++;
+        if (this.heartbeatCount % 50 === 0) {
+          logger.info(`💓 Heartbeat ${this.heartbeatCount} (connection alive)`);
+        }
+        return;
       }
-    });
 
-    this.ticker.on('ticks', (ticks) => {
-      this.tickCount += ticks.length;
-      this.lastTickTime = new Date();
-      
-      logger.info(`📊 ✅ Received ${ticks.length} ticks! Total: ${this.tickCount}`);
-      
-      if (this.tickCount <= 5) {
-        console.log('\n🎉 TICKS ARE FLOWING!\n');
-        console.log('Sample tick:', JSON.stringify({
-          token: ticks[0].instrument_token,
-          ltp: ticks[0].last_price,
-          volume: ticks[0].volume
-        }, null, 2));
+      try {
+        let data = message;
+        
+        // Check if compressed (zlib magic bytes)
+        if (message.length >= 2 && message[0] === 0x78 && 
+            (message[1] === 0x9c || message[1] === 0x01 || message[1] === 0xda)) {
+          data = zlib.inflateSync(message);
+        }
+
+        const ticks = this.parseBinaryTicks(data);
+        
+        if (ticks.length > 0) {
+          this.tickCount += ticks.length;
+          this.lastTickTime = new Date();
+          
+          logger.info(`📊 ✅ TICKS RECEIVED! Count: ${ticks.length}, Total: ${this.tickCount}`);
+          
+          // Log first few ticks
+          if (this.tickCount <= 10) {
+            console.log('\n🎉 TICK DATA FLOWING!\n');
+            ticks.forEach((tick, idx) => {
+              const symbol = this.tokenToSymbolMap.get(tick.instrument_token);
+              console.log(`Tick ${idx + 1}:`, {
+                symbol: symbol || 'UNKNOWN',
+                token: tick.instrument_token,
+                ltp: tick.last_price,
+                volume: tick.volume,
+                change: tick.change
+              });
+            });
+            console.log('');
+          }
+          
+          this.processTicks(ticks);
+        }
+      } catch (err) {
+        logger.error('⚠️ Binary message error:', err.message);
       }
+    } else {
+      // Text message
+      try {
+        const text = message.toString();
+        const parsed = JSON.parse(text);
+        logger.info('📜 Text Message:', parsed);
+        console.log('📜 Server Message:', parsed);
+      } catch {
+        logger.info('📜 Raw Text:', message.toString());
+      }
+    }
+  }
+
+  parseBinaryTicks(buffer) {
+    const packets = [];
+    let offset = 0;
+
+    try {
+      if (buffer.length < 2) return packets;
       
-      this.processTicks(ticks);
-    });
+      const numPackets = buffer.readUInt16BE(offset);
+      offset += 2;
 
-    this.ticker.on('disconnect', (error) => {
-      logger.warn('⚠️ WebSocket disconnected:', error);
-      this.isConnected = false;
-      console.log('\n⚠️ WebSocket DISCONNECTED\n');
-    });
+      for (let i = 0; i < numPackets; i++) {
+        if (offset + 2 > buffer.length) {
+          logger.warn(`⚠️ Insufficient data for packet ${i} length`);
+          break;
+        }
 
-    this.ticker.on('error', (error) => {
-      logger.error('❌ WebSocket error:', error);
-      console.error('\n❌ WebSocket Error Details:\n', error, '\n');
-    });
+        const packetLength = buffer.readUInt16BE(offset);
+        offset += 2;
 
-    this.ticker.on('close', (code, reason) => {
-      logger.info(`🔌 WebSocket closed - Code: ${code}, Reason: ${reason}`);
-      this.isConnected = false;
-    });
+        if (offset + packetLength > buffer.length) {
+          logger.warn(`⚠️ Insufficient data for packet ${i}`);
+          break;
+        }
 
-    this.ticker.on('reconnect', (reconnect_count, reconnect_interval) => {
-      logger.info(`🔄 Reconnecting... Attempt: ${reconnect_count}, Interval: ${reconnect_interval}ms`);
-    });
+        const packet = buffer.slice(offset, offset + packetLength);
+        offset += packetLength;
 
-    this.ticker.on('noreconnect', () => {
-      logger.error('❌ Max reconnection attempts reached');
-    });
+        if (packet.length >= 8) {
+          const instrument_token = packet.readUInt32BE(0);
+          
+          const tick = {
+            instrument_token,
+            mode: packet.length === 8 ? 'ltp' : 
+                  packet.length === 28 ? 'index_quote' :
+                  packet.length === 44 ? 'quote' : 'full'
+          };
 
-    this.ticker.on('order_update', (order) => {
-      logger.info('📋 Order update received:', order.order_id);
-    });
+          // All modes have last_price
+          if (packet.length >= 8) {
+            tick.last_price = packet.readUInt32BE(4) / 100.0;
+          }
 
-    this.ticker.on('message', (binary_msg) => {
-      logger.info('📩 Raw message received, length:', binary_msg.length);
-    });
+          // Quote and Full modes
+          if (packet.length >= 44) {
+            tick.last_traded_quantity = packet.readUInt32BE(8);
+            tick.average_traded_price = packet.readUInt32BE(12) / 100.0;
+            tick.volume = packet.readUInt32BE(16);
+            tick.total_buy_quantity = packet.readUInt32BE(20);
+            tick.total_sell_quantity = packet.readUInt32BE(24);
+            tick.ohlc = {
+              open: packet.readUInt32BE(28) / 100.0,
+              high: packet.readUInt32BE(32) / 100.0,
+              low: packet.readUInt32BE(36) / 100.0,
+              close: packet.readUInt32BE(40) / 100.0
+            };
+            
+            // Calculate change
+            tick.change = tick.last_price - tick.ohlc.close;
+          }
+
+          // Full mode additional data
+          if (packet.length >= 184) {
+            tick.last_trade_time = packet.readUInt32BE(44);
+            tick.oi = packet.readUInt32BE(48);
+            tick.oi_day_high = packet.readUInt32BE(52);
+            tick.oi_day_low = packet.readUInt32BE(56);
+            tick.timestamp = packet.readUInt32BE(60);
+            
+            // Market depth
+            tick.depth = {
+              buy: [],
+              sell: []
+            };
+
+            let depthOffset = 64;
+            // 5 buy orders
+            for (let j = 0; j < 5; j++) {
+              tick.depth.buy.push({
+                quantity: packet.readUInt32BE(depthOffset),
+                price: packet.readUInt32BE(depthOffset + 4) / 100.0,
+                orders: packet.readUInt16BE(depthOffset + 8)
+              });
+              depthOffset += 12;
+            }
+            
+            // 5 sell orders
+            for (let j = 0; j < 5; j++) {
+              tick.depth.sell.push({
+                quantity: packet.readUInt32BE(depthOffset),
+                price: packet.readUInt32BE(depthOffset + 4) / 100.0,
+                orders: packet.readUInt16BE(depthOffset + 8)
+              });
+              depthOffset += 12;
+            }
+          }
+
+          packets.push(tick);
+        }
+      }
+
+      return packets;
+    } catch (err) {
+      logger.error("❌ Parse error:", err.message);
+      return packets;
+    }
   }
 
   processTicks(ticks) {
     ticks.forEach(tick => {
-      const symbol = this.getSymbolFromToken(tick.instrument_token);
+      const symbol = this.tokenToSymbolMap.get(tick.instrument_token);
       
       if (symbol) {
         this.stockData.set(symbol, {
@@ -155,29 +303,20 @@ class TickerService {
           change: tick.change,
           volume: tick.volume,
           oi: tick.oi,
-          buy_quantity: tick.buy_quantity,
-          sell_quantity: tick.sell_quantity,
+          buy_quantity: tick.total_buy_quantity,
+          sell_quantity: tick.total_sell_quantity,
           last_trade_time: tick.last_trade_time,
           ohlc: tick.ohlc,
           timestamp: new Date()
         });
         
         if (this.tickCount % 20 === 0) {
-          logger.info(`📈 ${symbol}: ₹${tick.last_price}`);
+          logger.info(`📈 ${symbol}: ₹${tick.last_price?.toFixed(2) || 'N/A'}`);
         }
       } else {
         logger.warn(`⚠️ Received tick for unknown token: ${tick.instrument_token}`);
       }
     });
-  }
-
-  getSymbolFromToken(token) {
-    for (const [symbol, data] of this.instrumentsCache.entries()) {
-      if (data.token === token) {
-        return symbol;
-      }
-    }
-    return null;
   }
 
   async subscribeToStocks() {
@@ -198,6 +337,7 @@ class TickerService {
       const subscriptions = JSON.parse(data);
       
       logger.info(`📋 Found ${subscriptions.length} subscriptions: ${subscriptions.join(', ')}`);
+      console.log(`\n📋 Processing ${subscriptions.length} subscriptions...\n`);
       
       if (subscriptions.length === 0) {
         logger.info('ℹ️ No stocks to subscribe');
@@ -219,9 +359,11 @@ class TickerService {
             name: instrument.name
           });
           logger.info(`✅ ${symbol} → Token: ${instrument.token} (${instrument.name})`);
+          console.log(`  ✅ ${symbol} → Token: ${instrument.token} - ${instrument.name}`);
         } else {
           notFound.push(symbol);
           logger.warn(`⚠️ No instrument found for ${symbol}`);
+          console.log(`  ❌ ${symbol} → NOT FOUND`);
         }
       });
 
@@ -233,41 +375,95 @@ class TickerService {
       if (tokens.length > 0) {
         this.subscribedTokens = tokens;
         
-        logger.info(`🎯 Subscribing to ${tokens.length} tokens via WebSocket...`);
-        console.log('\nSubscribing to:');
-        foundStocks.forEach(s => {
-          console.log(`  - ${s.symbol} (Token: ${s.token}) - ${s.name}`);
+        console.log(`\n🎯 Subscribing to ${tokens.length} instruments...\n`);
+        logger.info(`🎯 Tokens to subscribe: ${tokens.join(', ')}`);
+        
+        if (!this.isConnected) {
+          logger.error('❌ WebSocket not connected! Cannot subscribe.');
+          throw new Error('WebSocket not connected');
+        }
+        
+        // Subscribe
+        const subscribeMsg = { a: "subscribe", v: tokens };
+        this.ws.send(JSON.stringify(subscribeMsg));
+        logger.info('📡 Subscribed:', subscribeMsg);
+        console.log('📡 Subscribe command sent:', tokens.join(', '));
+        
+        // Wait before setting mode
+        await new Promise(resolve => setTimeout(resolve, 1000));
+        
+        // Set mode to full
+        const modeMsg = { a: "mode", v: ["full", tokens] };
+        this.ws.send(JSON.stringify(modeMsg));
+        logger.info('⚙️ Set mode to full:', modeMsg);
+        console.log('⚙️ Mode set to FULL\n');
+        
+        console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
+        console.log('🔍 SUBSCRIPTION DIAGNOSTICS:');
+        console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
+        console.log(`WebSocket connected: ${this.isConnected}`);
+        console.log(`Subscribed tokens: ${this.subscribedTokens.length}`);
+        console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n');
+        
+        console.log('📊 SUBSCRIBED INSTRUMENTS:');
+        foundStocks.forEach((s, idx) => {
+          console.log(`${idx + 1}. ${s.symbol} (${s.token}) - ${s.name}`);
         });
         console.log('');
         
-        this.ticker.subscribe(tokens);
-        this.ticker.setMode(this.ticker.modeFull, tokens);
+        this.checkMarketHours();
         
-        logger.info(`📊 Subscribed to ${tokens.length} stocks on WebSocket`);
-        console.log(`✅ WebSocket subscription complete!\n`);
-        
-        const now = new Date();
-        const istTime = now.toLocaleString('en-IN', { timeZone: 'Asia/Kolkata', hour12: false });
-        
-        const istHour = parseInt(new Date().toLocaleString('en-IN', { 
-          timeZone: 'Asia/Kolkata', 
-          hour: 'numeric', 
-          hour12: false 
-        }));
-        const inMarketHours = istHour >= 9 && istHour < 16;
-        
-        logger.info(`⏰ Current time: ${istTime}`);
-        if (inMarketHours) {
-          logger.info('✅ Market hours - expecting live ticks');
-          console.log('🕐 Market is OPEN - Waiting for ticks from exchange...\n');
-        } else {
-          logger.warn('⚠️ Outside market hours (9:15 AM - 3:30 PM IST) - no ticks expected');
-          console.log('\n⏰ Market is closed. Ticks will flow when market opens.\n');
-        }
+      } else {
+        logger.warn('⚠️ No valid tokens to subscribe');
+        console.log('\n⚠️ No valid instruments found to subscribe\n');
       }
     } catch (error) {
       logger.error('❌ Error subscribing to stocks:', error);
-      console.error('Subscription error:', error.message);
+      console.error('\n❌ Subscription error:', error.message, '\n');
+      throw error;
+    }
+  }
+
+  checkMarketHours() {
+    const now = new Date();
+    const istTime = now.toLocaleString('en-IN', { timeZone: 'Asia/Kolkata', hour12: false });
+    
+    const istHour = parseInt(new Date().toLocaleString('en-IN', { 
+      timeZone: 'Asia/Kolkata', 
+      hour: 'numeric', 
+      hour12: false 
+    }));
+    
+    const istMinute = parseInt(new Date().toLocaleString('en-IN', { 
+      timeZone: 'Asia/Kolkata', 
+      minute: 'numeric'
+    }));
+    
+    const dayOfWeek = new Date().toLocaleString('en-IN', { 
+      timeZone: 'Asia/Kolkata', 
+      weekday: 'long' 
+    });
+    
+    const isWeekend = dayOfWeek === 'Saturday' || dayOfWeek === 'Sunday';
+    const inMarketHours = !isWeekend && 
+      ((istHour === 9 && istMinute >= 15) || 
+       (istHour > 9 && istHour < 15) || 
+       (istHour === 15 && istMinute <= 30));
+    
+    logger.info(`⏰ Current time: ${istTime} (${dayOfWeek})`);
+    console.log(`⏰ Current IST time: ${istTime} (${dayOfWeek})`);
+    
+    if (isWeekend) {
+      console.log('\n📅 Market is CLOSED (Weekend)');
+      console.log('💡 Market operates Monday-Friday only\n');
+    } else if (inMarketHours) {
+      logger.info('✅ Market is OPEN - expecting live ticks');
+      console.log('✅ Market is OPEN (9:15 AM - 3:30 PM IST)');
+      console.log('📊 Ticks should start arriving within 10-30 seconds\n');
+    } else {
+      logger.warn('⚠️ Outside market hours');
+      console.log('\n⏰ Market is CLOSED');
+      console.log('📅 Trading hours: Monday-Friday, 9:15 AM - 3:30 PM IST\n');
     }
   }
 
@@ -288,11 +484,17 @@ class TickerService {
       this.subscribedTokens.push(instrument.token);
       
       if (this.isConnected) {
-        this.ticker.subscribe([instrument.token]);
-        this.ticker.setMode(this.ticker.modeFull, [instrument.token]);
+        const subscribeMsg = { a: "subscribe", v: [instrument.token] };
+        this.ws.send(JSON.stringify(subscribeMsg));
+        
+        await new Promise(resolve => setTimeout(resolve, 500));
+        
+        const modeMsg = { a: "mode", v: ["full", [instrument.token]] };
+        this.ws.send(JSON.stringify(modeMsg));
+        
         logger.info(`➕ Added ${symbol} to ticker stream (Token: ${instrument.token})`);
       } else {
-        logger.warn(`⚠️ WebSocket not connected, ${symbol} will be subscribed on next connect`);
+        logger.warn(`⚠️ WebSocket not connected, ${symbol} will be subscribed on reconnect`);
       }
       
       return true;
@@ -318,7 +520,8 @@ class TickerService {
       this.subscribedTokens.splice(index, 1);
       
       if (this.isConnected) {
-        this.ticker.unsubscribe([instrument.token]);
+        const unsubscribeMsg = { a: "unsubscribe", v: [instrument.token] };
+        this.ws.send(JSON.stringify(unsubscribeMsg));
       }
       
       this.stockData.delete(symbol);
@@ -329,6 +532,28 @@ class TickerService {
       logger.error(`❌ Error removing ${symbol} from ticker:`, error);
       return false;
     }
+  }
+
+  attemptReconnect() {
+    if (this.reconnectAttempts >= this.maxReconnectAttempts) {
+      logger.error('❌ Max reconnection attempts reached');
+      console.error('\n❌ Could not reconnect after multiple attempts\n');
+      return;
+    }
+
+    this.reconnectAttempts++;
+    logger.info(`🔄 Reconnecting... Attempt ${this.reconnectAttempts}/${this.maxReconnectAttempts}`);
+    console.log(`\n🔄 Reconnecting in ${this.reconnectDelay / 1000}s... (Attempt ${this.reconnectAttempts})\n`);
+
+    setTimeout(async () => {
+      try {
+        await this.connectWebSocket();
+        await this.subscribeToStocks();
+        logger.info('✅ Reconnected successfully');
+      } catch (error) {
+        logger.error('❌ Reconnection failed:', error.message);
+      }
+    }, this.reconnectDelay);
   }
 
   startDiscordUpdates() {
@@ -390,6 +615,7 @@ class TickerService {
       message += `\n📡 WebSocket: Connected ✅\n`;
       message += `📊 Subscribed: ${this.subscribedTokens.length} stocks\n`;
       message += `🎫 Ticks received: ${this.tickCount}\n`;
+      message += `💓 Heartbeats: ${this.heartbeatCount}\n`;
       
       if (this.lastTickTime) {
         const secAgo = Math.floor((Date.now() - this.lastTickTime) / 1000);
@@ -402,6 +628,11 @@ class TickerService {
         hour12: false 
       }));
       
+      const istMinute = parseInt(new Date().toLocaleString('en-IN', { 
+        timeZone: 'Asia/Kolkata', 
+        minute: 'numeric'
+      }));
+      
       const dayOfWeek = new Date().toLocaleString('en-IN', { 
         timeZone: 'Asia/Kolkata', 
         weekday: 'long' 
@@ -410,13 +641,12 @@ class TickerService {
       
       if (isWeekend) {
         message += `\n📅 ${dayOfWeek} - Market closed\n`;
-      } else if (istHour < 9) {
+      } else if (istHour < 9 || (istHour === 9 && istMinute < 15)) {
         message += `\n⏰ Pre-market (Opens 9:15 AM IST)\n`;
-      } else if (istHour >= 16) {
+      } else if (istHour > 15 || (istHour === 15 && istMinute > 30)) {
         message += `\n⏰ After hours (Closed at 3:30 PM IST)\n`;
       } else {
         message += `\n✅ Market hours - Waiting for ticks...\n`;
-        message += `💡 If no ticks after 1 min, try !ticker restart\n`;
       }
       
       return message;
@@ -428,14 +658,14 @@ class TickerService {
 
     sortedData.forEach(([symbol, data]) => {
       const shortSymbol = symbol.replace('NSE:', '');
-      const change = data.last_price - data.ohlc.close;
-      const changePercent = ((change / data.ohlc.close) * 100).toFixed(2);
+      const change = data.change || 0;
+      const changePercent = data.ohlc ? ((change / data.ohlc.close) * 100).toFixed(2) : '0.00';
       const emoji = change >= 0 ? '🟢' : '🔴';
       const arrow = change >= 0 ? '▲' : '▼';
 
       message += `${emoji} **${shortSymbol}** ₹${data.last_price.toFixed(2)}\n`;
       message += `   ${arrow} ${change >= 0 ? '+' : ''}₹${change.toFixed(2)} (${changePercent}%)\n`;
-      message += `   Vol: ${(data.volume / 100000).toFixed(2)}L\n\n`;
+      message += `   Vol: ${((data.volume || 0) / 100000).toFixed(2)}L\n\n`;
     });
 
     message += `━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n`;
@@ -444,18 +674,41 @@ class TickerService {
     return message;
   }
 
+  async restart() {
+    logger.info('🔄 Restarting ticker service...');
+    console.log('\n🔄 TICKER RESTART INITIATED\n');
+    
+    await this.stop();
+    
+    this.tickCount = 0;
+    this.heartbeatCount = 0;
+    this.lastTickTime = null;
+    this.reconnectAttempts = 0;
+    
+    await new Promise(resolve => setTimeout(resolve, 2000));
+    
+    await this.initialize();
+    
+    logger.info('✅ Ticker service restarted');
+    console.log('\n✅ TICKER RESTART COMPLETE\n');
+  }
+
   async stop() {
     logger.info('🛑 Stopping ticker service...');
     
     if (this.updateInterval) {
       clearInterval(this.updateInterval);
+      this.updateInterval = null;
     }
 
-    if (this.ticker && this.isConnected) {
-      this.ticker.disconnect();
+    if (this.ws && this.isConnected) {
+      this.ws.close();
     }
 
     this.isConnected = false;
+    this.tickerMessage = null;
+    this.stockData.clear();
+    
     logger.info('✅ Ticker service stopped');
   }
 
@@ -465,10 +718,48 @@ class TickerService {
       subscribedTokens: this.subscribedTokens.length,
       stocksWithData: this.stockData.size,
       totalTicks: this.tickCount,
+      heartbeats: this.heartbeatCount,
       lastTick: this.lastTickTime,
       channelId: this.tickerChannelId,
-      messageCreated: !!this.tickerMessage
+      messageCreated: !!this.tickerMessage,
+      reconnectAttempts: this.reconnectAttempts
     };
+  }
+
+  async debugSubscription() {
+    console.log('\n🔍 DEBUG SUBSCRIPTION STATUS');
+    console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
+    console.log(`WebSocket State: ${this.isConnected ? 'CONNECTED ✅' : 'DISCONNECTED ❌'}`);
+    console.log(`Subscribed Tokens: ${this.subscribedTokens.length}`);
+    console.log(`Ticks Received: ${this.tickCount}`);
+    console.log(`Heartbeats: ${this.heartbeatCount}`);
+    console.log(`Stocks with Data: ${this.stockData.size}`);
+    
+    if (this.subscribedTokens.length > 0) {
+      console.log('\nSubscribed Tokens:');
+      this.subscribedTokens.forEach(token => {
+        const symbol = this.tokenToSymbolMap.get(token);
+        console.log(`  - ${token}: ${symbol || 'UNKNOWN'}`);
+      });
+    }
+    
+    if (this.isConnected && this.subscribedTokens.length > 0) {
+      console.log('\n🔄 Attempting resubscription...');
+      try {
+        const subscribeMsg = { a: "subscribe", v: this.subscribedTokens };
+        this.ws.send(JSON.stringify(subscribeMsg));
+        
+        await new Promise(resolve => setTimeout(resolve, 1000));
+        
+        const modeMsg = { a: "mode", v: ["full", this.subscribedTokens] };
+        this.ws.send(JSON.stringify(modeMsg));
+        
+        console.log('✅ Resubscription sent\n');
+      } catch (error) {
+        console.error('❌ Resubscription failed:', error.message, '\n');
+      }
+    }
+    console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n');
   }
 }
 

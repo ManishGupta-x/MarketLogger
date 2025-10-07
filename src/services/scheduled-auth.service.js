@@ -7,6 +7,18 @@ const logger = require('../utils/logger');
 class ScheduledAuth {
   constructor() {
     this.autoLogin = new AutoLogin();
+    this.tickerService = null;
+  }
+
+  getTickerService() {
+    if (!this.tickerService) {
+      try {
+        this.tickerService = require('./ticker.service');
+      } catch (error) {
+        logger.warn('Ticker service not available');
+      }
+    }
+    return this.tickerService;
   }
 
   start() {
@@ -57,8 +69,39 @@ class ScheduledAuth {
           'success'
         );
 
+        // Reinitialize Zerodha service
         await zerodhaService.initialize();
         logger.info('🔄 Zerodha service reconnected');
+
+        // Restart ticker service with new token
+        const ticker = this.getTickerService();
+        if (ticker) {
+          logger.info('🔄 Restarting ticker service with new token...');
+          
+          try {
+            await ticker.restart();
+            
+            await discordService.log(
+              `📊 **Ticker Service Restarted**\n` +
+              `WebSocket reconnected with new token\n` +
+              `Subscriptions restored`,
+              'success'
+            );
+            
+            logger.info('✅ Ticker service restarted successfully');
+          } catch (tickerError) {
+            logger.error('❌ Ticker restart failed:', tickerError);
+            
+            await discordService.log(
+              `⚠️ **Ticker Restart Failed**\n` +
+              `Error: ${tickerError.message}\n` +
+              `Use !ticker restart to manually restart`,
+              'warn'
+            );
+          }
+        } else {
+          logger.warn('⚠️ Ticker service not available for restart');
+        }
 
       } else {
         logger.error('❌ Auto-login failed:', result.error);
