@@ -23,7 +23,7 @@ class TokenTrackerService {
     this.tickCount = 0;
     this.heartbeatCount = 0;
     this.textMessageCount = 0;
-    this.STOCKS_PER_MESSAGE = 50;
+    this.STOCKS_PER_MESSAGE = 25; // Changed from 50 to 20 to stay under 2000 chars
     
     // Alert thresholds
     this.CRASH_THRESHOLD = -3;

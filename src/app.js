@@ -2,6 +2,7 @@ require('dotenv').config();
 const discordService = require('./services/discord.service');
 const zerodhaService = require('./services/zerodha.service');
 const tokenTrackerService = require('./services/token-tracker.service');
+const scheduledAuth = require('./services/scheduled-auth.service');
 const logger = require('./utils/logger');
 
 async function start() {
@@ -12,32 +13,32 @@ async function start() {
     await discordService.initialize();
     logger.info('✅ Discord initialized');
     
-    // Initialize Zerodha
-    const connected = await zerodhaService.initialize();
+    // Start scheduled authentication (will check and auto-login if needed)
+    await scheduledAuth.start();
+    logger.info('✅ Auto-login scheduler started');
     
-    if (!connected) {
-      logger.error('❌ Zerodha connection failed');
-      await discordService.log(
-        '❌ **Zerodha Connection Failed**\nCannot start tracker without valid connection',
-        'error'
-      );
-      process.exit(1);
+    // Check if Zerodha is now connected (after potential auto-login)
+    const connected = zerodhaService.isConnected;
+    
+    // Initialize Token Tracker Service if connected
+    if (connected) {
+      await tokenTrackerService.initialize();
+      logger.info('✅ Token Tracker initialized');
+    } else {
+      logger.warn('⚠️ Token Tracker not started - Zerodha connection failed');
+      logger.warn('⚠️ Please check auto-login logs above');
     }
     
-    logger.info('✅ Zerodha connected');
+    const trackerStatus = connected 
+      ? '✅ Token Tracker: Active' 
+      : '⏸️ Token Tracker: Waiting for connection';
     
-    // Initialize Token Tracker Service
-    await tokenTrackerService.initialize();
-    logger.info('✅ Token Tracker initialized');
-    
-    const status = tokenTrackerService.getStatus();
     await discordService.log(
-      '🚀 **Token Tracker Started Successfully**\n' +
-      `📊 Tracking: ${status.subscribedTokens} stocks\n` +
-      `📡 WebSocket: ${status.connected ? 'Connected' : 'Disconnected'}\n` +
-      `🔔 Alerts: Enabled\n` +
-      `⏰ Update Interval: 3 seconds`,
-      'success'
+      '🚀 **Token Tracker Bot Started**\n' +
+      `📊 Tokens to track: ${connected ? tokenTrackerService.tokens?.length || 0 : 'Unknown'}\n` +
+      `Auto-login: Enabled (5:45 AM IST daily)\n` +
+      trackerStatus,
+      connected ? 'success' : 'warning'
     );
     
   } catch (error) {
