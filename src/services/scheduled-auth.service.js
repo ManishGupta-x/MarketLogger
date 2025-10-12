@@ -22,8 +22,8 @@ class ScheduledAuth {
   }
 
   start() {
-    // Schedule daily login at 5:45 AM IST (before 6 AM expiry)
-    cron.schedule('45 0 * * *', async () => {
+    
+    cron.schedule('0 8 * * *', async () => {
       await this.performAutoLogin();
     }, {
       timezone: 'Asia/Kolkata'
@@ -32,7 +32,7 @@ class ScheduledAuth {
     // Also check on startup
     this.checkAndRefreshOnStartup();
 
-    logger.info('📅 Scheduled auto-login enabled (5:45 AM IST daily)');
+    logger.info('📅 Scheduled auto-login enabled (8:00 AM IST daily)');
   }
 
   async checkAndRefreshOnStartup() {
@@ -65,7 +65,7 @@ class ScheduledAuth {
         await discordService.log(
           `✅ **Token Refreshed Successfully**\n` +
           `Duration: ${result.duration}s\n` +
-          `Valid until: Tomorrow 6:00 AM IST`,
+          `Valid until: Tomorrow 8:00 AM IST`,
           'success'
         );
 
