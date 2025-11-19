@@ -21,11 +21,6 @@ class PaperTradingService {
     try {
       logger.info(`💼 Initializing Paper Trading Service for channel ${this.channelId}...`);
 
-      // Initialize database (only once, globally)
-      if (this.channelId === 'default') {
-        db.initialize();
-      }
-
       // Load configuration
       this.loadConfig(initialCapital, amountPerTrade);
 
