@@ -31,7 +31,6 @@ class DiscordService {
   }
 
   setupCommands() {
-    const stockCommands = require('../commands/stock.commands');
     const paperTradingCommands = require('../commands/paper-trading.commands');
 
     this.client.on('messageCreate', async (message) => {
@@ -43,7 +42,7 @@ class DiscordService {
       const command = args.shift().toLowerCase();
 
       try {
-        await this.handleCommand(command, args, message, stockCommands);
+        await this.handleCommand(command, args, message, paperTradingCommands);
       } catch (error) {
         logger.error('Command error:', error);
         await message.reply(`❌ Error: ${error.message}`);
@@ -53,28 +52,9 @@ class DiscordService {
     logger.info('Discord commands active');
   }
 
-  async handleCommand(command, args, message, stockCommands) {
-    const paperTradingCommands = require('../commands/paper-trading.commands');
-
+  async handleCommand(command, args, message, paperTradingCommands) {
     switch (command) {
-      case 'search':
-        await this.searchCommand(args, message, stockCommands);
-        break;
-
-      case 'sub':
-      case 'subscribe':
-        await this.subscribeCommand(args, message, stockCommands);
-        break;
-
-      case 'unsub':
-      case 'unsubscribe':
-        await this.unsubscribeCommand(args, message, stockCommands);
-        break;
-
-      case 'list':
-        await this.listCommand(message, stockCommands);
-        break;
-
+      // System Commands
       case 'debug':
         await this.debugCommand(message);
         break;
@@ -145,7 +125,7 @@ class DiscordService {
         break;
 
       default:
-        await this.stockInfoCommand(command, args, message, stockCommands);
+        await message.reply(`❌ Unknown command: \`!${command}\`\nType \`!help\` for available commands.`);
     }
   }
 
@@ -230,197 +210,16 @@ class DiscordService {
     }
   }
 
-  async stockInfoCommand(stockName, options, message, stockCommands) {
-    const symbol = stockName.toUpperCase();
-
-    if (options.length === 0) {
-      await this.showBasicInfo(symbol, message, stockCommands);
-    } else {
-      const action = options[0].toLowerCase();
-
-      switch (action) {
-        case 'sub':
-        case 'subscribe':
-          await this.quickSubscribe(symbol, message, stockCommands);
-          break;
-
-        case 'unsub':
-        case 'unsubscribe':
-          await this.quickUnsubscribe(symbol, message, stockCommands);
-          break;
-
-        case 'full':
-        case 'detail':
-        case 'details':
-          await this.showFullInfo(symbol, message, stockCommands);
-          break;
-
-        case 'ohlc':
-          await this.showOHLC(symbol, message, stockCommands);
-          break;
-
-        default:
-          await message.reply(`❓ Unknown option: ${action}\n\nAvailable options:\n\`!${symbol} subscribe\` - Subscribe\n\`!${symbol} full\` - Full details\n\`!${symbol} ohlc\` - OHLC data`);
-      }
-    }
-  }
-
-  async showBasicInfo(symbol, message, stockCommands) {
-    await message.reply(`⏳ Fetching ${symbol}...`);
-    const data = await stockCommands.getStockInfo(symbol);
-
-    if (!data) {
-      await message.reply(`❌ Could not fetch data for ${symbol}. Try \`!search ${symbol}\``);
-      return;
-    }
-
-    const change = data.last_price - data.ohlc.close;
-    const changePercent = ((change / data.ohlc.close) * 100).toFixed(2);
-    const emoji = change >= 0 ? '📈' : '📉';
-    const color = change >= 0 ? '🟢' : '🔴';
-
-    let reply = `${emoji} **${symbol}**\n\n`;
-    reply += `${color} **₹${data.last_price.toFixed(2)}**\n`;
-    reply += `${change >= 0 ? '+' : ''}₹${change.toFixed(2)} (${changePercent}%)\n\n`;
-    reply += `High: ₹${data.ohlc.high} | Low: ₹${data.ohlc.low}\n`;
-    reply += `Volume: ${(data.volume / 100000).toFixed(2)}L\n\n`;
-    reply += `💡 **Options:**\n\`!${symbol} subscribe\` - Subscribe\n\`!${symbol} full\` - Full details\n\`!${symbol} ohlc\` - OHLC data`;
-
-    await message.reply(reply);
-  }
-
-  async showFullInfo(symbol, message, stockCommands) {
-    await message.reply(`⏳ Fetching full details for ${symbol}...`);
-    const data = await stockCommands.getStockInfo(symbol);
-
-    if (!data) {
-      await message.reply(`❌ Could not fetch data for ${symbol}`);
-      return;
-    }
-
-    const formattedSymbol = symbol.startsWith('NSE:') ? symbol : `NSE:${symbol}`;
-    const formattedInfo = stockCommands.formatStockInfo(formattedSymbol, data);
-    await message.reply(formattedInfo);
-  }
-
-  async showOHLC(symbol, message, stockCommands) {
-    await message.reply(`⏳ Fetching OHLC for ${symbol}...`);
-    const data = await stockCommands.getStockInfo(symbol);
-
-    if (!data) {
-      await message.reply(`❌ Could not fetch data for ${symbol}`);
-      return;
-    }
-
-    let reply = `📊 **${symbol} - OHLC Data**\n\n`;
-    reply += `**Open:** ₹${data.ohlc.open}\n**High:** ₹${data.ohlc.high}\n**Low:** ₹${data.ohlc.low}\n**Close:** ₹${data.ohlc.close}\n**Last Price:** ₹${data.last_price}\n\n`;
-    reply += `**Volume:** ${data.volume.toLocaleString()}\n**Avg Price:** ₹${data.average_price.toFixed(2)}`;
-
-    await message.reply(reply);
-  }
-
-  async quickSubscribe(symbol, message, stockCommands) {
-    await message.reply(`⏳ Subscribing to ${symbol}...`);
-    const result = await stockCommands.subscribeStock(symbol);
-
-    if (!result.success) {
-      await message.reply(`❌ ${result.message}`);
-      return;
-    }
-
-    const stockInfo = result.quote && result.quote[result.symbol];
-
-    if (stockInfo) {
-      const change = stockInfo.last_price - stockInfo.ohlc.close;
-      const changePercent = ((change / stockInfo.ohlc.close) * 100).toFixed(2);
-      const emoji = change >= 0 ? '📈' : '📉';
-
-      let reply = `✅ Subscribed to **${symbol}**\n\n${emoji} Current Price: ₹${stockInfo.last_price.toFixed(2)}\nChange: ${change >= 0 ? '+' : ''}₹${change.toFixed(2)} (${changePercent}%)`;
-      await message.reply(reply);
-    } else {
-      await message.reply(`✅ Subscribed to **${symbol}**`);
-    }
-  }
-
-  async quickUnsubscribe(symbol, message, stockCommands) {
-    const result = await stockCommands.unsubscribeStock(symbol);
-
-    if (!result.success) {
-      await message.reply(`❌ ${result.message}`);
-      return;
-    }
-
-    await message.reply(`✅ Unsubscribed from **${symbol}**`);
-  }
-
-  async searchCommand(args, message, stockCommands) {
-    if (args.length === 0) {
-      await message.reply('❌ Usage: `!search <stock name>`');
-      return;
-    }
-
-    const query = args.join(' ');
-    await message.reply(`🔎 Searching for "${query}"...`);
-
-    const results = await stockCommands.searchStock(query);
-
-    if (results.length === 0) {
-      await message.reply('❌ No stocks found matching your query.');
-      return;
-    }
-
-    let reply = `📊 **Search Results for "${query}":**\n\n`;
-    results.forEach((stock, index) => {
-      reply += `${index + 1}. **${stock.tradingsymbol}** - ${stock.name || 'N/A'}\n   Type: \`!${stock.tradingsymbol}\` for info\n\n`;
-    });
-
-    await message.reply(reply);
-  }
-
-  async subscribeCommand(args, message, stockCommands) {
-    if (args.length === 0) {
-      await message.reply('❌ Usage: `!subscribe <SYMBOL>`');
-      return;
-    }
-
-    const symbol = args[0].toUpperCase();
-    await this.quickSubscribe(symbol, message, stockCommands);
-  }
-
-  async unsubscribeCommand(args, message, stockCommands) {
-    if (args.length === 0) {
-      await message.reply('❌ Usage: `!unsubscribe <SYMBOL>`');
-      return;
-    }
-
-    const symbol = args[0].toUpperCase();
-    await this.quickUnsubscribe(symbol, message, stockCommands);
-  }
-
-  async listCommand(message, stockCommands) {
-    const subscribed = stockCommands.getSubscribedStocks();
-
-    if (subscribed.length === 0) {
-      await message.reply('🔭 No subscribed stocks. Use `!search` to find stocks!');
-      return;
-    }
-
-    let reply = `📋 **Subscribed Stocks (${subscribed.length}):**\n\n`;
-    subscribed.forEach((stock, index) => {
-      const symbol = stock.replace('NSE:', '');
-      reply += `${index + 1}. ${symbol} - Type \`!${symbol}\` for info\n`;
-    });
-
-    await message.reply(reply);
-  }
-
   async debugCommand(message) {
     try {
       const tickerService = require('./ticker.service');
       const zerodhaService = require('./zerodha.service');
-      const marketData = require('./market-data.service');
+      const paperTradingService = require('./paper-trading.service');
+      const gridStrategyService = require('./grid-strategy.service');
 
       const status = tickerService.getStatus();
+      const gridStatus = gridStrategyService.getStatus();
+      const portfolio = paperTradingService.getPortfolio();
       const now = new Date();
       const istTime = now.toLocaleString('en-IN', { timeZone: 'Asia/Kolkata' });
 
@@ -450,28 +249,22 @@ class DiscordService {
       }
       debug += `\n`;
 
-      debug += `**Discord Ticker:**\n`;
-      const tickerChannel = this.client.channels.cache.get(status.channelId);
-      debug += `${tickerChannel ? '✅' : '❌'} Channel Found: ${tickerChannel ? 'Yes' : 'No'}\n`;
-      debug += `${status.messageCreated ? '✅' : '❌'} Message Created: ${status.messageCreated ? 'Yes' : 'No'}\n`;
-      debug += `📺 Channel ID: ${status.channelId || 'Not Set'}\n\n`;
+      debug += `**Paper Trading:**\n`;
+      debug += `${paperTradingService.isEnabled ? '✅' : '❌'} Trading: ${paperTradingService.isEnabled ? 'Enabled' : 'Disabled'}\n`;
+      debug += `${gridStatus.active ? '✅' : '❌'} Grid Strategy: ${gridStatus.active ? 'Active' : 'Inactive'}\n`;
+      debug += `💰 Cash: ₹${portfolio.cash.toLocaleString('en-IN', { minimumFractionDigits: 2 })}\n`;
+      debug += `📦 Holdings: ${portfolio.holdings_count} stocks\n`;
+      debug += `📈 Total P&L: ₹${portfolio.total_pnl.toFixed(2)} (${portfolio.pnl_percent.toFixed(2)}%)\n`;
+      debug += `🎯 Active Grids: ${gridStatus.active_grids}\n\n`;
 
       debug += `**Market Status:**\n`;
       debug += `⏰ Current IST Time: ${istTime}\n`;
       debug += `${isMarketHours ? '✅' : '⏸️'} Market: ${isMarketHours ? 'OPEN (9:15 AM - 3:30 PM)' : 'CLOSED'}\n\n`;
 
-      debug += `**Subscriptions:**\n`;
-      debug += `📋 Total: ${marketData.subscribedStocks.length}\n`;
-      if (marketData.subscribedStocks.length > 0) {
-        debug += `Stocks: ${marketData.subscribedStocks.map(s => s.replace('NSE:', '')).join(', ')}\n`;
-      } else {
-        debug += `⚠️ No stocks subscribed. Use \`!subscribe SYMBOL\`\n`;
-      }
-
-      if (!status.connected && marketData.subscribedStocks.length > 0) {
+      if (!status.connected) {
         debug += `\n💡 Try: \`!ticker restart\``;
-      } else if (marketData.subscribedStocks.length === 0) {
-        debug += `\n💡 Try: \`!subscribe RELIANCE\``;
+      } else if (!paperTradingService.isEnabled) {
+        debug += `\n💡 Try: \`!start-trading\` to begin grid trading`;
       }
 
       await message.reply(debug);
@@ -651,56 +444,45 @@ class DiscordService {
   }
 
   async helpCommand(message) {
-    const help = `📚 **Bot Commands**
-
-**Quick Stock Info:**
-\`!SYMBOL\` - Get basic stock info
-
-**Stock with Options:**
-\`!SYMBOL subscribe\` - Subscribe to stock
-\`!SYMBOL full\` - Full details
-\`!SYMBOL ohlc\` - OHLC data
-
-**Search & Manage:**
-\`!search <name>\` - Search for stocks
-\`!subscribe <SYMBOL>\` - Subscribe
-\`!unsubscribe <SYMBOL>\` - Unsubscribe
-\`!list\` - Show subscriptions
+    const help = `📚 **Grid Trading Bot Commands**
 
 **Paper Trading:**
-\`!status\` - Paper trading bot status
-\`!portfolio\` - View portfolio
+\`!status\` - Trading bot status
+\`!portfolio\` - View portfolio summary
 \`!holdings\` - Current holdings
 \`!orders [today|week|all]\` - Order history
 \`!pnl\` - Profit & loss summary
 \`!topstocks\` - Best/worst performers
 \`!grid <SYMBOL>\` - Grid levels for stock
 \`!grids\` - All active grids
-\`!config\` - View/update settings
-\`!start-trading\` - Start bot
-\`!stop-trading\` - Stop bot
-\`!reset\` - Reset portfolio
+\`!start-trading\` - Start grid bot
+\`!stop-trading\` - Stop grid bot
+
+**Configuration:**
+\`!config\` - View current settings
+\`!config set amount_per_trade <amount>\` - Set trade amount
+\`!config set grid_percentage <percent>\` - Set grid %
+\`!reset\` - Reset portfolio (requires confirmation)
 
 **System:**
-\`!debug\` - Check system debug
-\`!ticker [status|restart|stop|debug|test|resub]\` - Manage ticker
-\`!time\` - Check IST time and market hours
-\`!test\` - Run diagnostic tests
+\`!debug\` - System diagnostics
+\`!ticker [status|restart|debug]\` - Manage ticker
+\`!time\` - IST time and market status
+\`!test\` - Run connection tests
 \`!help\` - Show this message
 
-**Ticker Commands:**
-\`!ticker status\` - Show ticker status
-\`!ticker restart\` - Restart WebSocket
-\`!ticker debug\` - Detailed debug info with embed
-\`!ticker test\` - Test with RELIANCE stock
-\`!ticker resub\` - Resubscribe all stocks
-
 **Examples:**
-\`!search reliance\`
-\`!subscribe RELIANCE\`
-\`!portfolio\`
-\`!start-trading\`
-\`!grid RELIANCE\``;
+\`!start-trading\` - Start the 5% grid bot
+\`!portfolio\` - Check your virtual portfolio
+\`!grid RELIANCE\` - See RELIANCE grid levels
+\`!config set amount_per_trade 15000\` - Trade ₹15k per order
+\`!orders today\` - View today's trades
+
+**Grid Strategy:**
+🟢 Buys when price drops 5% from reference
+🔴 Sells when price rises 5% from last buy
+📊 Monitors 707 stocks automatically
+💰 Virtual trading with ₹5L capital`;
 
     await message.reply(help);
   }
