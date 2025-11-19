@@ -32,6 +32,7 @@ class DiscordService {
 
   setupCommands() {
     const stockCommands = require('../commands/stock.commands');
+    const paperTradingCommands = require('../commands/paper-trading.commands');
 
     this.client.on('messageCreate', async (message) => {
       if (message.author.bot) return;
@@ -53,6 +54,8 @@ class DiscordService {
   }
 
   async handleCommand(command, args, message, stockCommands) {
+    const paperTradingCommands = require('../commands/paper-trading.commands');
+
     switch (command) {
       case 'search':
         await this.searchCommand(args, message, stockCommands);
@@ -73,8 +76,11 @@ class DiscordService {
         break;
 
       case 'debug':
-      case 'status':
         await this.debugCommand(message);
+        break;
+
+      case 'status':
+        await paperTradingCommands.statusCommand(message);
         break;
 
       case 'ticker':
@@ -88,9 +94,56 @@ class DiscordService {
       case 'help':
         await this.helpCommand(message);
         break;
+
       case 'test':
         await this.testCommand(args, message);
         break;
+
+      // Paper Trading Commands
+      case 'portfolio':
+        await paperTradingCommands.portfolioCommand(message);
+        break;
+
+      case 'holdings':
+        await paperTradingCommands.holdingsCommand(message);
+        break;
+
+      case 'orders':
+        await paperTradingCommands.ordersCommand(args, message);
+        break;
+
+      case 'pnl':
+        await paperTradingCommands.pnlCommand(message);
+        break;
+
+      case 'topstocks':
+        await paperTradingCommands.topStocksCommand(message);
+        break;
+
+      case 'grid':
+        await paperTradingCommands.gridCommand(args, message);
+        break;
+
+      case 'grids':
+        await paperTradingCommands.gridsCommand(message);
+        break;
+
+      case 'reset':
+        await paperTradingCommands.resetCommand(message);
+        break;
+
+      case 'config':
+        await paperTradingCommands.configCommand(args, message);
+        break;
+
+      case 'start-trading':
+        await paperTradingCommands.startTradingCommand(message);
+        break;
+
+      case 'stop-trading':
+        await paperTradingCommands.stopTradingCommand(message);
+        break;
+
       default:
         await this.stockInfoCommand(command, args, message, stockCommands);
     }
@@ -614,8 +667,22 @@ class DiscordService {
 \`!unsubscribe <SYMBOL>\` - Unsubscribe
 \`!list\` - Show subscriptions
 
+**Paper Trading:**
+\`!status\` - Paper trading bot status
+\`!portfolio\` - View portfolio
+\`!holdings\` - Current holdings
+\`!orders [today|week|all]\` - Order history
+\`!pnl\` - Profit & loss summary
+\`!topstocks\` - Best/worst performers
+\`!grid <SYMBOL>\` - Grid levels for stock
+\`!grids\` - All active grids
+\`!config\` - View/update settings
+\`!start-trading\` - Start bot
+\`!stop-trading\` - Stop bot
+\`!reset\` - Reset portfolio
+
 **System:**
-\`!debug\` or \`!status\` - Check system status
+\`!debug\` - Check system debug
 \`!ticker [status|restart|stop|debug|test|resub]\` - Manage ticker
 \`!time\` - Check IST time and market hours
 \`!test\` - Run diagnostic tests
@@ -631,11 +698,9 @@ class DiscordService {
 **Examples:**
 \`!search reliance\`
 \`!subscribe RELIANCE\`
-\`!RELIANCE full\`
-\`!ticker debug\`
-\`!ticker test\`
-\`!time\`
-\`!test\``;
+\`!portfolio\`
+\`!start-trading\`
+\`!grid RELIANCE\``;
 
     await message.reply(help);
   }

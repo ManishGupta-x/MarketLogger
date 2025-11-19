@@ -1,0 +1,497 @@
+const Decimal = require('decimal.js');
+const db = require('./database.service');
+const discordService = require('./discord.service');
+const logger = require('../utils/logger');
+
+class PaperTradingService {
+  constructor() {
+    this.isInitialized = false;
+    this.isEnabled = false;
+    this.cashBalance = 0;
+    this.initialCapital = 0;
+    this.amountPerTrade = 0;
+    this.holdings = new Map();
+    this.totalRealizedPnL = 0;
+    this.totalInvested = 0;
+  }
+
+  async initialize() {
+    try {
+      logger.info('💼 Initializing Paper Trading Service...');
+
+      // Initialize database
+      db.initialize();
+
+      // Load configuration
+      this.loadConfig();
+
+      // Load existing portfolio state
+      await this.loadPortfolio();
+
+      this.isInitialized = true;
+      logger.info('✅ Paper Trading Service initialized');
+
+      return true;
+    } catch (error) {
+      logger.error('❌ Failed to initialize paper trading:', error);
+      throw error;
+    }
+  }
+
+  loadConfig() {
+    const config = db.getAllConfig();
+
+    this.initialCapital = parseFloat(config.initial_capital || '500000');
+    this.amountPerTrade = parseFloat(config.amount_per_trade || '10000');
+    this.gridPercentage = parseFloat(config.grid_percentage || '5.0');
+    this.isEnabled = config.trading_enabled === 'true';
+
+    logger.info(`💰 Initial Capital: ₹${this.initialCapital.toLocaleString()}`);
+    logger.info(`📊 Amount per Trade: ₹${this.amountPerTrade.toLocaleString()}`);
+    logger.info(`📈 Grid Percentage: ${this.gridPercentage}%`);
+    logger.info(`🎯 Trading Enabled: ${this.isEnabled}`);
+  }
+
+  async loadPortfolio() {
+    // Check if we have any previous portfolio state
+    const latestPortfolio = db.getLatestPortfolio();
+
+    if (latestPortfolio) {
+      // Resume from last known state
+      this.cashBalance = latestPortfolio.cash_balance;
+      logger.info(`📊 Loaded portfolio with cash balance: ₹${this.cashBalance.toLocaleString()}`);
+    } else {
+      // Initialize with initial capital
+      this.cashBalance = this.initialCapital;
+      logger.info(`💵 Starting with initial capital: ₹${this.cashBalance.toLocaleString()}`);
+    }
+
+    // Load holdings
+    const holdings = db.getAllHoldings();
+    this.holdings.clear();
+
+    holdings.forEach(holding => {
+      this.holdings.set(holding.token, {
+        symbol: holding.symbol,
+        qty: holding.qty,
+        avgPrice: holding.avg_price,
+        currentPrice: holding.current_price,
+        investedValue: holding.invested_value,
+        currentValue: holding.current_value,
+        unrealizedPnl: holding.unrealized_pnl,
+        unrealizedPnlPercent: holding.unrealized_pnl_percent
+      });
+    });
+
+    logger.info(`📦 Loaded ${this.holdings.size} holdings`);
+
+    // Calculate total invested and realized P&L
+    const stats = db.getTotalPnL();
+    this.totalRealizedPnL = stats.realized_pnl || 0;
+    this.totalInvested = this.initialCapital - this.cashBalance;
+
+    logger.info(`💹 Total Realized P&L: ₹${this.totalRealizedPnL.toFixed(2)}`);
+  }
+
+  async executeVirtualOrder(token, symbol, type, price, gridLevel = 0, referencePrice = null) {
+    if (!this.isInitialized) {
+      logger.warn('Paper trading not initialized');
+      return { success: false, message: 'Paper trading not initialized' };
+    }
+
+    if (!this.isEnabled) {
+      logger.warn('Paper trading is disabled');
+      return { success: false, message: 'Paper trading is disabled' };
+    }
+
+    try {
+      const priceDecimal = new Decimal(price);
+
+      if (type === 'BUY') {
+        return await this.executeBuy(token, symbol, priceDecimal, gridLevel, referencePrice);
+      } else if (type === 'SELL') {
+        return await this.executeSell(token, symbol, priceDecimal, gridLevel, referencePrice);
+      } else {
+        return { success: false, message: 'Invalid order type' };
+      }
+    } catch (error) {
+      logger.error(`❌ Order execution failed for ${symbol}:`, error);
+      return { success: false, message: error.message };
+    }
+  }
+
+  async executeBuy(token, symbol, price, gridLevel, referencePrice) {
+    // Check if we have enough balance
+    if (this.cashBalance < this.amountPerTrade) {
+      logger.warn(`Insufficient balance for ${symbol}: ₹${this.cashBalance.toFixed(2)} < ₹${this.amountPerTrade}`);
+      return { success: false, message: 'Insufficient balance' };
+    }
+
+    // Calculate quantity
+    const qty = Math.floor(this.amountPerTrade / price.toNumber());
+
+    if (qty === 0) {
+      logger.warn(`Stock price too high for ${symbol}: ₹${price.toNumber()}`);
+      return { success: false, message: 'Stock price too high' };
+    }
+
+    const orderValue = new Decimal(qty).mul(price);
+
+    // Update cash balance
+    this.cashBalance = new Decimal(this.cashBalance).minus(orderValue).toNumber();
+
+    // Update holdings
+    const existingHolding = this.holdings.get(token);
+
+    if (existingHolding) {
+      // Average price calculation
+      const totalQty = existingHolding.qty + qty;
+      const totalInvested = new Decimal(existingHolding.investedValue).plus(orderValue);
+      const avgPrice = totalInvested.div(totalQty);
+
+      this.holdings.set(token, {
+        symbol: symbol,
+        qty: totalQty,
+        avgPrice: avgPrice.toNumber(),
+        currentPrice: price.toNumber(),
+        investedValue: totalInvested.toNumber(),
+        currentValue: new Decimal(totalQty).mul(price).toNumber(),
+        unrealizedPnl: 0,
+        unrealizedPnlPercent: 0
+      });
+    } else {
+      // New holding
+      this.holdings.set(token, {
+        symbol: symbol,
+        qty: qty,
+        avgPrice: price.toNumber(),
+        currentPrice: price.toNumber(),
+        investedValue: orderValue.toNumber(),
+        currentValue: orderValue.toNumber(),
+        unrealizedPnl: 0,
+        unrealizedPnlPercent: 0
+      });
+    }
+
+    // Save to database
+    const holding = this.holdings.get(token);
+    db.upsertHolding({
+      token: token,
+      symbol: symbol,
+      qty: holding.qty,
+      avg_price: holding.avgPrice,
+      current_price: holding.currentPrice,
+      invested_value: holding.investedValue,
+      current_value: holding.currentValue,
+      unrealized_pnl: holding.unrealizedPnl,
+      unrealized_pnl_percent: holding.unrealizedPnlPercent
+    });
+
+    // Insert order record
+    const orderId = db.insertOrder({
+      type: 'BUY',
+      token: token,
+      symbol: symbol,
+      qty: qty,
+      price: price.toNumber(),
+      value: orderValue.toNumber(),
+      balance: this.cashBalance,
+      pnl: 0,
+      pnl_percent: 0,
+      grid_level: gridLevel,
+      reference_price: referencePrice,
+      notes: `Grid level ${gridLevel}`
+    });
+
+    // Save portfolio snapshot
+    this.savePortfolioSnapshot();
+
+    // Log to Discord
+    await this.logOrderToDiscord('BUY', symbol, qty, price.toNumber(), 0, 0, this.cashBalance);
+
+    logger.info(`🟢 BUY ${symbol} | Qty: ${qty} | Price: ₹${price.toNumber()} | Value: ₹${orderValue.toNumber().toFixed(2)} | Balance: ₹${this.cashBalance.toFixed(2)}`);
+
+    return {
+      success: true,
+      orderId: orderId,
+      qty: qty,
+      price: price.toNumber(),
+      value: orderValue.toNumber(),
+      balance: this.cashBalance
+    };
+  }
+
+  async executeSell(token, symbol, price, gridLevel, referencePrice) {
+    // Check if we have holdings
+    const holding = this.holdings.get(token);
+
+    if (!holding || holding.qty === 0) {
+      logger.warn(`No holdings to sell for ${symbol}`);
+      return { success: false, message: 'No holdings to sell' };
+    }
+
+    // Sell all holdings for this stock
+    const qty = holding.qty;
+    const orderValue = new Decimal(qty).mul(price);
+
+    // Calculate P&L
+    const investedValue = new Decimal(holding.investedValue);
+    const pnl = orderValue.minus(investedValue);
+    const pnlPercent = pnl.div(investedValue).mul(100);
+
+    // Update cash balance
+    this.cashBalance = new Decimal(this.cashBalance).plus(orderValue).toNumber();
+
+    // Update realized P&L
+    this.totalRealizedPnL = new Decimal(this.totalRealizedPnL).plus(pnl).toNumber();
+
+    // Remove holding
+    this.holdings.delete(token);
+    db.deleteHolding(token);
+
+    // Insert order record
+    const orderId = db.insertOrder({
+      type: 'SELL',
+      token: token,
+      symbol: symbol,
+      qty: qty,
+      price: price.toNumber(),
+      value: orderValue.toNumber(),
+      balance: this.cashBalance,
+      pnl: pnl.toNumber(),
+      pnl_percent: pnlPercent.toNumber(),
+      grid_level: gridLevel,
+      reference_price: referencePrice,
+      notes: `Grid level ${gridLevel} | P&L: ₹${pnl.toNumber().toFixed(2)}`
+    });
+
+    // Save portfolio snapshot
+    this.savePortfolioSnapshot();
+
+    // Log to Discord with special emoji for significant gains/losses
+    await this.logOrderToDiscord('SELL', symbol, qty, price.toNumber(), pnl.toNumber(), pnlPercent.toNumber(), this.cashBalance);
+
+    logger.info(`🔴 SELL ${symbol} | Qty: ${qty} | Price: ₹${price.toNumber()} | P&L: ₹${pnl.toNumber().toFixed(2)} (${pnlPercent.toNumber().toFixed(2)}%) | Balance: ₹${this.cashBalance.toFixed(2)}`);
+
+    return {
+      success: true,
+      orderId: orderId,
+      qty: qty,
+      price: price.toNumber(),
+      value: orderValue.toNumber(),
+      pnl: pnl.toNumber(),
+      pnlPercent: pnlPercent.toNumber(),
+      balance: this.cashBalance
+    };
+  }
+
+  async logOrderToDiscord(type, symbol, qty, price, pnl, pnlPercent, balance) {
+    if (!discordService.isReady) return;
+
+    const emoji = type === 'BUY' ? '🟢' : '🔴';
+    const value = qty * price;
+
+    let message = `${emoji} **${type} ${symbol}**\n`;
+    message += `**Qty:** ${qty} @ ₹${price.toFixed(2)}\n`;
+    message += `**Value:** ₹${value.toFixed(2)}\n`;
+
+    if (type === 'SELL') {
+      const pnlEmoji = pnl >= 0 ? '📈' : '📉';
+      const alertEmoji = Math.abs(pnlPercent) > 2 ? '🎉' : '';
+      message += `${pnlEmoji} **P&L:** ₹${pnl.toFixed(2)} (${pnlPercent.toFixed(2)}%) ${alertEmoji}\n`;
+    }
+
+    message += `**Balance:** ₹${balance.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+
+    const logType = type === 'BUY' ? 'info' : (pnl >= 0 ? 'success' : 'warning');
+    await discordService.log(message, logType);
+  }
+
+  updateHoldingPrice(token, currentPrice) {
+    const holding = this.holdings.get(token);
+    if (!holding) return;
+
+    const currentValue = new Decimal(holding.qty).mul(currentPrice);
+    const unrealizedPnl = currentValue.minus(holding.investedValue);
+    const unrealizedPnlPercent = unrealizedPnl.div(holding.investedValue).mul(100);
+
+    holding.currentPrice = currentPrice;
+    holding.currentValue = currentValue.toNumber();
+    holding.unrealizedPnl = unrealizedPnl.toNumber();
+    holding.unrealizedPnlPercent = unrealizedPnlPercent.toNumber();
+
+    this.holdings.set(token, holding);
+
+    // Update in database
+    db.updateHoldingPrice(token, currentPrice);
+  }
+
+  savePortfolioSnapshot() {
+    let holdingsValue = new Decimal(0);
+    let unrealizedPnl = new Decimal(0);
+
+    this.holdings.forEach(holding => {
+      holdingsValue = holdingsValue.plus(holding.currentValue || holding.investedValue);
+      unrealizedPnl = unrealizedPnl.plus(holding.unrealizedPnl || 0);
+    });
+
+    const totalValue = new Decimal(this.cashBalance).plus(holdingsValue);
+    const totalPnl = new Decimal(this.totalRealizedPnL).plus(unrealizedPnl);
+    const totalPnlPercent = totalPnl.div(this.initialCapital).mul(100);
+
+    db.insertPortfolioSnapshot({
+      cash_balance: this.cashBalance,
+      holdings_value: holdingsValue.toNumber(),
+      total_value: totalValue.toNumber(),
+      total_pnl: totalPnl.toNumber(),
+      total_pnl_percent: totalPnlPercent.toNumber(),
+      realized_pnl: this.totalRealizedPnL,
+      unrealized_pnl: unrealizedPnl.toNumber(),
+      holdings_count: this.holdings.size
+    });
+  }
+
+  getPortfolio() {
+    let holdingsValue = new Decimal(0);
+    let unrealizedPnl = new Decimal(0);
+
+    this.holdings.forEach(holding => {
+      holdingsValue = holdingsValue.plus(holding.currentValue || holding.investedValue);
+      unrealizedPnl = unrealizedPnl.plus(holding.unrealizedPnl || 0);
+    });
+
+    const totalValue = new Decimal(this.cashBalance).plus(holdingsValue);
+    const totalPnl = new Decimal(this.totalRealizedPnL).plus(unrealizedPnl);
+    const totalPnlPercent = totalPnl.div(this.initialCapital).mul(100);
+
+    const todayStats = db.getTodayStats();
+
+    return {
+      cash: this.cashBalance,
+      holdings_value: holdingsValue.toNumber(),
+      total_value: totalValue.toNumber(),
+      total_pnl: totalPnl.toNumber(),
+      pnl_percent: totalPnlPercent.toNumber(),
+      realized_pnl: this.totalRealizedPnL,
+      unrealized_pnl: unrealizedPnl.toNumber(),
+      holdings_count: this.holdings.size,
+      today_pnl: todayStats.today_pnl || 0,
+      today_orders: todayStats.today_orders || 0,
+      today_buys: todayStats.today_buys || 0,
+      today_sells: todayStats.today_sells || 0,
+      initial_capital: this.initialCapital
+    };
+  }
+
+  getHoldings() {
+    return Array.from(this.holdings.entries()).map(([token, holding]) => ({
+      token: token,
+      symbol: holding.symbol,
+      qty: holding.qty,
+      avg_price: holding.avgPrice,
+      current_price: holding.currentPrice,
+      invested_value: holding.investedValue,
+      current_value: holding.currentValue,
+      unrealized_pnl: holding.unrealizedPnl,
+      unrealized_pnl_percent: holding.unrealizedPnlPercent
+    }));
+  }
+
+  getHolding(token) {
+    return this.holdings.get(token);
+  }
+
+  hasHolding(token) {
+    const holding = this.holdings.get(token);
+    return holding && holding.qty > 0;
+  }
+
+  async enableTrading() {
+    this.isEnabled = true;
+    db.setConfig('trading_enabled', 'true');
+    await discordService.log('✅ **Paper Trading Enabled**', 'success');
+    logger.info('✅ Paper trading enabled');
+  }
+
+  async disableTrading() {
+    this.isEnabled = false;
+    db.setConfig('trading_enabled', 'false');
+    await discordService.log('⏸️ **Paper Trading Disabled**', 'warning');
+    logger.info('⏸️ Paper trading disabled');
+  }
+
+  async resetPortfolio() {
+    db.resetPortfolio();
+    this.cashBalance = this.initialCapital;
+    this.holdings.clear();
+    this.totalRealizedPnL = 0;
+    this.totalInvested = 0;
+
+    await discordService.log('🔄 **Portfolio Reset Complete**\nStarting fresh with initial capital', 'warning');
+    logger.info('🔄 Portfolio reset complete');
+  }
+
+  async sendDailySummary() {
+    const portfolio = this.getPortfolio();
+    const todayStats = db.getTodayStats();
+    const topPerformers = db.getTopPerformers(5);
+    const worstPerformers = db.getWorstPerformers(5);
+
+    let summary = '📊 **Daily Trading Summary**\n\n';
+    summary += `**Portfolio:**\n`;
+    summary += `💵 Cash: ₹${portfolio.cash.toLocaleString('en-IN', { minimumFractionDigits: 2 })}\n`;
+    summary += `📊 Holdings: ₹${portfolio.holdings_value.toLocaleString('en-IN', { minimumFractionDigits: 2 })}\n`;
+    summary += `💰 Total: ₹${portfolio.total_value.toLocaleString('en-IN', { minimumFractionDigits: 2 })}\n`;
+    summary += `📈 Total P&L: ₹${portfolio.total_pnl.toFixed(2)} (${portfolio.pnl_percent.toFixed(2)}%)\n\n`;
+
+    summary += `**Today's Activity:**\n`;
+    summary += `📝 Orders: ${todayStats.today_orders || 0} (${todayStats.today_buys || 0} buys, ${todayStats.today_sells || 0} sells)\n`;
+    summary += `💹 Realized P&L: ₹${(todayStats.today_pnl || 0).toFixed(2)}\n\n`;
+
+    if (topPerformers && topPerformers.length > 0 && topPerformers[0].total_pnl > 0) {
+      summary += `**Top Performers:**\n`;
+      topPerformers.slice(0, 3).forEach((stock, index) => {
+        summary += `${index + 1}. ${stock.symbol}: ₹${stock.total_pnl.toFixed(2)}\n`;
+      });
+      summary += '\n';
+    }
+
+    if (worstPerformers && worstPerformers.length > 0 && worstPerformers[0].total_pnl < 0) {
+      summary += `**Worst Performers:**\n`;
+      worstPerformers.slice(0, 3).forEach((stock, index) => {
+        summary += `${index + 1}. ${stock.symbol}: ₹${stock.total_pnl.toFixed(2)}\n`;
+      });
+    }
+
+    await discordService.log(summary, portfolio.today_pnl >= 0 ? 'success' : 'warning');
+    logger.info('📊 Daily summary sent');
+  }
+
+  getConfig() {
+    return {
+      initial_capital: this.initialCapital,
+      amount_per_trade: this.amountPerTrade,
+      grid_percentage: this.gridPercentage,
+      trading_enabled: this.isEnabled
+    };
+  }
+
+  updateConfig(key, value) {
+    switch (key) {
+      case 'amount_per_trade':
+        this.amountPerTrade = parseFloat(value);
+        db.setConfig('amount_per_trade', value);
+        logger.info(`💵 Amount per trade updated to: ₹${this.amountPerTrade}`);
+        break;
+      case 'grid_percentage':
+        this.gridPercentage = parseFloat(value);
+        db.setConfig('grid_percentage', value);
+        logger.info(`📈 Grid percentage updated to: ${this.gridPercentage}%`);
+        break;
+      default:
+        logger.warn(`Unknown config key: ${key}`);
+    }
+  }
+}
+
+module.exports = new PaperTradingService();

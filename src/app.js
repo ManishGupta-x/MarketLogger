@@ -3,6 +3,9 @@ const discordService = require('./services/discord.service');
 const zerodhaService = require('./services/zerodha.service');
 const tokenTrackerService = require('./services/token-tracker.service');
 const scheduledAuth = require('./services/scheduled-auth.service');
+const paperTradingService = require('./services/paper-trading.service');
+const gridStrategyService = require('./services/grid-strategy.service');
+const tickerService = require('./services/ticker.service');
 const logger = require('./utils/logger');
 
 async function start() {
@@ -24,18 +27,44 @@ async function start() {
     if (connected) {
       await tokenTrackerService.initialize();
       logger.info('✅ Token Tracker initialized');
+
+      // Initialize Paper Trading Service
+      try {
+        await paperTradingService.initialize();
+        logger.info('✅ Paper Trading Service initialized');
+
+        // Initialize Grid Strategy with token mapping from ticker service
+        await gridStrategyService.initialize(tickerService.tokenToSymbolMap);
+        logger.info('✅ Grid Strategy Service initialized');
+
+        // Set up event listener for tick data
+        const originalProcessTicks = tickerService.processTicks.bind(tickerService);
+        tickerService.processTicks = function(ticks) {
+          // Call original process ticks
+          originalProcessTicks(ticks);
+
+          // Also send to grid strategy
+          gridStrategyService.processTicks(ticks);
+        };
+
+        logger.info('✅ Grid strategy connected to ticker updates');
+      } catch (error) {
+        logger.error('❌ Failed to initialize paper trading:', error);
+      }
     } else {
       logger.warn('⚠️ Token Tracker not started - Zerodha connection failed');
       logger.warn('⚠️ Please check auto-login logs above');
     }
-    
-    const trackerStatus = connected 
-      ? '✅ Token Tracker: Active' 
+
+    const trackerStatus = connected
+      ? '✅ Token Tracker: Active'
       : '⏸️ Token Tracker: Waiting for connection';
-    
+
     await discordService.log(
       '🚀 **Token Tracker Bot Started**\n' +
       `📊 Tokens to track: ${connected ? tokenTrackerService.tokens?.length || 0 : 'Unknown'}\n` +
+      `💼 Paper Trading: ${paperTradingService.isInitialized ? 'Ready' : 'Not initialized'}\n` +
+      `📈 Grid Strategy: ${gridStrategyService.isInitialized ? 'Ready' : 'Not initialized'}\n` +
       `Auto-login: Enabled (5:45 AM IST daily)\n` +
       trackerStatus,
       connected ? 'success' : 'warning'

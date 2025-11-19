@@ -1,0 +1,551 @@
+const paperTrading = require('../services/paper-trading.service');
+const gridStrategy = require('../services/grid-strategy.service');
+const db = require('../services/database.service');
+const logger = require('../utils/logger');
+
+class PaperTradingCommands {
+  async portfolioCommand(message) {
+    try {
+      const portfolio = paperTrading.getPortfolio();
+
+      const embed = {
+        title: '💼 Virtual Portfolio',
+        color: portfolio.total_pnl >= 0 ? 0x00ff00 : 0xff0000,
+        fields: [
+          {
+            name: '💵 Cash Balance',
+            value: `₹${portfolio.cash.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`,
+            inline: true
+          },
+          {
+            name: '📊 Holdings Value',
+            value: `₹${portfolio.holdings_value.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`,
+            inline: true
+          },
+          {
+            name: '💰 Total Value',
+            value: `₹${portfolio.total_value.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`,
+            inline: true
+          },
+          {
+            name: '📈 Total P&L',
+            value: `₹${portfolio.total_pnl.toFixed(2)} (${portfolio.pnl_percent.toFixed(2)}%)`,
+            inline: false
+          },
+          {
+            name: '💹 Realized P&L',
+            value: `₹${portfolio.realized_pnl.toFixed(2)}`,
+            inline: true
+          },
+          {
+            name: '📊 Unrealized P&L',
+            value: `₹${portfolio.unrealized_pnl.toFixed(2)}`,
+            inline: true
+          },
+          {
+            name: '🎯 Holdings',
+            value: `${portfolio.holdings_count} stocks`,
+            inline: true
+          },
+          {
+            name: '📅 Today\'s Orders',
+            value: `${portfolio.today_orders} (${portfolio.today_buys} buys, ${portfolio.today_sells} sells)`,
+            inline: true
+          },
+          {
+            name: '💵 Today\'s P&L',
+            value: `₹${portfolio.today_pnl.toFixed(2)}`,
+            inline: true
+          },
+          {
+            name: '💼 Initial Capital',
+            value: `₹${portfolio.initial_capital.toLocaleString('en-IN')}`,
+            inline: true
+          }
+        ],
+        timestamp: new Date()
+      };
+
+      await message.reply({ embeds: [embed] });
+    } catch (error) {
+      logger.error('Portfolio command error:', error);
+      await message.reply(`❌ Error: ${error.message}`);
+    }
+  }
+
+  async holdingsCommand(message) {
+    try {
+      const holdings = paperTrading.getHoldings();
+
+      if (holdings.length === 0) {
+        await message.reply('📭 No current holdings');
+        return;
+      }
+
+      let reply = `📦 **Current Holdings (${holdings.length})**\n\n`;
+
+      holdings.forEach((holding, index) => {
+        const pnlEmoji = holding.unrealized_pnl >= 0 ? '🟢' : '🔴';
+        reply += `${index + 1}. **${holding.symbol}**\n`;
+        reply += `   Qty: ${holding.qty} @ ₹${holding.avg_price.toFixed(2)}\n`;
+        reply += `   Current: ₹${holding.current_price?.toFixed(2) || holding.avg_price.toFixed(2)}\n`;
+        reply += `   Invested: ₹${holding.invested_value.toFixed(2)}\n`;
+        reply += `   ${pnlEmoji} P&L: ₹${(holding.unrealized_pnl || 0).toFixed(2)} (${(holding.unrealized_pnl_percent || 0).toFixed(2)}%)\n\n`;
+      });
+
+      await message.reply(reply);
+    } catch (error) {
+      logger.error('Holdings command error:', error);
+      await message.reply(`❌ Error: ${error.message}`);
+    }
+  }
+
+  async ordersCommand(args, message) {
+    try {
+      let orders;
+      const period = args[0]?.toLowerCase() || 'today';
+
+      switch (period) {
+        case 'today':
+          orders = db.getTodayOrders();
+          break;
+        case 'week':
+          orders = db.getOrders(100, 0);
+          break;
+        case 'all':
+          orders = db.getOrders(200, 0);
+          break;
+        default:
+          await message.reply('Usage: `!orders [today|week|all]`');
+          return;
+      }
+
+      if (orders.length === 0) {
+        await message.reply(`📭 No orders found for ${period}`);
+        return;
+      }
+
+      let reply = `📋 **Orders (${period}) - ${orders.length} total**\n\n`;
+
+      orders.slice(0, 20).forEach((order, index) => {
+        const emoji = order.type === 'BUY' ? '🟢' : '🔴';
+        const timestamp = new Date(order.timestamp).toLocaleString('en-IN', {
+          timeZone: 'Asia/Kolkata',
+          month: 'short',
+          day: 'numeric',
+          hour: '2-digit',
+          minute: '2-digit'
+        });
+
+        reply += `${emoji} **${order.type} ${order.symbol}**\n`;
+        reply += `   ${timestamp} | Qty: ${order.qty} @ ₹${order.price.toFixed(2)}\n`;
+
+        if (order.type === 'SELL' && order.pnl) {
+          const pnlEmoji = order.pnl >= 0 ? '📈' : '📉';
+          reply += `   ${pnlEmoji} P&L: ₹${order.pnl.toFixed(2)} (${order.pnl_percent.toFixed(2)}%)\n`;
+        }
+
+        reply += `\n`;
+      });
+
+      if (orders.length > 20) {
+        reply += `\n_Showing latest 20 of ${orders.length} orders_`;
+      }
+
+      await message.reply(reply);
+    } catch (error) {
+      logger.error('Orders command error:', error);
+      await message.reply(`❌ Error: ${error.message}`);
+    }
+  }
+
+  async pnlCommand(message) {
+    try {
+      const stats = db.getTotalPnL();
+      const todayStats = db.getTodayStats();
+      const portfolio = paperTrading.getPortfolio();
+
+      const embed = {
+        title: '📊 Profit & Loss Summary',
+        color: portfolio.total_pnl >= 0 ? 0x00ff00 : 0xff0000,
+        fields: [
+          {
+            name: '💰 Total P&L',
+            value: `₹${portfolio.total_pnl.toFixed(2)} (${portfolio.pnl_percent.toFixed(2)}%)`,
+            inline: false
+          },
+          {
+            name: '💹 Realized P&L',
+            value: `₹${portfolio.realized_pnl.toFixed(2)}`,
+            inline: true
+          },
+          {
+            name: '📊 Unrealized P&L',
+            value: `₹${portfolio.unrealized_pnl.toFixed(2)}`,
+            inline: true
+          },
+          {
+            name: '📅 Today\'s P&L',
+            value: `₹${(todayStats.today_pnl || 0).toFixed(2)}`,
+            inline: true
+          },
+          {
+            name: '📈 Total Orders',
+            value: `${stats.total_orders || 0}`,
+            inline: true
+          },
+          {
+            name: '🟢 Buy Orders',
+            value: `${stats.buy_orders || 0}`,
+            inline: true
+          },
+          {
+            name: '🔴 Sell Orders',
+            value: `${stats.sell_orders || 0}`,
+            inline: true
+          },
+          {
+            name: '🎯 Stocks Traded',
+            value: `${stats.traded_symbols || 0}`,
+            inline: true
+          },
+          {
+            name: '💼 Current Holdings',
+            value: `${portfolio.holdings_count}`,
+            inline: true
+          }
+        ],
+        timestamp: new Date()
+      };
+
+      await message.reply({ embeds: [embed] });
+    } catch (error) {
+      logger.error('P&L command error:', error);
+      await message.reply(`❌ Error: ${error.message}`);
+    }
+  }
+
+  async topStocksCommand(message) {
+    try {
+      const topPerformers = db.getTopPerformers(10);
+      const worstPerformers = db.getWorstPerformers(10);
+
+      let reply = '🏆 **Top Performing Stocks**\n\n';
+
+      if (topPerformers.length > 0 && topPerformers[0].total_pnl > 0) {
+        topPerformers.slice(0, 5).forEach((stock, index) => {
+          reply += `${index + 1}. **${stock.symbol}**: ₹${stock.total_pnl.toFixed(2)} (${stock.trade_count} trades)\n`;
+        });
+      } else {
+        reply += '_No profitable trades yet_\n';
+      }
+
+      reply += '\n📉 **Worst Performing Stocks**\n\n';
+
+      if (worstPerformers.length > 0 && worstPerformers[0].total_pnl < 0) {
+        worstPerformers.slice(0, 5).forEach((stock, index) => {
+          reply += `${index + 1}. **${stock.symbol}**: ₹${stock.total_pnl.toFixed(2)} (${stock.trade_count} trades)\n`;
+        });
+      } else {
+        reply += '_No losing trades yet_\n';
+      }
+
+      await message.reply(reply);
+    } catch (error) {
+      logger.error('Top stocks command error:', error);
+      await message.reply(`❌ Error: ${error.message}`);
+    }
+  }
+
+  async gridCommand(args, message) {
+    try {
+      if (args.length === 0) {
+        await message.reply('Usage: `!grid <SYMBOL>`');
+        return;
+      }
+
+      const symbol = args[0].toUpperCase();
+      const gridInfo = gridStrategy.getGridInfo(symbol);
+
+      if (!gridInfo) {
+        await message.reply(`❌ No grid data found for ${symbol}`);
+        return;
+      }
+
+      const embed = {
+        title: `📊 Grid Levels - ${gridInfo.symbol}`,
+        color: gridInfo.total_pnl >= 0 ? 0x00ff00 : 0xff0000,
+        fields: [
+          {
+            name: '📍 Reference Price',
+            value: `₹${gridInfo.reference_price.toFixed(2)}`,
+            inline: true
+          },
+          {
+            name: '🎯 Buy Threshold',
+            value: `₹${gridInfo.buy_threshold.toFixed(2)}`,
+            inline: true
+          },
+          {
+            name: '🎯 Sell Threshold',
+            value: gridInfo.sell_threshold ? `₹${gridInfo.sell_threshold.toFixed(2)}` : 'N/A',
+            inline: true
+          },
+          {
+            name: '💰 Last Buy Price',
+            value: gridInfo.last_buy_price ? `₹${gridInfo.last_buy_price.toFixed(2)}` : 'N/A',
+            inline: true
+          },
+          {
+            name: '💸 Last Sell Price',
+            value: gridInfo.last_sell_price ? `₹${gridInfo.last_sell_price.toFixed(2)}` : 'N/A',
+            inline: true
+          },
+          {
+            name: '📈 Total P&L',
+            value: `₹${gridInfo.total_pnl.toFixed(2)}`,
+            inline: true
+          },
+          {
+            name: '🟢 Buy Count',
+            value: `${gridInfo.buy_count}`,
+            inline: true
+          },
+          {
+            name: '🔴 Sell Count',
+            value: `${gridInfo.sell_count}`,
+            inline: true
+          },
+          {
+            name: '⚡ Status',
+            value: gridInfo.is_active ? '✅ Active' : '❌ Inactive',
+            inline: true
+          }
+        ],
+        timestamp: new Date()
+      };
+
+      await message.reply({ embeds: [embed] });
+    } catch (error) {
+      logger.error('Grid command error:', error);
+      await message.reply(`❌ Error: ${error.message}`);
+    }
+  }
+
+  async resetCommand(message) {
+    try {
+      await message.reply('⚠️ **WARNING**: This will reset your entire portfolio!\n\nType `!confirm-reset` within 30 seconds to proceed.');
+
+      const filter = m => m.author.id === message.author.id && m.content === '!confirm-reset';
+      const collector = message.channel.createMessageCollector({ filter, time: 30000, max: 1 });
+
+      collector.on('collect', async () => {
+        await paperTrading.resetPortfolio();
+        await message.reply('✅ Portfolio reset complete! Starting fresh with initial capital.');
+      });
+
+      collector.on('end', collected => {
+        if (collected.size === 0) {
+          message.reply('❌ Reset cancelled (timeout)');
+        }
+      });
+    } catch (error) {
+      logger.error('Reset command error:', error);
+      await message.reply(`❌ Error: ${error.message}`);
+    }
+  }
+
+  async configCommand(args, message) {
+    try {
+      if (args.length === 0) {
+        // Show current config
+        const config = paperTrading.getConfig();
+        const gridStatus = gridStrategy.getStatus();
+
+        const embed = {
+          title: '⚙️ Paper Trading Configuration',
+          color: 0x0099ff,
+          fields: [
+            {
+              name: '💰 Initial Capital',
+              value: `₹${config.initial_capital.toLocaleString('en-IN')}`,
+              inline: true
+            },
+            {
+              name: '📊 Amount per Trade',
+              value: `₹${config.amount_per_trade.toLocaleString('en-IN')}`,
+              inline: true
+            },
+            {
+              name: '📈 Grid Percentage',
+              value: `${config.grid_percentage}%`,
+              inline: true
+            },
+            {
+              name: '🎯 Trading Status',
+              value: config.trading_enabled ? '✅ Enabled' : '❌ Disabled',
+              inline: true
+            },
+            {
+              name: '📊 Grid Strategy',
+              value: gridStatus.active ? '✅ Active' : '❌ Inactive',
+              inline: true
+            },
+            {
+              name: '🎯 Active Grids',
+              value: `${gridStatus.active_grids} / ${gridStatus.total_grids}`,
+              inline: true
+            }
+          ],
+          footer: {
+            text: 'Use !config set <key> <value> to update settings'
+          },
+          timestamp: new Date()
+        };
+
+        await message.reply({ embeds: [embed] });
+        return;
+      }
+
+      // Update config
+      if (args[0] === 'set' && args.length >= 3) {
+        const key = args[1];
+        const value = args[2];
+
+        if (key === 'amount_per_trade') {
+          paperTrading.updateConfig('amount_per_trade', value);
+          await message.reply(`✅ Amount per trade updated to ₹${parseFloat(value).toLocaleString('en-IN')}`);
+        } else if (key === 'grid_percentage') {
+          gridStrategy.updateGridPercentage(value);
+          await message.reply(`✅ Grid percentage updated to ${value}%`);
+        } else {
+          await message.reply(`❌ Unknown config key: ${key}\nAvailable keys: amount_per_trade, grid_percentage`);
+        }
+      } else {
+        await message.reply('Usage: `!config` or `!config set <key> <value>`');
+      }
+    } catch (error) {
+      logger.error('Config command error:', error);
+      await message.reply(`❌ Error: ${error.message}`);
+    }
+  }
+
+  async startTradingCommand(message) {
+    try {
+      await paperTrading.enableTrading();
+      await gridStrategy.start();
+      await message.reply('✅ **Paper Trading Started**\nGrid strategy is now active and monitoring prices.');
+    } catch (error) {
+      logger.error('Start trading command error:', error);
+      await message.reply(`❌ Error: ${error.message}`);
+    }
+  }
+
+  async stopTradingCommand(message) {
+    try {
+      await paperTrading.disableTrading();
+      await gridStrategy.stop();
+      await message.reply('⏸️ **Paper Trading Stopped**\nNo new orders will be placed.');
+    } catch (error) {
+      logger.error('Stop trading command error:', error);
+      await message.reply(`❌ Error: ${error.message}`);
+    }
+  }
+
+  async statusCommand(message) {
+    try {
+      const portfolio = paperTrading.getPortfolio();
+      const gridStatus = gridStrategy.getStatus();
+      const todayStats = db.getTodayStats();
+
+      const embed = {
+        title: '🤖 Paper Trading Bot Status',
+        color: paperTrading.isEnabled ? 0x00ff00 : 0xff0000,
+        fields: [
+          {
+            name: '⚡ Trading',
+            value: paperTrading.isEnabled ? '✅ Enabled' : '❌ Disabled',
+            inline: true
+          },
+          {
+            name: '📊 Grid Strategy',
+            value: gridStatus.active ? '✅ Active' : '❌ Inactive',
+            inline: true
+          },
+          {
+            name: '💰 Cash Balance',
+            value: `₹${portfolio.cash.toLocaleString('en-IN', { minimumFractionDigits: 2 })}`,
+            inline: true
+          },
+          {
+            name: '📦 Holdings',
+            value: `${portfolio.holdings_count} stocks`,
+            inline: true
+          },
+          {
+            name: '📈 Total P&L',
+            value: `₹${portfolio.total_pnl.toFixed(2)} (${portfolio.pnl_percent.toFixed(2)}%)`,
+            inline: true
+          },
+          {
+            name: '📅 Today\'s Orders',
+            value: `${todayStats.today_orders || 0}`,
+            inline: true
+          },
+          {
+            name: '🎯 Active Grids',
+            value: `${gridStatus.active_grids}`,
+            inline: true
+          },
+          {
+            name: '📊 Grid %',
+            value: `${gridStatus.grid_percentage}%`,
+            inline: true
+          },
+          {
+            name: '💵 Trade Amount',
+            value: `₹${paperTrading.amountPerTrade.toLocaleString('en-IN')}`,
+            inline: true
+          }
+        ],
+        timestamp: new Date()
+      };
+
+      await message.reply({ embeds: [embed] });
+    } catch (error) {
+      logger.error('Status command error:', error);
+      await message.reply(`❌ Error: ${error.message}`);
+    }
+  }
+
+  async gridsCommand(message) {
+    try {
+      const grids = gridStrategy.getAllGrids();
+
+      if (grids.length === 0) {
+        await message.reply('📭 No active grids');
+        return;
+      }
+
+      let reply = `📊 **Active Grid Levels (${grids.length})**\n\n`;
+
+      grids.slice(0, 15).forEach((grid, index) => {
+        const pnlEmoji = grid.total_pnl >= 0 ? '🟢' : '🔴';
+        reply += `${index + 1}. **${grid.symbol}**\n`;
+        reply += `   Ref: ₹${grid.reference_price.toFixed(2)} | Buys: ${grid.buy_count} | Sells: ${grid.sell_count}\n`;
+        reply += `   ${pnlEmoji} P&L: ₹${grid.total_pnl.toFixed(2)}\n\n`;
+      });
+
+      if (grids.length > 15) {
+        reply += `\n_Showing top 15 of ${grids.length} grids_`;
+      }
+
+      await message.reply(reply);
+    } catch (error) {
+      logger.error('Grids command error:', error);
+      await message.reply(`❌ Error: ${error.message}`);
+    }
+  }
+}
+
+module.exports = new PaperTradingCommands();
