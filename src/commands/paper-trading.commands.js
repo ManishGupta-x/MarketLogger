@@ -1,12 +1,27 @@
-const paperTrading = require('../services/paper-trading.service');
-const gridStrategy = require('../services/grid-strategy.service');
 const db = require('../services/database.service');
 const logger = require('../utils/logger');
+const discordService = require('../services/discord.service');
 
 class PaperTradingCommands {
+  // Helper to get the correct channel instance based on message channel
+  getChannelInstance(message) {
+    const channelManager = discordService.channelManager;
+    if (!channelManager) {
+      throw new Error('Channel Manager not initialized. Bot may not be connected to Zerodha.');
+    }
+
+    const channel = channelManager.getChannel(message.channel.id);
+    if (!channel) {
+      throw new Error(`This channel is not configured for trading. Please use a configured trading channel.`);
+    }
+
+    return channel;
+  }
+
   async portfolioCommand(message) {
     try {
-      const portfolio = paperTrading.getPortfolio();
+      const channel = this.getChannelInstance(message);
+      const portfolio = channel.paperTradingService.getPortfolio();
 
       const embed = {
         title: '💼 Virtual Portfolio',
@@ -75,7 +90,8 @@ class PaperTradingCommands {
 
   async holdingsCommand(message) {
     try {
-      const holdings = paperTrading.getHoldings();
+      const channel = this.getChannelInstance(message);
+      const holdings = channel.paperTradingService.getHoldings();
 
       if (holdings.length === 0) {
         await message.reply('📭 No current holdings');
@@ -102,18 +118,19 @@ class PaperTradingCommands {
 
   async ordersCommand(args, message) {
     try {
+      const channel = this.getChannelInstance(message);
       let orders;
       const period = args[0]?.toLowerCase() || 'today';
 
       switch (period) {
         case 'today':
-          orders = db.getTodayOrders();
+          orders = db.getTodayOrders(channel.id);
           break;
         case 'week':
-          orders = db.getOrders(100, 0);
+          orders = db.getOrders(channel.id, 100, 0);
           break;
         case 'all':
-          orders = db.getOrders(200, 0);
+          orders = db.getOrders(channel.id, 200, 0);
           break;
         default:
           await message.reply('Usage: `!orders [today|week|all]`');
@@ -161,9 +178,10 @@ class PaperTradingCommands {
 
   async pnlCommand(message) {
     try {
-      const stats = db.getTotalPnL();
-      const todayStats = db.getTodayStats();
-      const portfolio = paperTrading.getPortfolio();
+      const channel = this.getChannelInstance(message);
+      const stats = db.getTotalPnL(channel.id);
+      const todayStats = db.getTodayStats(channel.id);
+      const portfolio = channel.paperTradingService.getPortfolio();
 
       const embed = {
         title: '📊 Profit & Loss Summary',
@@ -227,8 +245,9 @@ class PaperTradingCommands {
 
   async topStocksCommand(message) {
     try {
-      const topPerformers = db.getTopPerformers(10);
-      const worstPerformers = db.getWorstPerformers(10);
+      const channel = this.getChannelInstance(message);
+      const topPerformers = db.getTopPerformers(10, channel.id);
+      const worstPerformers = db.getWorstPerformers(10, channel.id);
 
       let reply = '🏆 **Top Performing Stocks**\n\n';
 
@@ -259,13 +278,14 @@ class PaperTradingCommands {
 
   async gridCommand(args, message) {
     try {
+      const channel = this.getChannelInstance(message);
       if (args.length === 0) {
         await message.reply('Usage: `!grid <SYMBOL>`');
         return;
       }
 
       const symbol = args[0].toUpperCase();
-      const gridInfo = gridStrategy.getGridInfo(symbol);
+      const gridInfo = channel.gridStrategyService.getGridInfo(symbol);
 
       if (!gridInfo) {
         await message.reply(`❌ No grid data found for ${symbol}`);
@@ -334,13 +354,14 @@ class PaperTradingCommands {
 
   async resetCommand(message) {
     try {
+      const channel = this.getChannelInstance(message);
       await message.reply('⚠️ **WARNING**: This will reset your entire portfolio!\n\nType `!confirm-reset` within 30 seconds to proceed.');
 
       const filter = m => m.author.id === message.author.id && m.content === '!confirm-reset';
       const collector = message.channel.createMessageCollector({ filter, time: 30000, max: 1 });
 
       collector.on('collect', async () => {
-        await paperTrading.resetPortfolio();
+        await channel.paperTradingService.resetPortfolio();
         await message.reply('✅ Portfolio reset complete! Starting fresh with initial capital.');
       });
 
@@ -357,10 +378,11 @@ class PaperTradingCommands {
 
   async configCommand(args, message) {
     try {
+      const channel = this.getChannelInstance(message);
       if (args.length === 0) {
         // Show current config
-        const config = paperTrading.getConfig();
-        const gridStatus = gridStrategy.getStatus();
+        const config = channel.paperTradingService.getConfig();
+        const gridStatus = channel.gridStrategyService.getStatus();
 
         const embed = {
           title: '⚙️ Paper Trading Configuration',
@@ -413,10 +435,10 @@ class PaperTradingCommands {
         const value = args[2];
 
         if (key === 'amount_per_trade') {
-          paperTrading.updateConfig('amount_per_trade', value);
+          channel.paperTradingService.updateConfig('amount_per_trade', value);
           await message.reply(`✅ Amount per trade updated to ₹${parseFloat(value).toLocaleString('en-IN')}`);
         } else if (key === 'grid_percentage') {
-          gridStrategy.updateGridPercentage(value);
+          channel.gridStrategyService.updateGridPercentage(value);
           await message.reply(`✅ Grid percentage updated to ${value}%`);
         } else {
           await message.reply(`❌ Unknown config key: ${key}\nAvailable keys: amount_per_trade, grid_percentage`);
@@ -432,8 +454,9 @@ class PaperTradingCommands {
 
   async startTradingCommand(message) {
     try {
-      await paperTrading.enableTrading();
-      await gridStrategy.start();
+      const channel = this.getChannelInstance(message);
+      await channel.paperTradingService.enableTrading();
+      await channel.gridStrategyService.start();
       await message.reply('✅ **Paper Trading Started**\nGrid strategy is now active and monitoring prices.');
     } catch (error) {
       logger.error('Start trading command error:', error);
@@ -443,8 +466,9 @@ class PaperTradingCommands {
 
   async stopTradingCommand(message) {
     try {
-      await paperTrading.disableTrading();
-      await gridStrategy.stop();
+      const channel = this.getChannelInstance(message);
+      await channel.paperTradingService.disableTrading();
+      await channel.gridStrategyService.stop();
       await message.reply('⏸️ **Paper Trading Stopped**\nNo new orders will be placed.');
     } catch (error) {
       logger.error('Stop trading command error:', error);
@@ -454,17 +478,18 @@ class PaperTradingCommands {
 
   async statusCommand(message) {
     try {
-      const portfolio = paperTrading.getPortfolio();
-      const gridStatus = gridStrategy.getStatus();
-      const todayStats = db.getTodayStats();
+      const channel = this.getChannelInstance(message);
+      const portfolio = channel.paperTradingService.getPortfolio();
+      const gridStatus = channel.gridStrategyService.getStatus();
+      const todayStats = db.getTodayStats(channel.id);
 
       const embed = {
         title: '🤖 Paper Trading Bot Status',
-        color: paperTrading.isEnabled ? 0x00ff00 : 0xff0000,
+        color: channel.paperTradingService.isEnabled ? 0x00ff00 : 0xff0000,
         fields: [
           {
             name: '⚡ Trading',
-            value: paperTrading.isEnabled ? '✅ Enabled' : '❌ Disabled',
+            value: channel.paperTradingService.isEnabled ? '✅ Enabled' : '❌ Disabled',
             inline: true
           },
           {
@@ -504,7 +529,7 @@ class PaperTradingCommands {
           },
           {
             name: '💵 Trade Amount',
-            value: `₹${paperTrading.amountPerTrade.toLocaleString('en-IN')}`,
+            value: `₹${channel.paperTradingService.amountPerTrade.toLocaleString('en-IN')}`,
             inline: true
           }
         ],
@@ -520,7 +545,8 @@ class PaperTradingCommands {
 
   async gridsCommand(message) {
     try {
-      const grids = gridStrategy.getAllGrids();
+      const channel = this.getChannelInstance(message);
+      const grids = channel.gridStrategyService.getAllGrids();
 
       if (grids.length === 0) {
         await message.reply('📭 No active grids');

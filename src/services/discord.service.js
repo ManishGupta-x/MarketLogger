@@ -13,9 +13,12 @@ class DiscordService {
     this.logChannel = null;
     this.commandPrefix = '!';
     this.isReady = false;
+    this.channelManager = null;
   }
 
-  async initialize() {
+  async initialize(channelManager = null) {
+    this.channelManager = channelManager;
+
     return new Promise((resolve) => {
       this.client.once('ready', () => {
         this.logChannel = this.client.channels.cache.get(process.env.DISCORD_LOG_CHANNEL_ID);
@@ -35,7 +38,13 @@ class DiscordService {
 
     this.client.on('messageCreate', async (message) => {
       if (message.author.bot) return;
-      if (message.channel.id !== process.env.DISCORD_LOG_CHANNEL_ID) return;
+
+      // Check if this is a valid channel for commands
+      const channelIds = this.channelManager ? this.channelManager.getChannelIds() : [];
+      const isLogChannel = message.channel.id === process.env.DISCORD_LOG_CHANNEL_ID;
+      const isTradingChannel = channelIds.includes(message.channel.id);
+
+      if (!isLogChannel && !isTradingChannel) return;
       if (!message.content.startsWith(this.commandPrefix)) return;
 
       const args = message.content.slice(this.commandPrefix.length).trim().split(/ +/);
@@ -49,7 +58,7 @@ class DiscordService {
       }
     });
 
-    logger.info('Discord commands active');
+    logger.info(`Discord commands active${this.channelManager ? ' with multi-channel support' : ''}`);
   }
 
   async handleCommand(command, args, message, paperTradingCommands) {
