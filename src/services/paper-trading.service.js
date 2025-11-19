@@ -4,7 +4,8 @@ const discordService = require('./discord.service');
 const logger = require('../utils/logger');
 
 class PaperTradingService {
-  constructor() {
+  constructor(channelId = 'default') {
+    this.channelId = channelId;
     this.isInitialized = false;
     this.isEnabled = false;
     this.cashBalance = 0;
@@ -16,35 +17,40 @@ class PaperTradingService {
     this.orderChannelId = process.env.DISCORD_ORDER_CHANNEL_ID || '1424357736820379668';
   }
 
-  async initialize() {
+  async initialize(initialCapital = null, amountPerTrade = null) {
     try {
-      logger.info('💼 Initializing Paper Trading Service...');
+      logger.info(`💼 Initializing Paper Trading Service for channel ${this.channelId}...`);
 
-      // Initialize database
-      db.initialize();
+      // Initialize database (only once, globally)
+      if (this.channelId === 'default') {
+        db.initialize();
+      }
 
       // Load configuration
-      this.loadConfig();
+      this.loadConfig(initialCapital, amountPerTrade);
 
       // Load existing portfolio state
       await this.loadPortfolio();
 
       this.isInitialized = true;
-      logger.info('✅ Paper Trading Service initialized');
+      logger.info(`✅ Paper Trading Service initialized for channel ${this.channelId}`);
 
       return true;
     } catch (error) {
-      logger.error('❌ Failed to initialize paper trading:', error);
+      logger.error(`❌ Failed to initialize paper trading for channel ${this.channelId}:`, error);
       throw error;
     }
   }
 
-  loadConfig() {
-    const config = db.getAllConfig();
+  loadConfig(initialCapital = null, amountPerTrade = null) {
+    const config = db.getAllConfig(this.channelId);
 
-    // Priority: ENV -> DB -> Default
+    // Priority: Parameter -> ENV -> DB -> Default
     // Load initial capital
-    if (process.env.INITIAL_CAPITAL) {
+    if (initialCapital !== null) {
+      this.initialCapital = initialCapital;
+      logger.info(`💰 Initial Capital from PARAM: ₹${this.initialCapital.toLocaleString()}`);
+    } else if (process.env.INITIAL_CAPITAL) {
       this.initialCapital = parseFloat(process.env.INITIAL_CAPITAL);
       logger.info(`💰 Initial Capital from ENV: ₹${this.initialCapital.toLocaleString()}`);
     } else if (config.initial_capital) {
@@ -56,7 +62,10 @@ class PaperTradingService {
     }
 
     // Load amount per trade
-    if (process.env.AMOUNT_PER_TRADE) {
+    if (amountPerTrade !== null) {
+      this.amountPerTrade = amountPerTrade;
+      logger.info(`📊 Amount per Trade from PARAM: ₹${this.amountPerTrade.toLocaleString()}`);
+    } else if (process.env.AMOUNT_PER_TRADE) {
       this.amountPerTrade = parseFloat(process.env.AMOUNT_PER_TRADE);
       logger.info(`📊 Amount per Trade from ENV: ₹${this.amountPerTrade.toLocaleString()}`);
     } else if (config.amount_per_trade) {
@@ -94,7 +103,7 @@ class PaperTradingService {
 
   async loadPortfolio() {
     // Check if we have any previous portfolio state
-    const latestPortfolio = db.getLatestPortfolio();
+    const latestPortfolio = db.getLatestPortfolio(this.channelId);
 
     if (latestPortfolio) {
       // Resume from last known state
@@ -107,7 +116,7 @@ class PaperTradingService {
     }
 
     // Load holdings
-    const holdings = db.getAllHoldings();
+    const holdings = db.getAllHoldings(this.channelId);
     this.holdings.clear();
 
     holdings.forEach(holding => {
@@ -126,7 +135,7 @@ class PaperTradingService {
     logger.info(`📦 Loaded ${this.holdings.size} holdings`);
 
     // Calculate total invested and realized P&L
-    const stats = db.getTotalPnL();
+    const stats = db.getTotalPnL(this.channelId);
     this.totalRealizedPnL = stats.realized_pnl || 0;
     this.totalInvested = this.initialCapital - this.cashBalance;
 
@@ -225,7 +234,7 @@ class PaperTradingService {
       current_value: holding.currentValue,
       unrealized_pnl: holding.unrealizedPnl,
       unrealized_pnl_percent: holding.unrealizedPnlPercent
-    });
+    }, this.channelId);
 
     // Insert order record
     const orderId = db.insertOrder({
@@ -241,7 +250,7 @@ class PaperTradingService {
       grid_level: gridLevel,
       reference_price: referencePrice,
       notes: `Grid level ${gridLevel}`
-    });
+    }, this.channelId);
 
     // Save portfolio snapshot
     this.savePortfolioSnapshot();
@@ -287,7 +296,7 @@ class PaperTradingService {
 
     // Remove holding
     this.holdings.delete(token);
-    db.deleteHolding(token);
+    db.deleteHolding(token, this.channelId);
 
     // Insert order record
     const orderId = db.insertOrder({
@@ -303,7 +312,7 @@ class PaperTradingService {
       grid_level: gridLevel,
       reference_price: referencePrice,
       notes: `Grid level ${gridLevel} | P&L: ₹${pnl.toNumber().toFixed(2)}`
-    });
+    }, this.channelId);
 
     // Save portfolio snapshot
     this.savePortfolioSnapshot();
@@ -365,7 +374,7 @@ class PaperTradingService {
     this.holdings.set(token, holding);
 
     // Update in database
-    db.updateHoldingPrice(token, currentPrice);
+    db.updateHoldingPrice(token, currentPrice, this.channelId);
   }
 
   savePortfolioSnapshot() {
@@ -390,7 +399,7 @@ class PaperTradingService {
       realized_pnl: this.totalRealizedPnL,
       unrealized_pnl: unrealizedPnl.toNumber(),
       holdings_count: this.holdings.size
-    });
+    }, this.channelId);
   }
 
   getPortfolio() {
@@ -406,7 +415,7 @@ class PaperTradingService {
     const totalPnl = new Decimal(this.totalRealizedPnL).plus(unrealizedPnl);
     const totalPnlPercent = totalPnl.div(this.initialCapital).mul(100);
 
-    const todayStats = db.getTodayStats();
+    const todayStats = db.getTodayStats(this.channelId);
 
     return {
       cash: this.cashBalance,
@@ -450,20 +459,20 @@ class PaperTradingService {
 
   async enableTrading() {
     this.isEnabled = true;
-    db.setConfig('trading_enabled', 'true');
+    db.setConfig('trading_enabled', 'true', this.channelId);
     await discordService.log('✅ **Paper Trading Enabled**', 'success');
     logger.info('✅ Paper trading enabled');
   }
 
   async disableTrading() {
     this.isEnabled = false;
-    db.setConfig('trading_enabled', 'false');
+    db.setConfig('trading_enabled', 'false', this.channelId);
     await discordService.log('⏸️ **Paper Trading Disabled**', 'warning');
     logger.info('⏸️ Paper trading disabled');
   }
 
   async resetPortfolio() {
-    db.resetPortfolio();
+    db.resetPortfolio(this.channelId);
     this.cashBalance = this.initialCapital;
     this.holdings.clear();
     this.totalRealizedPnL = 0;
@@ -475,9 +484,9 @@ class PaperTradingService {
 
   async sendDailySummary() {
     const portfolio = this.getPortfolio();
-    const todayStats = db.getTodayStats();
-    const topPerformers = db.getTopPerformers(5);
-    const worstPerformers = db.getWorstPerformers(5);
+    const todayStats = db.getTodayStats(this.channelId);
+    const topPerformers = db.getTopPerformers(5, this.channelId);
+    const worstPerformers = db.getWorstPerformers(5, this.channelId);
 
     let summary = '📊 **Daily Trading Summary**\n\n';
     summary += `**Portfolio:**\n`;
@@ -522,12 +531,12 @@ class PaperTradingService {
     switch (key) {
       case 'amount_per_trade':
         this.amountPerTrade = parseFloat(value);
-        db.setConfig('amount_per_trade', value);
+        db.setConfig('amount_per_trade', value, this.channelId);
         logger.info(`💵 Amount per trade updated to: ₹${this.amountPerTrade}`);
         break;
       case 'grid_percentage':
         this.gridPercentage = parseFloat(value);
-        db.setConfig('grid_percentage', value);
+        db.setConfig('grid_percentage', value, this.channelId);
         logger.info(`📈 Grid percentage updated to: ${this.gridPercentage}%`);
         break;
       default:
