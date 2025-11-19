@@ -2,18 +2,13 @@ require('dotenv').config();
 const discordService = require('./services/discord.service');
 const zerodhaService = require('./services/zerodha.service');
 const scheduledAuth = require('./services/scheduled-auth.service');
-const paperTradingService = require('./services/paper-trading.service');
-const gridStrategyService = require('./services/grid-strategy.service');
+const channelManager = require('./services/channel-manager.service');
 const gridWebSocketService = require('./services/grid-websocket.service');
 const logger = require('./utils/logger');
 
 async function start() {
   try {
     logger.info('🚀 Starting Grid Trading Bot...');
-
-    // Initialize Discord
-    await discordService.initialize();
-    logger.info('✅ Discord initialized');
 
     // Start scheduled authentication (will check and auto-login if needed)
     await scheduledAuth.start();
@@ -22,35 +17,34 @@ async function start() {
     // Check if Zerodha is now connected (after potential auto-login)
     const connected = zerodhaService.isConnected;
 
-    // Initialize Grid Trading if connected
+    // Initialize Channel Manager if connected
     if (connected) {
-      // Initialize Paper Trading Service
       try {
-        await paperTradingService.initialize();
-        logger.info('✅ Paper Trading Service initialized');
+        // Initialize Channel Manager (this will initialize all trading channels)
+        await channelManager.initialize();
+        logger.info('✅ Channel Manager initialized');
 
-        // Initialize Grid Strategy (loads its own instrument mapping)
-        await gridStrategyService.initialize();
-        logger.info('✅ Grid Strategy Service initialized');
+        // Initialize Discord with channel manager (for multi-channel command routing)
+        await discordService.initialize(channelManager);
+        logger.info('✅ Discord initialized with multi-channel support');
 
-        // Initialize WebSocket with callback to grid strategy
+        // Initialize WebSocket with callback to channel manager
         await gridWebSocketService.initialize((ticks) => {
-          gridStrategyService.processTicks(ticks);
+          channelManager.processTicks(ticks);
         });
         logger.info('✅ Grid WebSocket connected');
 
         // Auto-start trading if configured
-        const autoStart = process.env.AUTO_START_TRADING === 'true';
-        if (autoStart && paperTradingService.isInitialized && gridStrategyService.isInitialized) {
-          logger.info('🚀 Auto-starting paper trading...');
-          await paperTradingService.enableTrading();
-          await gridStrategyService.start();
-          logger.info('✅ Paper trading auto-started');
-        }
+        await channelManager.autoStartTrading();
+
       } catch (error) {
-        logger.error('❌ Failed to initialize paper trading:', error);
+        logger.error('❌ Failed to initialize trading:', error);
       }
     } else {
+      // Initialize Discord without channel manager
+      await discordService.initialize();
+      logger.info('✅ Discord initialized (limited mode - waiting for connection)');
+
       logger.warn('⚠️ Grid Trading Bot - Zerodha connection failed');
       logger.warn('⚠️ Please check auto-login logs above');
     }
@@ -58,10 +52,6 @@ async function start() {
     const botStatus = connected
       ? '✅ Grid Bot: Ready'
       : '⏸️ Grid Bot: Waiting for connection';
-
-    const tradingStatus = paperTradingService.isEnabled && gridStrategyService.isActive
-      ? '✅ Trading: ACTIVE'
-      : '⏸️ Trading: Use !start-trading';
 
     // Format capital amount for display
     const formatCapital = (amount) => {
@@ -74,20 +64,23 @@ async function start() {
       }
     };
 
-    const portfolioStatus = paperTradingService.isInitialized
-      ? `${formatCapital(paperTradingService.initialCapital)} Ready`
-      : 'Not initialized';
-
-    const gridPercentage = gridStrategyService.gridPercentage || 5.0;
+    // Build channel status message
+    let channelStatus = '';
+    if (connected && channelManager.isInitialized) {
+      const channels = channelManager.getAllChannels();
+      channelStatus = '\n\n**Trading Channels:**\n';
+      channels.forEach(channel => {
+        const capital = formatCapital(channel.config.initialCapital);
+        const tradingStatus = channel.paperTradingService.isEnabled ? '🟢' : '⏸️';
+        channelStatus += `${tradingStatus} **${channel.name}**: ${capital} | Grid: ${channel.config.gridPercentage}%\n`;
+      });
+    }
 
     await discordService.log(
       '🚀 **Grid Trading Bot Started**\n' +
       `📊 Monitoring: ${connected ? gridWebSocketService.tokens?.length || 0 : 'Unknown'} stocks\n` +
-      `💼 Virtual Portfolio: ${portfolioStatus}\n` +
-      `📈 ${gridPercentage}% Grid Strategy: ${gridStrategyService.isInitialized ? 'Initialized' : 'Not ready'}\n` +
       `🔐 Auto-login: Enabled (5:45 AM IST daily)\n` +
-      `${botStatus}\n` +
-      `${tradingStatus}\n\n` +
+      `${botStatus}${channelStatus}\n\n` +
       `Type \`!help\` for commands`,
       connected ? 'success' : 'warning'
     );

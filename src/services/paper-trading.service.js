@@ -545,4 +545,4 @@ class PaperTradingService {
   }
 }
 
-module.exports = new PaperTradingService();
+module.exports = PaperTradingService;
