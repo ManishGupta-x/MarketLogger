@@ -159,9 +159,6 @@ class GridStrategyService {
       const currentCount = this.priceReadCounts.get(token) || 0;
       this.priceReadCounts.set(token, currentCount + 1);
 
-      // Log price read
-      console.log(`📊 [TICK] Token: ${token} | Symbol: ${symbol} | Price: ₹${currentPrice.toFixed(2)} | Read #${currentCount + 1}`);
-
       // Update holding price if we have it
       if (paperTrading.hasHolding(token)) {
         paperTrading.updateHoldingPrice(token, currentPrice);
