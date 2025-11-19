@@ -73,11 +73,28 @@ async function start() {
       ? '✅ Trading: ACTIVE'
       : '⏸️ Trading: Use !start-trading';
 
+    // Format capital amount for display
+    const formatCapital = (amount) => {
+      if (amount >= 100000) {
+        return `₹${(amount / 100000).toFixed(1)}L`;
+      } else if (amount >= 1000) {
+        return `₹${(amount / 1000).toFixed(1)}K`;
+      } else {
+        return `₹${amount}`;
+      }
+    };
+
+    const portfolioStatus = paperTradingService.isInitialized
+      ? `${formatCapital(paperTradingService.initialCapital)} Ready`
+      : 'Not initialized';
+
+    const gridPercentage = gridStrategyService.gridPercentage || 5.0;
+
     await discordService.log(
       '🚀 **Grid Trading Bot Started**\n' +
       `📊 Monitoring: ${connected ? tokenTrackerService.tokens?.length || 0 : 'Unknown'} stocks\n` +
-      `💼 Virtual Portfolio: ${paperTradingService.isInitialized ? '₹5L Ready' : 'Not initialized'}\n` +
-      `📈 5% Grid Strategy: ${gridStrategyService.isInitialized ? 'Initialized' : 'Not ready'}\n` +
+      `💼 Virtual Portfolio: ${portfolioStatus}\n` +
+      `📈 ${gridPercentage}% Grid Strategy: ${gridStrategyService.isInitialized ? 'Initialized' : 'Not ready'}\n` +
       `🔐 Auto-login: Enabled (5:45 AM IST daily)\n` +
       `${botStatus}\n` +
       `${tradingStatus}\n\n` +
