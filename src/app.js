@@ -48,6 +48,15 @@ async function start() {
         };
 
         logger.info('✅ Grid strategy connected to ticker updates');
+
+        // Auto-start trading if configured
+        const autoStart = process.env.AUTO_START_TRADING === 'true';
+        if (autoStart && paperTradingService.isInitialized && gridStrategyService.isInitialized) {
+          logger.info('🚀 Auto-starting paper trading...');
+          await paperTradingService.enableTrading();
+          await gridStrategyService.start();
+          logger.info('✅ Paper trading auto-started');
+        }
       } catch (error) {
         logger.error('❌ Failed to initialize paper trading:', error);
       }
@@ -60,14 +69,19 @@ async function start() {
       ? '✅ Grid Bot: Ready'
       : '⏸️ Grid Bot: Waiting for connection';
 
+    const tradingStatus = paperTradingService.isEnabled && gridStrategyService.isActive
+      ? '✅ Trading: ACTIVE'
+      : '⏸️ Trading: Use !start-trading';
+
     await discordService.log(
       '🚀 **Grid Trading Bot Started**\n' +
       `📊 Monitoring: ${connected ? tokenTrackerService.tokens?.length || 0 : 'Unknown'} stocks\n` +
       `💼 Virtual Portfolio: ${paperTradingService.isInitialized ? '₹5L Ready' : 'Not initialized'}\n` +
       `📈 5% Grid Strategy: ${gridStrategyService.isInitialized ? 'Initialized' : 'Not ready'}\n` +
       `🔐 Auto-login: Enabled (5:45 AM IST daily)\n` +
-      `${botStatus}\n\n` +
-      `Type \`!help\` for commands | \`!start-trading\` to begin`,
+      `${botStatus}\n` +
+      `${tradingStatus}\n\n` +
+      `Type \`!help\` for commands`,
       connected ? 'success' : 'warning'
     );
 

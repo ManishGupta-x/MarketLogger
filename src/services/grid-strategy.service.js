@@ -3,6 +3,8 @@ const db = require('./database.service');
 const paperTrading = require('./paper-trading.service');
 const discordService = require('./discord.service');
 const logger = require('../utils/logger');
+const fs = require('fs');
+const path = require('path');
 
 class GridStrategyService {
   constructor() {
@@ -13,6 +15,13 @@ class GridStrategyService {
     this.tokenToSymbolMap = new Map();
     this.lastProcessedTime = new Map();
     this.minIntervalMs = 5000; // Minimum 5 seconds between trades for same stock
+
+    // Price read tracking
+    this.priceReadCounts = new Map();
+    this.totalReadsProcessed = 0;
+    this.statsFilePath = path.join(__dirname, '../../grid-stats.json');
+    this.lastStatsSaveTime = Date.now();
+    this.statsSaveInterval = 60000; // Save stats every 60 seconds
   }
 
   async initialize(tokenSymbolMap) {
@@ -25,13 +34,20 @@ class GridStrategyService {
         logger.info(`📋 Loaded ${this.tokenToSymbolMap.size} token mappings`);
       }
 
-      // Load grid percentage from config
-      const gridPercentageConfig = db.getConfig('grid_percentage');
-      if (gridPercentageConfig) {
-        this.gridPercentage = parseFloat(gridPercentageConfig);
+      // Load grid percentage from environment variable first, then config, then default
+      const envGridPercentage = process.env.GRID_PERCENTAGE;
+      if (envGridPercentage) {
+        this.gridPercentage = parseFloat(envGridPercentage);
+        logger.info(`📈 Grid percentage from ENV: ${this.gridPercentage}%`);
+      } else {
+        const gridPercentageConfig = db.getConfig('grid_percentage');
+        if (gridPercentageConfig) {
+          this.gridPercentage = parseFloat(gridPercentageConfig);
+          logger.info(`📈 Grid percentage from DB: ${this.gridPercentage}%`);
+        } else {
+          logger.info(`📈 Grid percentage (default): ${this.gridPercentage}%`);
+        }
       }
-
-      logger.info(`📈 Grid percentage: ${this.gridPercentage}%`);
 
       // Load existing grid levels from database
       await this.loadGridLevels();
@@ -106,6 +122,8 @@ class GridStrategyService {
       return;
     }
 
+    this.totalReadsProcessed += ticks.length;
+
     ticks.forEach(tick => {
       const token = tick.instrument_token.toString();
       const currentPrice = tick.last_price;
@@ -118,9 +136,17 @@ class GridStrategyService {
         return; // Skip if we don't have the symbol
       }
 
+      // Track price reads per token
+      const currentCount = this.priceReadCounts.get(token) || 0;
+      this.priceReadCounts.set(token, currentCount + 1);
+
+      // Log price read
+      console.log(`📊 [TICK] Token: ${token} | Symbol: ${symbol} | Price: ₹${currentPrice.toFixed(2)} | Read #${currentCount + 1}`);
+
       // Update holding price if we have it
       if (paperTrading.hasHolding(token)) {
         paperTrading.updateHoldingPrice(token, currentPrice);
+        console.log(`  💼 Updated holding price for ${symbol}`);
       }
 
       // Check if we should skip this tick (too soon after last trade)
@@ -137,6 +163,11 @@ class GridStrategyService {
       // Check grid levels
       this.checkGridLevels(token, symbol, currentPrice);
     });
+
+    // Save stats periodically
+    if (Date.now() - this.lastStatsSaveTime > this.statsSaveInterval) {
+      this.saveStats();
+    }
   }
 
   checkGridLevels(token, symbol, currentPrice) {
@@ -151,8 +182,12 @@ class GridStrategyService {
 
     // Check for BUY trigger (5% drop from reference)
     const buyThreshold = refPrice.mul(new Decimal(1).minus(gridPercent));
+    const dropPercent = refPrice.minus(price).div(refPrice).mul(100);
+
+    console.log(`  🎯 [GRID] ${symbol} | Ref: ₹${gridData.referencePrice.toFixed(2)} | Buy@: ₹${buyThreshold.toFixed(2)} | Current: ₹${currentPrice.toFixed(2)} | Drop: ${dropPercent.toFixed(2)}%`);
 
     if (price.lte(buyThreshold)) {
+      console.log(`  🟢 [BUY TRIGGER] ${symbol} hit buy threshold!`);
       this.triggerBuy(token, symbol, price.toNumber(), gridData);
       return;
     }
@@ -161,8 +196,12 @@ class GridStrategyService {
     if (gridData.lastBuyPrice) {
       const lastBuyPrice = new Decimal(gridData.lastBuyPrice);
       const sellThreshold = lastBuyPrice.mul(new Decimal(1).plus(gridPercent));
+      const risePercent = price.minus(lastBuyPrice).div(lastBuyPrice).mul(100);
+
+      console.log(`  🎯 [GRID] ${symbol} | LastBuy: ₹${gridData.lastBuyPrice.toFixed(2)} | Sell@: ₹${sellThreshold.toFixed(2)} | Rise: ${risePercent.toFixed(2)}%`);
 
       if (price.gte(sellThreshold)) {
+        console.log(`  🔴 [SELL TRIGGER] ${symbol} hit sell threshold!`);
         this.triggerSell(token, symbol, price.toNumber(), gridData);
         return;
       }
@@ -337,6 +376,13 @@ class GridStrategyService {
     }
 
     this.isActive = true;
+    console.log(`\n🎯 ============================================`);
+    console.log(`🎯 GRID TRADING STRATEGY STARTED`);
+    console.log(`🎯 Grid Percentage: ${this.gridPercentage}%`);
+    console.log(`🎯 Active Grids: ${this.getActiveGridsCount()}`);
+    console.log(`🎯 Monitoring ${this.tokenToSymbolMap.size} stocks`);
+    console.log(`🎯 ============================================\n`);
+
     await discordService.log('🎯 **Grid Trading Strategy Started**\n' +
       `Grid Percentage: ${this.gridPercentage}%\n` +
       `Active Grids: ${this.getActiveGridsCount()}`, 'success');
@@ -414,6 +460,58 @@ class GridStrategyService {
   async getTopGrids(limit = 10) {
     const grids = this.getAllGrids();
     return grids.slice(0, limit);
+  }
+
+  saveStats() {
+    try {
+      const stats = {
+        timestamp: new Date().toISOString(),
+        total_reads_processed: this.totalReadsProcessed,
+        active_tokens: this.priceReadCounts.size,
+        price_reads_per_token: {}
+      };
+
+      // Convert Map to object and add symbol names
+      for (const [token, count] of this.priceReadCounts.entries()) {
+        const symbol = this.tokenToSymbolMap.get(parseInt(token));
+        const cleanSymbol = symbol ? symbol.replace('NSE:', '') : token;
+        stats.price_reads_per_token[cleanSymbol] = {
+          token: token,
+          read_count: count
+        };
+      }
+
+      // Sort by read count
+      const sortedStats = Object.entries(stats.price_reads_per_token)
+        .sort((a, b) => b[1].read_count - a[1].read_count)
+        .reduce((obj, [key, value]) => {
+          obj[key] = value;
+          return obj;
+        }, {});
+
+      stats.price_reads_per_token = sortedStats;
+
+      // Write to file
+      fs.writeFileSync(this.statsFilePath, JSON.stringify(stats, null, 2), 'utf8');
+
+      console.log(`\n📊 [STATS SAVED] Total reads: ${this.totalReadsProcessed} | Active tokens: ${this.priceReadCounts.size} | File: grid-stats.json\n`);
+
+      this.lastStatsSaveTime = Date.now();
+    } catch (error) {
+      logger.error('Failed to save stats:', error);
+    }
+  }
+
+  getStats() {
+    try {
+      if (fs.existsSync(this.statsFilePath)) {
+        const data = fs.readFileSync(this.statsFilePath, 'utf8');
+        return JSON.parse(data);
+      }
+    } catch (error) {
+      logger.error('Failed to read stats:', error);
+    }
+    return null;
   }
 }
 
