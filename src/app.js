@@ -33,8 +33,8 @@ async function start() {
         await paperTradingService.initialize();
         logger.info('✅ Paper Trading Service initialized');
 
-        // Initialize Grid Strategy with token mapping from ticker service
-        await gridStrategyService.initialize(tickerService.tokenToSymbolMap);
+        // Initialize Grid Strategy (loads its own instrument mapping)
+        await gridStrategyService.initialize();
         logger.info('✅ Grid Strategy Service initialized');
 
         // Set up event listener for tick data

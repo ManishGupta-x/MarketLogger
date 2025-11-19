@@ -2,6 +2,7 @@ const Decimal = require('decimal.js');
 const db = require('./database.service');
 const paperTrading = require('./paper-trading.service');
 const discordService = require('./discord.service');
+const zerodhaService = require('./zerodha.service');
 const logger = require('../utils/logger');
 const fs = require('fs');
 const path = require('path');
@@ -24,15 +25,33 @@ class GridStrategyService {
     this.statsSaveInterval = 60000; // Save stats every 60 seconds
   }
 
-  async initialize(tokenSymbolMap) {
+  async loadInstruments() {
+    try {
+      logger.info('📥 Loading NSE instruments for grid strategy...');
+      const instruments = await zerodhaService.kite.getInstruments('NSE');
+
+      instruments.forEach(inst => {
+        const symbol = `NSE:${inst.tradingsymbol}`;
+        const token = typeof inst.instrument_token === 'number'
+          ? inst.instrument_token
+          : parseInt(inst.instrument_token);
+
+        this.tokenToSymbolMap.set(token, symbol);
+      });
+
+      logger.info(`✅ Mapped ${this.tokenToSymbolMap.size} instruments for grid strategy`);
+    } catch (error) {
+      logger.error('❌ Error loading instruments:', error);
+      throw error;
+    }
+  }
+
+  async initialize() {
     try {
       logger.info('📊 Initializing Grid Strategy Service...');
 
-      // Store token to symbol mapping
-      if (tokenSymbolMap) {
-        this.tokenToSymbolMap = tokenSymbolMap;
-        logger.info(`📋 Loaded ${this.tokenToSymbolMap.size} token mappings`);
-      }
+      // Load instruments to build token mapping
+      await this.loadInstruments();
 
       // Load grid percentage from environment variable first, then config, then default
       const envGridPercentage = process.env.GRID_PERCENTAGE;
