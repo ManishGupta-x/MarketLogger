@@ -209,7 +209,8 @@ GRID_PERCENTAGE=5.0
 
 ### Discord Service
 - Extends existing Discord bot commands
-- Uses same log channel for notifications
+- Uses dedicated order channel for trade notifications (DISCORD_ORDER_CHANNEL_ID)
+- Main log channel for system notifications
 - Reuses Discord embeds for rich display
 
 ### Zerodha Service
@@ -251,10 +252,13 @@ npm start
 
 ## Order Logging
 
-Every order is logged to Discord with:
-- 🟢 BUY: Symbol, qty, price, value, balance
-- 🔴 SELL: Symbol, qty, price, P&L, %, balance
-- 🎉 Alert emoji for >2% P&L on single trade
+Every order is automatically logged to a dedicated Discord channel with:
+- **Dedicated Channel**: All orders sent to `DISCORD_ORDER_CHANNEL_ID` (default: 1424357736820379668)
+- 🟢 **BUY**: Symbol, qty, price, value, balance
+- 🔴 **SELL**: Symbol, qty, price, P&L, %, balance
+- 🎉 **Alert emoji** for >2% P&L on single trade
+- 📈/📉 **P&L indicators** for profitable/loss trades
+- ⏰ **IST Timestamp** for each order
 
 Example:
 ```

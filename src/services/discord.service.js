@@ -730,6 +730,43 @@ class DiscordService {
       logger.error('Failed to send Discord message:', error.message);
     }
   }
+
+  async logToChannel(channelId, message, type = 'info') {
+    if (!this.isReady || !this.client) {
+      logger.warn('Discord not ready, logging to console only');
+      logger.info(message);
+      return;
+    }
+
+    try {
+      const channel = this.client.channels.cache.get(channelId);
+
+      if (!channel) {
+        logger.error(`Channel not found: ${channelId}`);
+        // Fallback to default log channel
+        await this.log(message, type);
+        return;
+      }
+
+      const emoji = {
+        success: '✅',
+        error: '❌',
+        warning: '⚠️',
+        info: 'ℹ️'
+      };
+
+      const prefix = emoji[type] || emoji.info;
+      const timestamp = new Date().toLocaleString('en-IN', { timeZone: 'Asia/Kolkata' });
+
+      const formattedMessage = `${prefix} **[${timestamp}]**\n${message}`;
+
+      await channel.send(formattedMessage);
+    } catch (error) {
+      logger.error(`Failed to send Discord message to channel ${channelId}:`, error.message);
+      // Fallback to default log channel
+      await this.log(message, type);
+    }
+  }
 }
 
 module.exports = new DiscordService();

@@ -13,6 +13,7 @@ class PaperTradingService {
     this.holdings = new Map();
     this.totalRealizedPnL = 0;
     this.totalInvested = 0;
+    this.orderChannelId = process.env.DISCORD_ORDER_CHANNEL_ID || '1424357736820379668';
   }
 
   async initialize() {
@@ -304,7 +305,9 @@ class PaperTradingService {
     message += `**Balance:** ₹${balance.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 
     const logType = type === 'BUY' ? 'info' : (pnl >= 0 ? 'success' : 'warning');
-    await discordService.log(message, logType);
+
+    // Log to dedicated order channel
+    await discordService.logToChannel(this.orderChannelId, message, logType);
   }
 
   updateHoldingPrice(token, currentPrice) {
