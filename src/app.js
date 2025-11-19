@@ -4,11 +4,16 @@ const zerodhaService = require('./services/zerodha.service');
 const scheduledAuth = require('./services/scheduled-auth.service');
 const channelManager = require('./services/channel-manager.service');
 const gridWebSocketService = require('./services/grid-websocket.service');
+const db = require('./services/database.service');
 const logger = require('./utils/logger');
 
 async function start() {
   try {
     logger.info('🚀 Starting Grid Trading Bot...');
+
+    // Initialize database first (before any channel initialization)
+    db.initialize();
+    logger.info('✅ Database initialized');
 
     // Start scheduled authentication (will check and auto-login if needed)
     await scheduledAuth.start();
