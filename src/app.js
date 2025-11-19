@@ -1,11 +1,10 @@
 require('dotenv').config();
 const discordService = require('./services/discord.service');
 const zerodhaService = require('./services/zerodha.service');
-const tokenTrackerService = require('./services/token-tracker.service');
 const scheduledAuth = require('./services/scheduled-auth.service');
 const paperTradingService = require('./services/paper-trading.service');
 const gridStrategyService = require('./services/grid-strategy.service');
-const tickerService = require('./services/ticker.service');
+const gridWebSocketService = require('./services/grid-websocket.service');
 const logger = require('./utils/logger');
 
 async function start() {
@@ -23,11 +22,8 @@ async function start() {
     // Check if Zerodha is now connected (after potential auto-login)
     const connected = zerodhaService.isConnected;
 
-    // Initialize Token Tracker Service if connected
+    // Initialize Grid Trading if connected
     if (connected) {
-      await tokenTrackerService.initialize();
-      logger.info('✅ Token Tracker initialized');
-
       // Initialize Paper Trading Service
       try {
         await paperTradingService.initialize();
@@ -37,17 +33,11 @@ async function start() {
         await gridStrategyService.initialize();
         logger.info('✅ Grid Strategy Service initialized');
 
-        // Set up event listener for tick data
-        const originalProcessTicks = tickerService.processTicks.bind(tickerService);
-        tickerService.processTicks = function(ticks) {
-          // Call original process ticks
-          originalProcessTicks(ticks);
-
-          // Also send to grid strategy
+        // Initialize WebSocket with callback to grid strategy
+        await gridWebSocketService.initialize((ticks) => {
           gridStrategyService.processTicks(ticks);
-        };
-
-        logger.info('✅ Grid strategy connected to ticker updates');
+        });
+        logger.info('✅ Grid WebSocket connected');
 
         // Auto-start trading if configured
         const autoStart = process.env.AUTO_START_TRADING === 'true';
@@ -92,7 +82,7 @@ async function start() {
 
     await discordService.log(
       '🚀 **Grid Trading Bot Started**\n' +
-      `📊 Monitoring: ${connected ? tokenTrackerService.tokens?.length || 0 : 'Unknown'} stocks\n` +
+      `📊 Monitoring: ${connected ? gridWebSocketService.tokens?.length || 0 : 'Unknown'} stocks\n` +
       `💼 Virtual Portfolio: ${portfolioStatus}\n` +
       `📈 ${gridPercentage}% Grid Strategy: ${gridStrategyService.isInitialized ? 'Initialized' : 'Not ready'}\n` +
       `🔐 Auto-login: Enabled (5:45 AM IST daily)\n` +
@@ -115,7 +105,7 @@ async function start() {
 process.on('SIGTERM', async () => {
   logger.info('SIGTERM received, shutting down...');
 
-  await tokenTrackerService.stop();
+  await gridWebSocketService.stop();
 
   await discordService.log('🛑 Grid Trading Bot shutting down gracefully', 'warning');
 
@@ -135,7 +125,7 @@ process.on('unhandledRejection', async (error) => {
 process.on('SIGINT', async () => {
   logger.info('SIGINT received, shutting down...');
 
-  await tokenTrackerService.stop();
+  await gridWebSocketService.stop();
 
   await discordService.log('🛑 Grid Trading Bot stopped by user', 'warning');
 
