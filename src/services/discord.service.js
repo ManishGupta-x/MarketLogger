@@ -465,6 +465,15 @@ class DiscordService {
   }
 
   async helpCommand(message) {
+    // Get dynamic config from environment/channel manager
+    let channelInfo = '';
+    if (this.channelManager) {
+      const channels = this.channelManager.getAllChannels();
+      channelInfo = channels.map((ch, i) =>
+        `**${ch.config.name}:** ₹${ch.config.initialCapital.toLocaleString('en-IN')} | ₹${ch.config.amountPerTrade.toLocaleString('en-IN')}/trade | ${ch.config.gridPercentage}% grid`
+      ).join('\n');
+    }
+
     const help = `📚 **Grid Trading Bot Commands**
 
 **Paper Trading:**
@@ -493,20 +502,14 @@ class DiscordService {
 \`!test\` - Run connection tests
 \`!help\` - Show this message
 
-**Examples:**
-\`!start-trading\` - Start the 5% grid bot
-\`!portfolio\` - Check your virtual portfolio
-\`!portfolio1\` - Check Channel 1 portfolio from any channel
-\`!grid RELIANCE\` - See RELIANCE grid levels
-\`!config set amount_per_trade 15000\` - Trade ₹15k per order
-\`!orders today\` - View today's trades
+**Channel Configurations:**
+${channelInfo || 'No channels configured'}
 
 **Grid Strategy:**
 🟢 BUY when price drops X% from reference
 🔴 SELL when price rises X% from last buy
 🔻 SHORT when price rises X% from reference (no position)
 🔺 COVER when price drops X% from short entry
-📊 Monitors 707 stocks automatically
 💰 Each channel has its own config and portfolio`;
 
     await message.reply(help);
