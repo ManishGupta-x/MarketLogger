@@ -71,6 +71,14 @@ class DatabaseService {
       )
     `);
 
+    // Add synced column if it doesn't exist (migration for existing databases)
+    try {
+      this.db.exec(`ALTER TABLE virtual_orders ADD COLUMN synced INTEGER DEFAULT 0`);
+      logger.info('✅ Added synced column to virtual_orders');
+    } catch (e) {
+      // Column already exists, ignore
+    }
+
     // Virtual holdings table
     this.db.exec(`
       CREATE TABLE IF NOT EXISTS virtual_holdings (
@@ -107,6 +115,14 @@ class DatabaseService {
       )
     `);
 
+    // Add synced column to portfolio if it doesn't exist
+    try {
+      this.db.exec(`ALTER TABLE virtual_portfolio ADD COLUMN synced INTEGER DEFAULT 0`);
+      logger.info('✅ Added synced column to virtual_portfolio');
+    } catch (e) {
+      // Column already exists, ignore
+    }
+
     // Grid levels table
     this.db.exec(`
       CREATE TABLE IF NOT EXISTS grid_levels (
@@ -136,18 +152,22 @@ class DatabaseService {
       )
     `);
 
-    // Create indexes for better performance
-    this.db.exec(`
-      CREATE INDEX IF NOT EXISTS idx_orders_channel ON virtual_orders(channel_id);
-      CREATE INDEX IF NOT EXISTS idx_orders_timestamp ON virtual_orders(timestamp);
-      CREATE INDEX IF NOT EXISTS idx_orders_symbol ON virtual_orders(symbol);
-      CREATE INDEX IF NOT EXISTS idx_orders_synced ON virtual_orders(synced);
-      CREATE INDEX IF NOT EXISTS idx_holdings_channel ON virtual_holdings(channel_id);
-      CREATE INDEX IF NOT EXISTS idx_portfolio_channel ON virtual_portfolio(channel_id);
-      CREATE INDEX IF NOT EXISTS idx_portfolio_synced ON virtual_portfolio(synced);
-      CREATE INDEX IF NOT EXISTS idx_grid_channel ON grid_levels(channel_id);
-      CREATE INDEX IF NOT EXISTS idx_grid_active ON grid_levels(is_active);
-    `);
+    // Create indexes for better performance (only if tables have required columns)
+    try {
+      this.db.exec(`
+        CREATE INDEX IF NOT EXISTS idx_orders_channel ON virtual_orders(channel_id);
+        CREATE INDEX IF NOT EXISTS idx_orders_timestamp ON virtual_orders(timestamp);
+        CREATE INDEX IF NOT EXISTS idx_orders_symbol ON virtual_orders(symbol);
+        CREATE INDEX IF NOT EXISTS idx_orders_synced ON virtual_orders(synced);
+        CREATE INDEX IF NOT EXISTS idx_holdings_channel ON virtual_holdings(channel_id);
+        CREATE INDEX IF NOT EXISTS idx_portfolio_channel ON virtual_portfolio(channel_id);
+        CREATE INDEX IF NOT EXISTS idx_portfolio_synced ON virtual_portfolio(synced);
+        CREATE INDEX IF NOT EXISTS idx_grid_channel ON grid_levels(channel_id);
+        CREATE INDEX IF NOT EXISTS idx_grid_active ON grid_levels(is_active);
+      `);
+    } catch (e) {
+      logger.warn('⚠️ Some indexes could not be created:', e.message);
+    }
 
     logger.info('✅ Database tables created');
   }
