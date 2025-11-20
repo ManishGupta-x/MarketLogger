@@ -14,7 +14,7 @@
   "dependencies": {
     "@supabase/supabase-js": "^2.84.0",
     "axios": "^1.12.2",
-    "better-sqlite3": "^9.2.2",
+    "better-sqlite3": "^9.6.0",
     "decimal.js": "^10.4.3",
     "discord.js": "^14.22.1",
     "dotenv": "^17.2.3",
