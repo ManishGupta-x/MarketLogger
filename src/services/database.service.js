@@ -71,7 +71,14 @@ class DatabaseService {
       )
     `);
 
-    // Add synced column if it doesn't exist (migration for existing databases)
+    // Migration for existing databases - add channel_id and synced columns
+    try {
+      this.db.exec(`ALTER TABLE virtual_orders ADD COLUMN channel_id TEXT NOT NULL DEFAULT 'default'`);
+      logger.info('✅ Added channel_id column to virtual_orders');
+    } catch (e) {
+      // Column already exists, ignore
+    }
+
     try {
       this.db.exec(`ALTER TABLE virtual_orders ADD COLUMN synced INTEGER DEFAULT 0`);
       logger.info('✅ Added synced column to virtual_orders');
