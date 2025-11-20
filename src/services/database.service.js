@@ -119,24 +119,6 @@ class DatabaseService {
       )
     `);
 
-    // Virtual short positions table
-    this.db.exec(`
-      CREATE TABLE IF NOT EXISTS virtual_short_positions (
-        channel_id TEXT NOT NULL DEFAULT 'default',
-        token TEXT NOT NULL,
-        symbol TEXT NOT NULL,
-        qty INTEGER NOT NULL,
-        entry_price REAL NOT NULL,
-        current_price REAL,
-        short_value REAL NOT NULL,
-        current_value REAL,
-        unrealized_pnl REAL,
-        unrealized_pnl_percent REAL,
-        last_updated DATETIME DEFAULT CURRENT_TIMESTAMP,
-        PRIMARY KEY (channel_id, token)
-      )
-    `);
-
     // Apply migrations to add channel_id to existing tables
     this.applyMigrations();
 
@@ -152,7 +134,6 @@ class DatabaseService {
       CREATE INDEX IF NOT EXISTS idx_grid_channel ON grid_levels(channel_id);
       CREATE INDEX IF NOT EXISTS idx_grid_active ON grid_levels(is_active);
       CREATE INDEX IF NOT EXISTS idx_config_channel ON config(channel_id);
-      CREATE INDEX IF NOT EXISTS idx_shorts_channel ON virtual_short_positions(channel_id);
     `);
 
     logger.info('✅ Database tables created');
@@ -460,83 +441,6 @@ class DatabaseService {
     stmt.run(currentPrice, currentValue, unrealizedPnl, unrealizedPnlPercent, channelId, token);
   }
 
-  // Short position methods
-  upsertShortPosition(position, channelId = 'default') {
-    const stmt = this.db.prepare(`
-      INSERT INTO virtual_short_positions
-      (channel_id, token, symbol, qty, entry_price, current_price, short_value, current_value,
-       unrealized_pnl, unrealized_pnl_percent, last_updated)
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP)
-      ON CONFLICT(channel_id, token) DO UPDATE SET
-        qty = ?,
-        entry_price = ?,
-        current_price = ?,
-        short_value = ?,
-        current_value = ?,
-        unrealized_pnl = ?,
-        unrealized_pnl_percent = ?,
-        last_updated = CURRENT_TIMESTAMP
-    `);
-
-    stmt.run(
-      channelId,
-      position.token,
-      position.symbol,
-      position.qty,
-      position.entry_price,
-      position.current_price || null,
-      position.short_value,
-      position.current_value || null,
-      position.unrealized_pnl || null,
-      position.unrealized_pnl_percent || null,
-      // UPDATE values
-      position.qty,
-      position.entry_price,
-      position.current_price || null,
-      position.short_value,
-      position.current_value || null,
-      position.unrealized_pnl || null,
-      position.unrealized_pnl_percent || null
-    );
-  }
-
-  getShortPosition(token, channelId = 'default') {
-    const stmt = this.db.prepare('SELECT * FROM virtual_short_positions WHERE channel_id = ? AND token = ?');
-    return stmt.get(channelId, token);
-  }
-
-  getAllShortPositions(channelId = 'default') {
-    const stmt = this.db.prepare('SELECT * FROM virtual_short_positions WHERE channel_id = ? ORDER BY symbol');
-    return stmt.all(channelId);
-  }
-
-  deleteShortPosition(token, channelId = 'default') {
-    const stmt = this.db.prepare('DELETE FROM virtual_short_positions WHERE channel_id = ? AND token = ?');
-    stmt.run(channelId, token);
-  }
-
-  updateShortPositionPrice(token, currentPrice, channelId = 'default') {
-    const position = this.getShortPosition(token, channelId);
-    if (!position) return;
-
-    const currentValue = position.qty * currentPrice;
-    // For shorts: profit when price goes down, loss when price goes up
-    const unrealizedPnl = position.short_value - currentValue;
-    const unrealizedPnlPercent = (unrealizedPnl / position.short_value) * 100;
-
-    const stmt = this.db.prepare(`
-      UPDATE virtual_short_positions
-      SET current_price = ?,
-          current_value = ?,
-          unrealized_pnl = ?,
-          unrealized_pnl_percent = ?,
-          last_updated = CURRENT_TIMESTAMP
-      WHERE channel_id = ? AND token = ?
-    `);
-
-    stmt.run(currentPrice, currentValue, unrealizedPnl, unrealizedPnlPercent, channelId, token);
-  }
-
   // Portfolio snapshot methods
   insertPortfolioSnapshot(portfolio, channelId = 'default') {
     const stmt = this.db.prepare(`
@@ -728,7 +632,6 @@ class DatabaseService {
     this.db.exec(`DELETE FROM virtual_holdings WHERE channel_id = '${channelId}'`);
     this.db.exec(`DELETE FROM virtual_portfolio WHERE channel_id = '${channelId}'`);
     this.db.exec(`DELETE FROM grid_levels WHERE channel_id = '${channelId}'`);
-    this.db.exec(`DELETE FROM virtual_short_positions WHERE channel_id = '${channelId}'`);
 
     logger.info(`🔄 Portfolio reset complete for channel ${channelId}`);
   }
