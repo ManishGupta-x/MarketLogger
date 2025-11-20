@@ -510,8 +510,9 @@ class PaperTradingCommands {
     try {
       const channel = this.getChannelInstance(message);
       if (args.length === 0) {
-        // Show current config
-        const config = channel.paperTradingService.getConfig();
+        // Show current config - use channel.config for accurate values
+        const channelConfig = channel.config;
+        const tradingConfig = channel.paperTradingService.getConfig();
         const gridStatus = channel.gridStrategyService.getStatus();
 
         const embed = {
@@ -520,22 +521,22 @@ class PaperTradingCommands {
           fields: [
             {
               name: '💰 Initial Capital',
-              value: `₹${config.initial_capital.toLocaleString('en-IN')}`,
+              value: `₹${channelConfig.initialCapital.toLocaleString('en-IN')}`,
               inline: true
             },
             {
               name: '📊 Amount per Trade',
-              value: `₹${config.amount_per_trade.toLocaleString('en-IN')}`,
+              value: `₹${channelConfig.amountPerTrade.toLocaleString('en-IN')}`,
               inline: true
             },
             {
               name: '📈 Grid Percentage',
-              value: `${config.grid_percentage}%`,
+              value: `${channelConfig.gridPercentage}%`,
               inline: true
             },
             {
               name: '🎯 Trading Status',
-              value: config.trading_enabled ? '✅ Enabled' : '❌ Disabled',
+              value: tradingConfig.trading_enabled ? '✅ Enabled' : '❌ Disabled',
               inline: true
             },
             {
