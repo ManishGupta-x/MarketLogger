@@ -12,7 +12,6 @@ class PaperTradingService {
     this.initialCapital = 0;
     this.amountPerTrade = 0;
     this.holdings = new Map();
-    this.shortPositions = new Map(); // Track short positions
     this.totalRealizedPnL = 0;
     this.totalInvested = 0;
     this.orderChannelId = process.env.DISCORD_ORDER_CHANNEL_ID || '1424357736820379668';
@@ -130,24 +129,6 @@ class PaperTradingService {
 
     logger.info(`📦 Loaded ${this.holdings.size} holdings`);
 
-    // Load short positions
-    const shortPositions = db.getAllShortPositions(this.channelId);
-    this.shortPositions.clear();
-
-    shortPositions.forEach(position => {
-      this.shortPositions.set(position.token, {
-        symbol: position.symbol,
-        qty: position.qty,
-        entryPrice: position.entry_price,
-        currentPrice: position.current_price,
-        shortValue: position.short_value,
-        unrealizedPnl: position.unrealized_pnl,
-        unrealizedPnlPercent: position.unrealized_pnl_percent
-      });
-    });
-
-    logger.info(`🔻 Loaded ${this.shortPositions.size} short positions`);
-
     // Calculate total invested and realized P&L
     const stats = db.getTotalPnL(this.channelId);
     this.totalRealizedPnL = stats.realized_pnl || 0;
@@ -174,10 +155,6 @@ class PaperTradingService {
         return await this.executeBuy(token, symbol, priceDecimal, gridLevel, referencePrice, executionReason);
       } else if (type === 'SELL') {
         return await this.executeSell(token, symbol, priceDecimal, gridLevel, referencePrice, executionReason);
-      } else if (type === 'SHORT') {
-        return await this.executeShort(token, symbol, priceDecimal, gridLevel, referencePrice, executionReason);
-      } else if (type === 'COVER') {
-        return await this.executeCover(token, symbol, priceDecimal, gridLevel, referencePrice, executionReason);
       } else {
         return { success: false, message: 'Invalid order type' };
       }
@@ -352,181 +329,6 @@ class PaperTradingService {
     };
   }
 
-  async executeShort(token, symbol, price, gridLevel, referencePrice, executionReason = null) {
-    // Check if we already have a short position
-    if (this.shortPositions.has(token)) {
-      logger.warn(`Already have short position for ${symbol}`);
-      return { success: false, message: 'Already have short position' };
-    }
-
-    // Calculate quantity based on amount per trade
-    const qty = Math.floor(this.amountPerTrade / price.toNumber());
-
-    if (qty === 0) {
-      logger.warn(`Stock price too high for ${symbol}: ₹${price.toNumber()}`);
-      return { success: false, message: 'Stock price too high' };
-    }
-
-    const orderValue = new Decimal(qty).mul(price);
-
-    // Check if we have enough capital to short
-    if (this.cashBalance < orderValue.toNumber()) {
-      logger.warn(`Insufficient balance to short ${symbol}: ₹${this.cashBalance.toFixed(2)} < ₹${orderValue.toNumber()}`);
-      return { success: false, message: 'Insufficient balance to short' };
-    }
-
-    // Use capital to short (deduct from cash like buying)
-    this.cashBalance = new Decimal(this.cashBalance).minus(orderValue).toNumber();
-
-    // Create short position
-    this.shortPositions.set(token, {
-      symbol: symbol,
-      qty: qty,
-      entryPrice: price.toNumber(),
-      currentPrice: price.toNumber(),
-      shortValue: orderValue.toNumber(),
-      unrealizedPnl: 0,
-      unrealizedPnlPercent: 0
-    });
-
-    // Save short position to database
-    db.upsertShortPosition({
-      token: token,
-      symbol: symbol,
-      qty: qty,
-      entry_price: price.toNumber(),
-      current_price: price.toNumber(),
-      short_value: orderValue.toNumber(),
-      current_value: orderValue.toNumber(),
-      unrealized_pnl: 0,
-      unrealized_pnl_percent: 0
-    }, this.channelId);
-
-    // Insert order record
-    const orderId = db.insertOrder({
-      type: 'SHORT',
-      token: token,
-      symbol: symbol,
-      qty: qty,
-      price: price.toNumber(),
-      value: orderValue.toNumber(),
-      balance: this.cashBalance,
-      pnl: 0,
-      pnl_percent: 0,
-      grid_level: gridLevel,
-      reference_price: referencePrice,
-      notes: `Short at grid level ${gridLevel}`
-    }, this.channelId);
-
-    // Save portfolio snapshot
-    this.savePortfolioSnapshot();
-
-    // Log to Discord
-    await this.logOrderToDiscord('SHORT', symbol, qty, price.toNumber(), 0, 0, this.cashBalance, executionReason);
-
-    logger.info(`🔻 SHORT ${symbol} | Qty: ${qty} | Price: ₹${price.toNumber()} | Value: ₹${orderValue.toNumber().toFixed(2)} | Balance: ₹${this.cashBalance.toFixed(2)}`);
-
-    return {
-      success: true,
-      orderId: orderId,
-      qty: qty,
-      price: price.toNumber(),
-      value: orderValue.toNumber(),
-      balance: this.cashBalance
-    };
-  }
-
-  async executeCover(token, symbol, price, gridLevel, referencePrice, executionReason = null) {
-    // Check if we have a short position to cover
-    const shortPosition = this.shortPositions.get(token);
-
-    if (!shortPosition || shortPosition.qty === 0) {
-      logger.warn(`No short position to cover for ${symbol}`);
-      return { success: false, message: 'No short position to cover' };
-    }
-
-    const qty = shortPosition.qty;
-    const orderValue = new Decimal(qty).mul(price);
-
-    // Calculate P&L (profit when price drops, loss when price rises)
-    const shortValue = new Decimal(shortPosition.shortValue);
-    const pnl = shortValue.minus(orderValue); // Profit = short price - cover price
-    const pnlPercent = pnl.div(shortValue).mul(100);
-
-    // Return capital + profit/loss (shortValue was locked, now get it back with P&L)
-    this.cashBalance = new Decimal(this.cashBalance).plus(shortValue).plus(pnl).toNumber();
-
-    // Update realized P&L
-    this.totalRealizedPnL = new Decimal(this.totalRealizedPnL).plus(pnl).toNumber();
-
-    // Remove short position
-    this.shortPositions.delete(token);
-    db.deleteShortPosition(token, this.channelId);
-
-    // Insert order record
-    const orderId = db.insertOrder({
-      type: 'COVER',
-      token: token,
-      symbol: symbol,
-      qty: qty,
-      price: price.toNumber(),
-      value: orderValue.toNumber(),
-      balance: this.cashBalance,
-      pnl: pnl.toNumber(),
-      pnl_percent: pnlPercent.toNumber(),
-      grid_level: gridLevel,
-      reference_price: referencePrice,
-      notes: `Cover at grid level ${gridLevel} | P&L: ₹${pnl.toNumber().toFixed(2)}`
-    }, this.channelId);
-
-    // Save portfolio snapshot
-    this.savePortfolioSnapshot();
-
-    // Log to Discord
-    await this.logOrderToDiscord('COVER', symbol, qty, price.toNumber(), pnl.toNumber(), pnlPercent.toNumber(), this.cashBalance, executionReason);
-
-    logger.info(`🔺 COVER ${symbol} | Qty: ${qty} | Price: ₹${price.toNumber()} | P&L: ₹${pnl.toNumber().toFixed(2)} (${pnlPercent.toNumber().toFixed(2)}%) | Balance: ₹${this.cashBalance.toFixed(2)}`);
-
-    return {
-      success: true,
-      orderId: orderId,
-      qty: qty,
-      price: price.toNumber(),
-      value: orderValue.toNumber(),
-      pnl: pnl.toNumber(),
-      pnlPercent: pnlPercent.toNumber(),
-      balance: this.cashBalance
-    };
-  }
-
-  hasShortPosition(token) {
-    const position = this.shortPositions.get(token);
-    return position && position.qty > 0;
-  }
-
-  getShortPosition(token) {
-    return this.shortPositions.get(token);
-  }
-
-  updateShortPositionPrice(token, currentPrice) {
-    const position = this.shortPositions.get(token);
-    if (!position) return;
-
-    const currentValue = new Decimal(position.qty).mul(currentPrice);
-    // For shorts: profit when price drops (shortValue - currentValue)
-    const unrealizedPnl = new Decimal(position.shortValue).minus(currentValue);
-    const unrealizedPnlPercent = unrealizedPnl.div(position.shortValue).mul(100);
-
-    position.currentPrice = currentPrice;
-    position.unrealizedPnl = unrealizedPnl.toNumber();
-    position.unrealizedPnlPercent = unrealizedPnlPercent.toNumber();
-
-    this.shortPositions.set(token, position);
-
-    // Update in database
-    db.updateShortPositionPrice(token, currentPrice, this.channelId);
-  }
-
   async logOrderToDiscord(type, symbol, qty, price, pnl, pnlPercent, balance, executionReason = null) {
     if (!discordService.isReady) return;
 
@@ -544,14 +346,6 @@ class PaperTradingService {
         reasonMessage = `📈 **${symbol} rose ${executionReason.changePercent}%**\n`;
         reasonMessage += `Price: ₹${executionReason.referencePrice.toFixed(2)} → ₹${executionReason.currentPrice.toFixed(2)}\n`;
         reasonMessage += `Grid threshold: ${executionReason.gridPercent}% rise triggered SELL`;
-      } else if (executionReason.type === 'SHORT') {
-        reasonMessage = `📈 **${symbol} rose ${executionReason.changePercent}%**\n`;
-        reasonMessage += `Price: ₹${executionReason.referencePrice.toFixed(2)} → ₹${executionReason.currentPrice.toFixed(2)}\n`;
-        reasonMessage += `Grid threshold: ${executionReason.gridPercent}% rise triggered SHORT`;
-      } else if (executionReason.type === 'COVER') {
-        reasonMessage = `📉 **${symbol} dropped ${executionReason.changePercent}%**\n`;
-        reasonMessage += `Price: ₹${executionReason.referencePrice.toFixed(2)} → ₹${executionReason.currentPrice.toFixed(2)}\n`;
-        reasonMessage += `Grid threshold: ${executionReason.gridPercent}% drop triggered COVER`;
       }
       await discordService.logToChannel(targetChannelId, reasonMessage, 'info');
     }
@@ -560,8 +354,6 @@ class PaperTradingService {
     let emoji;
     if (type === 'BUY') emoji = '🟢';
     else if (type === 'SELL') emoji = '🔴';
-    else if (type === 'SHORT') emoji = '🔻';
-    else if (type === 'COVER') emoji = '🔺';
     else emoji = '📊';
 
     const value = qty * price;
@@ -570,7 +362,7 @@ class PaperTradingService {
     message += `**Qty:** ${qty} @ ₹${price.toFixed(2)}\n`;
     message += `**Value:** ₹${value.toFixed(2)}\n`;
 
-    if (type === 'SELL' || type === 'COVER') {
+    if (type === 'SELL') {
       const pnlEmoji = pnl >= 0 ? '📈' : '📉';
       const alertEmoji = Math.abs(pnlPercent) > 2 ? '🎉' : '';
       message += `${pnlEmoji} **P&L:** ₹${pnl.toFixed(2)} (${pnlPercent.toFixed(2)}%) ${alertEmoji}\n`;
@@ -607,23 +399,14 @@ class PaperTradingService {
     let holdingsValue = new Decimal(0);
     let unrealizedPnl = new Decimal(0);
 
-    // Calculate long holdings value and unrealized P&L
+    // Calculate holdings value and unrealized P&L
     this.holdings.forEach(holding => {
       holdingsValue = holdingsValue.plus(holding.currentValue || holding.investedValue);
       unrealizedPnl = unrealizedPnl.plus(holding.unrealizedPnl || 0);
     });
 
-    // Calculate short positions value (locked capital + unrealized P&L)
-    let shortPositionsValue = new Decimal(0);
-    this.shortPositions.forEach(position => {
-      // Net value = locked capital + unrealized P&L
-      const positionValue = new Decimal(position.shortValue).plus(position.unrealizedPnl || 0);
-      shortPositionsValue = shortPositionsValue.plus(positionValue);
-      unrealizedPnl = unrealizedPnl.plus(position.unrealizedPnl || 0);
-    });
-
-    // Total value = cash + holdings + short positions net value
-    const totalValue = new Decimal(this.cashBalance).plus(holdingsValue).plus(shortPositionsValue);
+    // Total value = cash + holdings
+    const totalValue = new Decimal(this.cashBalance).plus(holdingsValue);
     const totalPnl = new Decimal(this.totalRealizedPnL).plus(unrealizedPnl);
     const totalPnlPercent = totalPnl.div(this.initialCapital).mul(100);
 
@@ -643,23 +426,14 @@ class PaperTradingService {
     let holdingsValue = new Decimal(0);
     let unrealizedPnl = new Decimal(0);
 
-    // Calculate long holdings value and unrealized P&L
+    // Calculate holdings value and unrealized P&L
     this.holdings.forEach(holding => {
       holdingsValue = holdingsValue.plus(holding.currentValue || holding.investedValue);
       unrealizedPnl = unrealizedPnl.plus(holding.unrealizedPnl || 0);
     });
 
-    // Calculate short positions value (locked capital + unrealized P&L)
-    let shortPositionsValue = new Decimal(0);
-    this.shortPositions.forEach(position => {
-      // Net value = locked capital + unrealized P&L
-      const positionValue = new Decimal(position.shortValue).plus(position.unrealizedPnl || 0);
-      shortPositionsValue = shortPositionsValue.plus(positionValue);
-      unrealizedPnl = unrealizedPnl.plus(position.unrealizedPnl || 0);
-    });
-
-    // Total value = cash + holdings + short positions net value
-    const totalValue = new Decimal(this.cashBalance).plus(holdingsValue).plus(shortPositionsValue);
+    // Total value = cash + holdings
+    const totalValue = new Decimal(this.cashBalance).plus(holdingsValue);
     const totalPnl = new Decimal(this.totalRealizedPnL).plus(unrealizedPnl);
     const totalPnlPercent = totalPnl.div(this.initialCapital).mul(100);
 
@@ -668,14 +442,12 @@ class PaperTradingService {
     return {
       cash: this.cashBalance,
       holdings_value: holdingsValue.toNumber(),
-      short_positions_value: shortPositionsValue.toNumber(),
       total_value: totalValue.toNumber(),
       total_pnl: totalPnl.toNumber(),
       pnl_percent: totalPnlPercent.toNumber(),
       realized_pnl: this.totalRealizedPnL,
       unrealized_pnl: unrealizedPnl.toNumber(),
       holdings_count: this.holdings.size,
-      short_count: this.shortPositions.size,
       today_pnl: todayStats.today_pnl || 0,
       today_orders: todayStats.today_orders || 0,
       today_buys: todayStats.today_buys || 0,
@@ -725,7 +497,6 @@ class PaperTradingService {
     db.resetPortfolio(this.channelId);
     this.cashBalance = this.initialCapital;
     this.holdings.clear();
-    this.shortPositions.clear();
     this.totalRealizedPnL = 0;
     this.totalInvested = 0;
 
