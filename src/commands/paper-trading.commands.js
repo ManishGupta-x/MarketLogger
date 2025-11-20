@@ -311,13 +311,13 @@ class PaperTradingCommands {
 
       switch (period) {
         case 'today':
-          orders = db.getTodayOrders(channel.id);
+          orders = await db.getTodayOrdersAsync(channel.id);
           break;
         case 'week':
-          orders = db.getOrders(channel.id, 100, 0);
+          orders = await db.getOrders(channel.id, 100, 0);
           break;
         case 'all':
-          orders = db.getOrders(channel.id, 200, 0);
+          orders = await db.getOrders(channel.id, 200, 0);
           break;
         default:
           await message.reply('Usage: `!orders [today|week|all]`');
@@ -366,8 +366,8 @@ class PaperTradingCommands {
   async pnlCommand(message) {
     try {
       const channel = this.getChannelInstance(message);
-      const stats = db.getTotalPnL(channel.id);
-      const todayStats = db.getTodayStats(channel.id);
+      const stats = await db.getTotalPnLAsync(channel.id);
+      const todayStats = await db.getTodayStatsAsync(channel.id);
       const portfolio = channel.paperTradingService.getPortfolio();
 
       const embed = {
@@ -433,8 +433,8 @@ class PaperTradingCommands {
   async topStocksCommand(message) {
     try {
       const channel = this.getChannelInstance(message);
-      const topPerformers = db.getTopPerformers(10, channel.id);
-      const worstPerformers = db.getWorstPerformers(10, channel.id);
+      const topPerformers = await db.getTopPerformersAsync(10, channel.id);
+      const worstPerformers = await db.getWorstPerformersAsync(10, channel.id);
 
       let reply = '🏆 **Top Performing Stocks**\n\n';
 
@@ -713,7 +713,7 @@ class PaperTradingCommands {
       const channel = this.getChannelInstance(message);
       const portfolio = channel.paperTradingService.getPortfolio();
       const gridStatus = channel.gridStrategyService.getStatus();
-      const todayStats = db.getTodayStats(channel.id);
+      const todayStats = await db.getTodayStatsAsync(channel.id);
 
       const embed = {
         title: '🤖 Paper Trading Bot Status',

@@ -22,7 +22,7 @@ class PaperTradingService {
       logger.info(`💼 Initializing Paper Trading Service for channel ${this.channelId}...`);
 
       // Load configuration
-      this.loadConfig(initialCapital, amountPerTrade);
+      await this.loadConfig(initialCapital, amountPerTrade);
 
       // Load existing portfolio state
       await this.loadPortfolio();
@@ -37,8 +37,8 @@ class PaperTradingService {
     }
   }
 
-  loadConfig(initialCapital = null, amountPerTrade = null) {
-    const config = db.getAllConfig(this.channelId);
+  async loadConfig(initialCapital = null, amountPerTrade = null) {
+    const config = await db.getAllConfigAsync(this.channelId);
 
     // Priority: Parameter -> ENV -> DB -> Default
     // Load initial capital
@@ -98,7 +98,7 @@ class PaperTradingService {
 
   async loadPortfolio() {
     // Check if we have any previous portfolio state
-    const latestPortfolio = db.getLatestPortfolio(this.channelId);
+    const latestPortfolio = await db.getLatestPortfolioAsync(this.channelId);
 
     if (latestPortfolio) {
       // Resume from last known state
@@ -111,7 +111,7 @@ class PaperTradingService {
     }
 
     // Load holdings
-    const holdings = db.getAllHoldings(this.channelId);
+    const holdings = await db.getAllHoldingsAsync(this.channelId);
     this.holdings.clear();
 
     holdings.forEach(holding => {
@@ -130,7 +130,7 @@ class PaperTradingService {
     logger.info(`📦 Loaded ${this.holdings.size} holdings`);
 
     // Calculate total invested and realized P&L
-    const stats = db.getTotalPnL(this.channelId);
+    const stats = await db.getTotalPnLAsync(this.channelId);
     this.totalRealizedPnL = stats.realized_pnl || 0;
     this.totalInvested = this.initialCapital - this.cashBalance;
 
