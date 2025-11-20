@@ -145,6 +145,10 @@ class DiscordService {
         await paperTradingCommands.stopTradingCommand(message);
         break;
 
+      case 'reset-portfolio':
+        await paperTradingCommands.resetPortfolioCommand(message);
+        break;
+
       default:
         await message.reply(`❌ Unknown command: \`!${command}\`\nType \`!help\` for available commands.`);
     }
@@ -488,6 +492,7 @@ class DiscordService {
 \`!grids\` - All active grids
 \`!start-trading\` - Start grid bot
 \`!stop-trading\` - Stop grid bot
+\`!reset-portfolio\` - Reset portfolio (clear all data)
 
 **Configuration:**
 \`!config\` - View current settings

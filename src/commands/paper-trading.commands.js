@@ -589,6 +589,30 @@ class PaperTradingCommands {
     }
   }
 
+  async resetPortfolioCommand(message) {
+    try {
+      const channel = this.getChannelInstance(message);
+
+      // Check if trading is still active
+      if (channel.paperTradingService.isEnabled) {
+        await message.reply('⚠️ **Cannot reset while trading is active**\nPlease run `!stop-trading` first.');
+        return;
+      }
+
+      const config = channel.config;
+      await channel.paperTradingService.resetPortfolio();
+
+      // Also reset grids
+      await channel.gridStrategyService.stop();
+      channel.gridStrategyService.grids.clear();
+
+      await message.reply(`🔄 **Portfolio Reset Complete for ${config.name}**\n\nAll holdings, short positions, orders, and grid levels have been cleared.\nStarting fresh with ₹${config.initialCapital.toLocaleString('en-IN')} capital.\n\nUse \`!start-trading\` to begin trading again.`);
+    } catch (error) {
+      logger.error('Reset portfolio command error:', error);
+      await message.reply(`❌ Error: ${error.message}`);
+    }
+  }
+
   async statusCommand(message) {
     try {
       const channel = this.getChannelInstance(message);
