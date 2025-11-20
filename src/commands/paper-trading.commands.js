@@ -239,9 +239,66 @@ class PaperTradingCommands {
         reply += `   ${pnlEmoji} P&L: ₹${(holding.unrealized_pnl || 0).toFixed(2)} (${(holding.unrealized_pnl_percent || 0).toFixed(2)}%)\n\n`;
       });
 
+      reply += `💡 Use \`!sell holding <number>\` to sell a specific holding`;
+
       await message.reply(reply);
     } catch (error) {
       logger.error('Holdings command error:', error);
+      await message.reply(`❌ Error: ${error.message}`);
+    }
+  }
+
+  async sellHoldingCommand(args, message) {
+    try {
+      const channel = this.getChannelInstance(message);
+
+      if (args.length < 2 || args[0].toLowerCase() !== 'holding') {
+        await message.reply('Usage: `!sell holding <number>`\nExample: `!sell holding 1` to sell the first holding');
+        return;
+      }
+
+      const holdingNumber = parseInt(args[1]);
+      if (isNaN(holdingNumber) || holdingNumber < 1) {
+        await message.reply('❌ Invalid holding number. Use `!holdings` to see the list.');
+        return;
+      }
+
+      const holdings = channel.paperTradingService.getHoldings();
+
+      if (holdings.length === 0) {
+        await message.reply('📭 No holdings to sell');
+        return;
+      }
+
+      if (holdingNumber > holdings.length) {
+        await message.reply(`❌ Invalid holding number. You have ${holdings.length} holdings. Use \`!holdings\` to see the list.`);
+        return;
+      }
+
+      const holding = holdings[holdingNumber - 1];
+      const currentPrice = holding.current_price || holding.avg_price;
+
+      // Execute the manual sell
+      const result = await channel.paperTradingService.executeManualSell(
+        holding.token,
+        holding.symbol,
+        currentPrice
+      );
+
+      if (result.success) {
+        const pnlEmoji = result.pnl >= 0 ? '📈' : '📉';
+        let reply = `✅ **Sold ${holding.symbol}**\n\n`;
+        reply += `**Qty:** ${result.qty} @ ₹${result.price.toFixed(2)}\n`;
+        reply += `**Value:** ₹${result.value.toFixed(2)}\n`;
+        reply += `${pnlEmoji} **P&L:** ₹${result.pnl.toFixed(2)} (${result.pnlPercent.toFixed(2)}%)\n`;
+        reply += `**Balance:** ₹${result.balance.toLocaleString('en-IN', { minimumFractionDigits: 2 })}`;
+
+        await message.reply(reply);
+      } else {
+        await message.reply(`❌ Failed to sell: ${result.message}`);
+      }
+    } catch (error) {
+      logger.error('Sell holding command error:', error);
       await message.reply(`❌ Error: ${error.message}`);
     }
   }

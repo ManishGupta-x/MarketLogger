@@ -329,6 +329,80 @@ class PaperTradingService {
     };
   }
 
+  // Manual sell - bypasses trading enabled check for user-initiated sells
+  async executeManualSell(token, symbol, price) {
+    if (!this.isInitialized) {
+      logger.warn('Paper trading not initialized');
+      return { success: false, message: 'Paper trading not initialized' };
+    }
+
+    try {
+      const priceDecimal = new Decimal(price);
+
+      // Check if we have holdings
+      const holding = this.holdings.get(token);
+
+      if (!holding || holding.qty === 0) {
+        logger.warn(`No holdings to sell for ${symbol}`);
+        return { success: false, message: 'No holdings to sell' };
+      }
+
+      // Sell all holdings for this stock
+      const qty = holding.qty;
+      const orderValue = new Decimal(qty).mul(priceDecimal);
+
+      // Calculate P&L
+      const investedValue = new Decimal(holding.investedValue);
+      const pnl = orderValue.minus(investedValue);
+      const pnlPercent = pnl.div(investedValue).mul(100);
+
+      // Update cash balance
+      this.cashBalance = new Decimal(this.cashBalance).plus(orderValue).toNumber();
+
+      // Update realized P&L
+      this.totalRealizedPnL = new Decimal(this.totalRealizedPnL).plus(pnl).toNumber();
+
+      // Remove holding
+      this.holdings.delete(token);
+      db.deleteHolding(token, this.channelId);
+
+      // Insert order record
+      const orderId = db.insertOrder({
+        type: 'SELL',
+        token: token,
+        symbol: symbol,
+        qty: qty,
+        price: priceDecimal.toNumber(),
+        value: orderValue.toNumber(),
+        balance: this.cashBalance,
+        pnl: pnl.toNumber(),
+        pnl_percent: pnlPercent.toNumber(),
+        grid_level: 0,
+        reference_price: null,
+        notes: `Manual sell | P&L: ₹${pnl.toNumber().toFixed(2)}`
+      }, this.channelId);
+
+      // Save portfolio snapshot
+      this.savePortfolioSnapshot();
+
+      logger.info(`🔴 MANUAL SELL ${symbol} | Qty: ${qty} | Price: ₹${priceDecimal.toNumber()} | P&L: ₹${pnl.toNumber().toFixed(2)} (${pnlPercent.toNumber().toFixed(2)}%) | Balance: ₹${this.cashBalance.toFixed(2)}`);
+
+      return {
+        success: true,
+        orderId: orderId,
+        qty: qty,
+        price: priceDecimal.toNumber(),
+        value: orderValue.toNumber(),
+        pnl: pnl.toNumber(),
+        pnlPercent: pnlPercent.toNumber(),
+        balance: this.cashBalance
+      };
+    } catch (error) {
+      logger.error(`❌ Manual sell failed for ${symbol}:`, error);
+      return { success: false, message: error.message };
+    }
+  }
+
   async logOrderToDiscord(type, symbol, qty, price, pnl, pnlPercent, balance, executionReason = null) {
     if (!discordService.isReady) return;
 
