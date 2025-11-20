@@ -1,8 +1,43 @@
 const db = require('../services/database.service');
 const logger = require('../utils/logger');
 const discordService = require('../services/discord.service');
+const fs = require('fs');
+const path = require('path');
 
 class PaperTradingCommands {
+  // Helper to update .env file
+  updateEnvFile(key, value) {
+    const envPath = path.join(__dirname, '../../.env');
+
+    try {
+      let envContent = fs.readFileSync(envPath, 'utf8');
+      const regex = new RegExp(`^${key}=.*$`, 'm');
+
+      if (regex.test(envContent)) {
+        // Update existing key
+        envContent = envContent.replace(regex, `${key}=${value}`);
+      } else {
+        // Add new key
+        envContent += `\n${key}=${value}`;
+      }
+
+      fs.writeFileSync(envPath, envContent);
+      logger.info(`✅ Updated .env: ${key}=${value}`);
+      return true;
+    } catch (error) {
+      logger.error(`Failed to update .env file:`, error);
+      return false;
+    }
+  }
+
+  // Helper to get channel number from channel id
+  getChannelNumber(channelId) {
+    if (channelId === process.env.DISCORD_CHANNEL_1_ID) return 1;
+    if (channelId === process.env.DISCORD_CHANNEL_2_ID) return 2;
+    if (channelId === process.env.DISCORD_CHANNEL_3_ID) return 3;
+    return null;
+  }
+
   // Helper to get the correct channel instance based on message channel
   getChannelInstance(message) {
     const channelManager = discordService.channelManager;
@@ -475,8 +510,9 @@ class PaperTradingCommands {
     try {
       const channel = this.getChannelInstance(message);
       if (args.length === 0) {
-        // Show current config
-        const config = channel.paperTradingService.getConfig();
+        // Show current config - use channel.config for accurate values
+        const channelConfig = channel.config;
+        const tradingConfig = channel.paperTradingService.getConfig();
         const gridStatus = channel.gridStrategyService.getStatus();
 
         const embed = {
@@ -485,22 +521,22 @@ class PaperTradingCommands {
           fields: [
             {
               name: '💰 Initial Capital',
-              value: `₹${config.initial_capital.toLocaleString('en-IN')}`,
+              value: `₹${channelConfig.initialCapital.toLocaleString('en-IN')}`,
               inline: true
             },
             {
               name: '📊 Amount per Trade',
-              value: `₹${config.amount_per_trade.toLocaleString('en-IN')}`,
+              value: `₹${channelConfig.amountPerTrade.toLocaleString('en-IN')}`,
               inline: true
             },
             {
               name: '📈 Grid Percentage',
-              value: `${config.grid_percentage}%`,
+              value: `${channelConfig.gridPercentage}%`,
               inline: true
             },
             {
               name: '🎯 Trading Status',
-              value: config.trading_enabled ? '✅ Enabled' : '❌ Disabled',
+              value: tradingConfig.trading_enabled ? '✅ Enabled' : '❌ Disabled',
               inline: true
             },
             {
@@ -528,15 +564,35 @@ class PaperTradingCommands {
       if (args[0] === 'set' && args.length >= 3) {
         const key = args[1];
         const value = args[2];
+        const channelNum = this.getChannelNumber(message.channel.id);
 
         if (key === 'amount_per_trade') {
           channel.paperTradingService.updateConfig('amount_per_trade', value);
-          await message.reply(`✅ Amount per trade updated to ₹${parseFloat(value).toLocaleString('en-IN')}`);
+
+          // Update .env file
+          if (channelNum) {
+            this.updateEnvFile(`CHANNEL_${channelNum}_AMOUNT_PER_TRADE`, value);
+          }
+
+          await message.reply(`✅ Amount per trade updated to ₹${parseFloat(value).toLocaleString('en-IN')} (saved to .env)`);
         } else if (key === 'grid_percentage') {
           channel.gridStrategyService.updateGridPercentage(value);
-          await message.reply(`✅ Grid percentage updated to ${value}%`);
+
+          // Update .env file
+          if (channelNum) {
+            this.updateEnvFile(`CHANNEL_${channelNum}_GRID_PERCENTAGE`, value);
+          }
+
+          await message.reply(`✅ Grid percentage updated to ${value}% (saved to .env)`);
+        } else if (key === 'initial_capital') {
+          // Update .env file only (requires restart to take effect)
+          if (channelNum) {
+            this.updateEnvFile(`CHANNEL_${channelNum}_INITIAL_CAPITAL`, value);
+          }
+
+          await message.reply(`✅ Initial capital updated to ₹${parseFloat(value).toLocaleString('en-IN')} in .env\n⚠️ Requires restart and !reset-portfolio to take effect`);
         } else {
-          await message.reply(`❌ Unknown config key: ${key}\nAvailable keys: amount_per_trade, grid_percentage`);
+          await message.reply(`❌ Unknown config key: ${key}\nAvailable keys: amount_per_trade, grid_percentage, initial_capital`);
         }
       } else {
         await message.reply('Usage: `!config` or `!config set <key> <value>`');
