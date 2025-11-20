@@ -37,15 +37,6 @@ class PaperTradingCommands {
         }
       ];
 
-      // Add short liability if there are shorts
-      if (portfolio.short_liability > 0) {
-        fields.push({
-          name: '🔻 Short Liability',
-          value: `₹${portfolio.short_liability.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`,
-          inline: true
-        });
-      }
-
       fields.push(
         {
           name: '💰 Total Value',
@@ -69,7 +60,7 @@ class PaperTradingCommands {
         },
         {
           name: '🎯 Positions',
-          value: `${portfolio.holdings_count} long${portfolio.short_count > 0 ? `, ${portfolio.short_count} short` : ''}`,
+          value: `${portfolio.holdings_count}`,
           inline: true
         },
         {
@@ -134,15 +125,6 @@ class PaperTradingCommands {
         }
       ];
 
-      // Add short liability if there are shorts
-      if (portfolio.short_liability > 0) {
-        fields.push({
-          name: '🔻 Short Liability',
-          value: `₹${portfolio.short_liability.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`,
-          inline: true
-        });
-      }
-
       fields.push(
         {
           name: '💰 Total Value',
@@ -166,7 +148,7 @@ class PaperTradingCommands {
         },
         {
           name: '🎯 Positions',
-          value: `${portfolio.holdings_count} long${portfolio.short_count > 0 ? `, ${portfolio.short_count} short` : ''}`,
+          value: `${portfolio.holdings_count}`,
           inline: true
         },
         {
@@ -606,7 +588,7 @@ class PaperTradingCommands {
       await channel.gridStrategyService.stop();
       channel.gridStrategyService.grids.clear();
 
-      await message.reply(`🔄 **Portfolio Reset Complete for ${config.name}**\n\nAll holdings, short positions, orders, and grid levels have been cleared.\nStarting fresh with ₹${config.initialCapital.toLocaleString('en-IN')} capital.\n\nUse \`!start-trading\` to begin trading again.`);
+      await message.reply(`🔄 **Portfolio Reset Complete for ${config.name}**\n\nAll holdings, orders, and grid levels have been cleared.\nStarting fresh with ₹${config.initialCapital.toLocaleString('en-IN')} capital.\n\nUse \`!start-trading\` to begin trading again.`);
     } catch (error) {
       logger.error('Reset portfolio command error:', error);
       await message.reply(`❌ Error: ${error.message}`);

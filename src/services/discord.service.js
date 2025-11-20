@@ -513,8 +513,6 @@ ${channelInfo || 'No channels configured'}
 **Grid Strategy:**
 🟢 BUY when price drops X% from reference
 🔴 SELL when price rises X% from last buy
-🔻 SHORT when price rises X% from reference (no position)
-🔺 COVER when price drops X% from short entry
 💰 Each channel has its own config and portfolio`;
 
     await message.reply(help);
