@@ -93,6 +93,18 @@ class DiscordService {
         await paperTradingCommands.portfolioCommand(message);
         break;
 
+      case 'portfolio1':
+        await paperTradingCommands.portfolioByNumberCommand(1, message);
+        break;
+
+      case 'portfolio2':
+        await paperTradingCommands.portfolioByNumberCommand(2, message);
+        break;
+
+      case 'portfolio3':
+        await paperTradingCommands.portfolioByNumberCommand(3, message);
+        break;
+
       case 'holdings':
         await paperTradingCommands.holdingsCommand(message);
         break;
@@ -457,7 +469,8 @@ class DiscordService {
 
 **Paper Trading:**
 \`!status\` - Trading bot status
-\`!portfolio\` - View portfolio summary
+\`!portfolio\` - View current channel portfolio
+\`!portfolio1\` / \`!portfolio2\` / \`!portfolio3\` - View specific channel portfolio
 \`!holdings\` - Current holdings
 \`!orders [today|week|all]\` - Order history
 \`!pnl\` - Profit & loss summary
@@ -483,15 +496,16 @@ class DiscordService {
 **Examples:**
 \`!start-trading\` - Start the 5% grid bot
 \`!portfolio\` - Check your virtual portfolio
+\`!portfolio1\` - Check Channel 1 portfolio from any channel
 \`!grid RELIANCE\` - See RELIANCE grid levels
 \`!config set amount_per_trade 15000\` - Trade ₹15k per order
 \`!orders today\` - View today's trades
 
 **Grid Strategy:**
-🟢 Buys when price drops 5% from reference
-🔴 Sells when price rises 5% from last buy
+🟢 Buys when price drops X% from reference
+🔴 Sells when price rises X% from last buy
 📊 Monitors 707 stocks automatically
-💰 Virtual trading with ₹5L capital`;
+💰 Each channel has its own config and portfolio`;
 
     await message.reply(help);
   }

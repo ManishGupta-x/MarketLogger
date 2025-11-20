@@ -137,7 +137,7 @@ class PaperTradingService {
     logger.info(`💹 Total Realized P&L: ₹${this.totalRealizedPnL.toFixed(2)}`);
   }
 
-  async executeVirtualOrder(token, symbol, type, price, gridLevel = 0, referencePrice = null) {
+  async executeVirtualOrder(token, symbol, type, price, gridLevel = 0, referencePrice = null, executionReason = null) {
     if (!this.isInitialized) {
       logger.warn('Paper trading not initialized');
       return { success: false, message: 'Paper trading not initialized' };
@@ -152,9 +152,9 @@ class PaperTradingService {
       const priceDecimal = new Decimal(price);
 
       if (type === 'BUY') {
-        return await this.executeBuy(token, symbol, priceDecimal, gridLevel, referencePrice);
+        return await this.executeBuy(token, symbol, priceDecimal, gridLevel, referencePrice, executionReason);
       } else if (type === 'SELL') {
-        return await this.executeSell(token, symbol, priceDecimal, gridLevel, referencePrice);
+        return await this.executeSell(token, symbol, priceDecimal, gridLevel, referencePrice, executionReason);
       } else {
         return { success: false, message: 'Invalid order type' };
       }
@@ -164,7 +164,7 @@ class PaperTradingService {
     }
   }
 
-  async executeBuy(token, symbol, price, gridLevel, referencePrice) {
+  async executeBuy(token, symbol, price, gridLevel, referencePrice, executionReason = null) {
     // Check if we have enough balance
     if (this.cashBalance < this.amountPerTrade) {
       logger.warn(`Insufficient balance for ${symbol}: ₹${this.cashBalance.toFixed(2)} < ₹${this.amountPerTrade}`);
@@ -251,7 +251,7 @@ class PaperTradingService {
     this.savePortfolioSnapshot();
 
     // Log to Discord
-    await this.logOrderToDiscord('BUY', symbol, qty, price.toNumber(), 0, 0, this.cashBalance);
+    await this.logOrderToDiscord('BUY', symbol, qty, price.toNumber(), 0, 0, this.cashBalance, executionReason);
 
     logger.info(`🟢 BUY ${symbol} | Qty: ${qty} | Price: ₹${price.toNumber()} | Value: ₹${orderValue.toNumber().toFixed(2)} | Balance: ₹${this.cashBalance.toFixed(2)}`);
 
@@ -265,7 +265,7 @@ class PaperTradingService {
     };
   }
 
-  async executeSell(token, symbol, price, gridLevel, referencePrice) {
+  async executeSell(token, symbol, price, gridLevel, referencePrice, executionReason = null) {
     // Check if we have holdings
     const holding = this.holdings.get(token);
 
@@ -313,7 +313,7 @@ class PaperTradingService {
     this.savePortfolioSnapshot();
 
     // Log to Discord with special emoji for significant gains/losses
-    await this.logOrderToDiscord('SELL', symbol, qty, price.toNumber(), pnl.toNumber(), pnlPercent.toNumber(), this.cashBalance);
+    await this.logOrderToDiscord('SELL', symbol, qty, price.toNumber(), pnl.toNumber(), pnlPercent.toNumber(), this.cashBalance, executionReason);
 
     logger.info(`🔴 SELL ${symbol} | Qty: ${qty} | Price: ₹${price.toNumber()} | P&L: ₹${pnl.toNumber().toFixed(2)} (${pnlPercent.toNumber().toFixed(2)}%) | Balance: ₹${this.cashBalance.toFixed(2)}`);
 
@@ -329,8 +329,26 @@ class PaperTradingService {
     };
   }
 
-  async logOrderToDiscord(type, symbol, qty, price, pnl, pnlPercent, balance) {
+  async logOrderToDiscord(type, symbol, qty, price, pnl, pnlPercent, balance, executionReason = null) {
     if (!discordService.isReady) return;
+
+    // Log to the trading channel (channelId) instead of a dedicated order channel
+    const targetChannelId = this.channelId;
+
+    // Log execution reason BEFORE the order message
+    if (executionReason) {
+      let reasonMessage = '';
+      if (executionReason.type === 'BUY') {
+        reasonMessage = `📉 **${symbol} dropped ${executionReason.changePercent}%**\n`;
+        reasonMessage += `Price: ₹${executionReason.referencePrice.toFixed(2)} → ₹${executionReason.currentPrice.toFixed(2)}\n`;
+        reasonMessage += `Grid threshold: ${executionReason.gridPercent}% drop triggered BUY`;
+      } else {
+        reasonMessage = `📈 **${symbol} rose ${executionReason.changePercent}%**\n`;
+        reasonMessage += `Price: ₹${executionReason.referencePrice.toFixed(2)} → ₹${executionReason.currentPrice.toFixed(2)}\n`;
+        reasonMessage += `Grid threshold: ${executionReason.gridPercent}% rise triggered SELL`;
+      }
+      await discordService.logToChannel(targetChannelId, reasonMessage, 'info');
+    }
 
     const emoji = type === 'BUY' ? '🟢' : '🔴';
     const value = qty * price;
@@ -349,8 +367,8 @@ class PaperTradingService {
 
     const logType = type === 'BUY' ? 'info' : (pnl >= 0 ? 'success' : 'warning');
 
-    // Log to dedicated order channel
-    await discordService.logToChannel(this.orderChannelId, message, logType);
+    // Log to the trading channel
+    await discordService.logToChannel(targetChannelId, message, logType);
   }
 
   updateHoldingPrice(token, currentPrice) {

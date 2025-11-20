@@ -245,13 +245,24 @@ class GridStrategyService {
       return;
     }
 
+    // Calculate execution reason details
+    const dropPercent = ((gridData.referencePrice - currentPrice) / gridData.referencePrice * 100).toFixed(2);
+    const executionReason = {
+      type: 'BUY',
+      referencePrice: gridData.referencePrice,
+      currentPrice: currentPrice,
+      changePercent: dropPercent,
+      gridPercent: this.gridPercentage
+    };
+
     const result = await this.paperTradingService.executeVirtualOrder(
       token,
       symbol,
       'BUY',
       currentPrice,
       gridData.buyCount + 1,
-      gridData.referencePrice
+      gridData.referencePrice,
+      executionReason
     );
 
     if (result.success) {
@@ -298,6 +309,16 @@ class GridStrategyService {
 
     logger.info(`🎯 SELL trigger for ${symbol} at ₹${currentPrice} (buy: ₹${gridData.lastBuyPrice})`);
 
+    // Calculate execution reason details
+    const risePercent = ((currentPrice - gridData.lastBuyPrice) / gridData.lastBuyPrice * 100).toFixed(2);
+    const executionReason = {
+      type: 'SELL',
+      referencePrice: gridData.lastBuyPrice,
+      currentPrice: currentPrice,
+      changePercent: risePercent,
+      gridPercent: this.gridPercentage
+    };
+
     // Execute virtual sell order
     const result = await this.paperTradingService.executeVirtualOrder(
       token,
@@ -305,7 +326,8 @@ class GridStrategyService {
       'SELL',
       currentPrice,
       gridData.sellCount + 1,
-      gridData.lastBuyPrice
+      gridData.lastBuyPrice,
+      executionReason
     );
 
     if (result.success) {
