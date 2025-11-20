@@ -369,9 +369,14 @@ class PaperTradingService {
 
     const orderValue = new Decimal(qty).mul(price);
 
-    // For shorting, we receive cash upfront (but need margin - simplified here)
-    // In real trading, you'd need margin. Here we'll track the liability.
-    this.cashBalance = new Decimal(this.cashBalance).plus(orderValue).toNumber();
+    // Check if we have enough capital to short
+    if (this.cashBalance < orderValue.toNumber()) {
+      logger.warn(`Insufficient balance to short ${symbol}: ₹${this.cashBalance.toFixed(2)} < ₹${orderValue.toNumber()}`);
+      return { success: false, message: 'Insufficient balance to short' };
+    }
+
+    // Use capital to short (deduct from cash like buying)
+    this.cashBalance = new Decimal(this.cashBalance).minus(orderValue).toNumber();
 
     // Create short position
     this.shortPositions.set(token, {
@@ -445,11 +450,11 @@ class PaperTradingService {
 
     // Calculate P&L (profit when price drops, loss when price rises)
     const shortValue = new Decimal(shortPosition.shortValue);
-    const pnl = shortValue.minus(orderValue); // Profit = sell price - buy price
+    const pnl = shortValue.minus(orderValue); // Profit = short price - cover price
     const pnlPercent = pnl.div(shortValue).mul(100);
 
-    // Update cash balance (pay to buy back shares)
-    this.cashBalance = new Decimal(this.cashBalance).minus(orderValue).toNumber();
+    // Return capital + profit/loss (shortValue was locked, now get it back with P&L)
+    this.cashBalance = new Decimal(this.cashBalance).plus(shortValue).plus(pnl).toNumber();
 
     // Update realized P&L
     this.totalRealizedPnL = new Decimal(this.totalRealizedPnL).plus(pnl).toNumber();
@@ -608,18 +613,17 @@ class PaperTradingService {
       unrealizedPnl = unrealizedPnl.plus(holding.unrealizedPnl || 0);
     });
 
-    // Calculate short positions liability and unrealized P&L
-    let shortLiability = new Decimal(0);
+    // Calculate short positions value (locked capital + unrealized P&L)
+    let shortPositionsValue = new Decimal(0);
     this.shortPositions.forEach(position => {
-      // Current value is what we'd need to pay to cover
-      const currentValue = new Decimal(position.qty).mul(position.currentPrice);
-      shortLiability = shortLiability.plus(currentValue);
-      // For shorts: profit when price drops (shortValue - currentValue)
+      // Net value = locked capital + unrealized P&L
+      const positionValue = new Decimal(position.shortValue).plus(position.unrealizedPnl || 0);
+      shortPositionsValue = shortPositionsValue.plus(positionValue);
       unrealizedPnl = unrealizedPnl.plus(position.unrealizedPnl || 0);
     });
 
-    // Total value = cash + holdings - short liabilities
-    const totalValue = new Decimal(this.cashBalance).plus(holdingsValue).minus(shortLiability);
+    // Total value = cash + holdings + short positions net value
+    const totalValue = new Decimal(this.cashBalance).plus(holdingsValue).plus(shortPositionsValue);
     const totalPnl = new Decimal(this.totalRealizedPnL).plus(unrealizedPnl);
     const totalPnlPercent = totalPnl.div(this.initialCapital).mul(100);
 
@@ -645,18 +649,17 @@ class PaperTradingService {
       unrealizedPnl = unrealizedPnl.plus(holding.unrealizedPnl || 0);
     });
 
-    // Calculate short positions liability and unrealized P&L
-    let shortLiability = new Decimal(0);
+    // Calculate short positions value (locked capital + unrealized P&L)
+    let shortPositionsValue = new Decimal(0);
     this.shortPositions.forEach(position => {
-      // Current value is what we'd need to pay to cover
-      const currentValue = new Decimal(position.qty).mul(position.currentPrice);
-      shortLiability = shortLiability.plus(currentValue);
-      // For shorts: profit when price drops (shortValue - currentValue)
+      // Net value = locked capital + unrealized P&L
+      const positionValue = new Decimal(position.shortValue).plus(position.unrealizedPnl || 0);
+      shortPositionsValue = shortPositionsValue.plus(positionValue);
       unrealizedPnl = unrealizedPnl.plus(position.unrealizedPnl || 0);
     });
 
-    // Total value = cash + holdings - short liabilities
-    const totalValue = new Decimal(this.cashBalance).plus(holdingsValue).minus(shortLiability);
+    // Total value = cash + holdings + short positions net value
+    const totalValue = new Decimal(this.cashBalance).plus(holdingsValue).plus(shortPositionsValue);
     const totalPnl = new Decimal(this.totalRealizedPnL).plus(unrealizedPnl);
     const totalPnlPercent = totalPnl.div(this.initialCapital).mul(100);
 
@@ -665,7 +668,7 @@ class PaperTradingService {
     return {
       cash: this.cashBalance,
       holdings_value: holdingsValue.toNumber(),
-      short_liability: shortLiability.toNumber(),
+      short_positions_value: shortPositionsValue.toNumber(),
       total_value: totalValue.toNumber(),
       total_pnl: totalPnl.toNumber(),
       pnl_percent: totalPnlPercent.toNumber(),
