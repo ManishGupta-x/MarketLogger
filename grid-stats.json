@@ -1,0 +1,2691 @@
+{
+  "timestamp": "2025-11-19T08:19:51.251Z",
+  "total_reads_processed": 9232,
+  "active_tokens": 671,
+  "price_reads_per_token": {
+    "IGIL": {
+      "token": "7264769",
+      "read_count": 99
+    },
+    "FORTIS": {
+      "token": "3735553",
+      "read_count": 94
+    },
+    "HDFCBANK": {
+      "token": "341249",
+      "read_count": 94
+    },
+    "KEC": {
+      "token": "3394561",
+      "read_count": 88
+    },
+    "BIOCON": {
+      "token": "2911489",
+      "read_count": 88
+    },
+    "BAJFINANCE": {
+      "token": "81153",
+      "read_count": 88
+    },
+    "HBLENGINE": {
+      "token": "3575297",
+      "read_count": 86
+    },
+    "TMPV": {
+      "token": "884737",
+      "read_count": 85
+    },
+    "AVANTIFEED": {
+      "token": "2031617",
+      "read_count": 79
+    },
+    "SBICARD": {
+      "token": "4600577",
+      "read_count": 77
+    },
+    "HINDALCO": {
+      "token": "348929",
+      "read_count": 72
+    },
+    "JUBLFOOD": {
+      "token": "4632577",
+      "read_count": 70
+    },
+    "ICICIPRULI": {
+      "token": "4774913",
+      "read_count": 69
+    },
+    "QUESS": {
+      "token": "4532225",
+      "read_count": 68
+    },
+    "CGPOWER": {
+      "token": "194561",
+      "read_count": 67
+    },
+    "CONCOR": {
+      "token": "1215745",
+      "read_count": 65
+    },
+    "PFC": {
+      "token": "3660545",
+      "read_count": 62
+    },
+    "SYNGENE": {
+      "token": "2622209",
+      "read_count": 62
+    },
+    "ATHERENERG": {
+      "token": "193957121",
+      "read_count": 62
+    },
+    "AUBANK": {
+      "token": "5436929",
+      "read_count": 59
+    },
+    "BEL": {
+      "token": "98049",
+      "read_count": 57
+    },
+    "GMDCLTD": {
+      "token": "1332225",
+      "read_count": 53
+    },
+    "INDUSTOWER": {
+      "token": "7458561",
+      "read_count": 51
+    },
+    "PRICOLLTD": {
+      "token": "5025537",
+      "read_count": 49
+    },
+    "VEDL": {
+      "token": "784129",
+      "read_count": 48
+    },
+    "PNBHOUSING": {
+      "token": "4840449",
+      "read_count": 48
+    },
+    "SYRMA": {
+      "token": "2763009",
+      "read_count": 47
+    },
+    "CHENNPETRO": {
+      "token": "524545",
+      "read_count": 46
+    },
+    "KALYANKJIL": {
+      "token": "756481",
+      "read_count": 46
+    },
+    "SAREGAMA": {
+      "token": "1252353",
+      "read_count": 45
+    },
+    "DLF": {
+      "token": "3771393",
+      "read_count": 44
+    },
+    "RBLBANK": {
+      "token": "4708097",
+      "read_count": 44
+    },
+    "ARVIND": {
+      "token": "49409",
+      "read_count": 43
+    },
+    "INDUSINDBK": {
+      "token": "1346049",
+      "read_count": 43
+    },
+    "POWERGRID": {
+      "token": "3834113",
+      "read_count": 40
+    },
+    "NTPC": {
+      "token": "2977281",
+      "read_count": 40
+    },
+    "SBIN": {
+      "token": "779521",
+      "read_count": 39
+    },
+    "JIOFIN": {
+      "token": "4644609",
+      "read_count": 39
+    },
+    "PGEL": {
+      "token": "6491649",
+      "read_count": 39
+    },
+    "JSWENERGY": {
+      "token": "4574465",
+      "read_count": 39
+    },
+    "SUPRAJIT": {
+      "token": "2992385",
+      "read_count": 38
+    },
+    "BANKBARODA": {
+      "token": "1195009",
+      "read_count": 38
+    },
+    "AEGISLOG": {
+      "token": "10241",
+      "read_count": 38
+    },
+    "LAURUSLABS": {
+      "token": "4923905",
+      "read_count": 38
+    },
+    "VENUSREM": {
+      "token": "3547905",
+      "read_count": 37
+    },
+    "EMAMILTD": {
+      "token": "3460353",
+      "read_count": 37
+    },
+    "TITAGARH": {
+      "token": "3945985",
+      "read_count": 37
+    },
+    "BPCL": {
+      "token": "134657",
+      "read_count": 37
+    },
+    "RECLTD": {
+      "token": "3930881",
+      "read_count": 37
+    },
+    "SHRIRAMFIN": {
+      "token": "1102337",
+      "read_count": 36
+    },
+    "ETERNAL": {
+      "token": "1304833",
+      "read_count": 36
+    },
+    "ITC": {
+      "token": "424961",
+      "read_count": 36
+    },
+    "ZYDUSLIFE": {
+      "token": "2029825",
+      "read_count": 35
+    },
+    "COALINDIA": {
+      "token": "5215745",
+      "read_count": 35
+    },
+    "HDFCLIFE": {
+      "token": "119553",
+      "read_count": 35
+    },
+    "ABCAPITAL": {
+      "token": "5533185",
+      "read_count": 33
+    },
+    "SONACOMS": {
+      "token": "1199105",
+      "read_count": 32
+    },
+    "CROMPTON": {
+      "token": "4376065",
+      "read_count": 32
+    },
+    "BANCOINDIA": {
+      "token": "3553281",
+      "read_count": 31
+    },
+    "PETRONET": {
+      "token": "2905857",
+      "read_count": 30
+    },
+    "AMBUJACEM": {
+      "token": "325121",
+      "read_count": 30
+    },
+    "HERITGFOOD": {
+      "token": "1177089",
+      "read_count": 30
+    },
+    "ZENSARTECH": {
+      "token": "275457",
+      "read_count": 29
+    },
+    "AADHARHFC": {
+      "token": "6074625",
+      "read_count": 29
+    },
+    "COHANCE": {
+      "token": "4593921",
+      "read_count": 28
+    },
+    "VBL": {
+      "token": "4843777",
+      "read_count": 28
+    },
+    "LATENTVIEW": {
+      "token": "1745409",
+      "read_count": 28
+    },
+    "NATCOPHARM": {
+      "token": "1003009",
+      "read_count": 28
+    },
+    "INDHOTEL": {
+      "token": "387073",
+      "read_count": 27
+    },
+    "MARICO": {
+      "token": "1041153",
+      "read_count": 27
+    },
+    "ASTERDM": {
+      "token": "386049",
+      "read_count": 27
+    },
+    "M&MFIN": {
+      "token": "3400961",
+      "read_count": 27
+    },
+    "JYOTHYLAB": {
+      "token": "3877377",
+      "read_count": 27
+    },
+    "HINDPETRO": {
+      "token": "359937",
+      "read_count": 27
+    },
+    "JSL": {
+      "token": "2876417",
+      "read_count": 27
+    },
+    "FIRSTCRY": {
+      "token": "6352385",
+      "read_count": 27
+    },
+    "APOLLOTYRE": {
+      "token": "41729",
+      "read_count": 27
+    },
+    "INTELLECT": {
+      "token": "1517057",
+      "read_count": 27
+    },
+    "BIKAJI": {
+      "token": "3063297",
+      "read_count": 27
+    },
+    "GSPL": {
+      "token": "3378433",
+      "read_count": 26
+    },
+    "TARIL": {
+      "token": "3884545",
+      "read_count": 26
+    },
+    "FSL": {
+      "token": "3661825",
+      "read_count": 26
+    },
+    "LTFOODS": {
+      "token": "3536897",
+      "read_count": 26
+    },
+    "AFCONS": {
+      "token": "6650113",
+      "read_count": 26
+    },
+    "TATAPOWER": {
+      "token": "877057",
+      "read_count": 26
+    },
+    "HINDCOPPER": {
+      "token": "4592385",
+      "read_count": 26
+    },
+    "MOTILALOFS": {
+      "token": "3826433",
+      "read_count": 26
+    },
+    "REDINGTON": {
+      "token": "3649281",
+      "read_count": 25
+    },
+    "ARSSBL": {
+      "token": "194548737",
+      "read_count": 25
+    },
+    "MANAPPURAM": {
+      "token": "4879617",
+      "read_count": 25
+    },
+    "HINDZINC": {
+      "token": "364545",
+      "read_count": 25
+    },
+    "WELCORP": {
+      "token": "3026177",
+      "read_count": 25
+    },
+    "CHAMBLFERT": {
+      "token": "163073",
+      "read_count": 25
+    },
+    "SHAKTIPUMP": {
+      "token": "6546945",
+      "read_count": 25
+    },
+    "BERGEPAINT": {
+      "token": "103425",
+      "read_count": 25
+    },
+    "BSOFT": {
+      "token": "1790465",
+      "read_count": 24
+    },
+    "ADANIENSOL": {
+      "token": "2615553",
+      "read_count": 24
+    },
+    "IIFL": {
+      "token": "3023105",
+      "read_count": 24
+    },
+    "RVNL": {
+      "token": "2445313",
+      "read_count": 24
+    },
+    "SARDAEN": {
+      "token": "4546049",
+      "read_count": 23
+    },
+    "OSWALPUMPS": {
+      "token": "193741313",
+      "read_count": 23
+    },
+    "AARTIPHARM": {
+      "token": "3550209",
+      "read_count": 23
+    },
+    "IRCTC": {
+      "token": "3484417",
+      "read_count": 23
+    },
+    "TRUALT": {
+      "token": "194357761",
+      "read_count": 23
+    },
+    "UPL": {
+      "token": "2889473",
+      "read_count": 23
+    },
+    "TEJASNET": {
+      "token": "5409537",
+      "read_count": 23
+    },
+    "OIL": {
+      "token": "4464129",
+      "read_count": 23
+    },
+    "GOPAL": {
+      "token": "5904897",
+      "read_count": 23
+    },
+    "HAPPSTMNDS": {
+      "token": "12289",
+      "read_count": 23
+    },
+    "GARFIBRES": {
+      "token": "281601",
+      "read_count": 23
+    },
+    "BLACKBUCK": {
+      "token": "6948865",
+      "read_count": 23
+    },
+    "APTUS": {
+      "token": "1391361",
+      "read_count": 23
+    },
+    "ANTHEM": {
+      "token": "194018561",
+      "read_count": 23
+    },
+    "ANANTRAJ": {
+      "token": "3486721",
+      "read_count": 23
+    },
+    "CANFINHOME": {
+      "token": "149249",
+      "read_count": 23
+    },
+    "KIMS": {
+      "token": "1240833",
+      "read_count": 23
+    },
+    "AWL": {
+      "token": "2076161",
+      "read_count": 23
+    },
+    "EXIDEIND": {
+      "token": "173057",
+      "read_count": 22
+    },
+    "JSWINFRA": {
+      "token": "4869121",
+      "read_count": 22
+    },
+    "STAR": {
+      "token": "1887745",
+      "read_count": 22
+    },
+    "KRN": {
+      "token": "6564609",
+      "read_count": 22
+    },
+    "SONATSOFTW": {
+      "token": "1688577",
+      "read_count": 22
+    },
+    "VIKRAMSOLR": {
+      "token": "194419969",
+      "read_count": 22
+    },
+    "CARBORUNIV": {
+      "token": "152321",
+      "read_count": 22
+    },
+    "DABUR": {
+      "token": "197633",
+      "read_count": 22
+    },
+    "HDBFS": {
+      "token": "193989633",
+      "read_count": 21
+    },
+    "FIVESTAR": {
+      "token": "3080193",
+      "read_count": 21
+    },
+    "ABDL": {
+      "token": "6222849",
+      "read_count": 21
+    },
+    "GOLDIAM": {
+      "token": "3064577",
+      "read_count": 21
+    },
+    "JKTYRE": {
+      "token": "3695361",
+      "read_count": 20
+    },
+    "THELEELA": {
+      "token": "193795585",
+      "read_count": 20
+    },
+    "DELHIVERY": {
+      "token": "2457345",
+      "read_count": 20
+    },
+    "GENUSPOWER": {
+      "token": "3047681",
+      "read_count": 20
+    },
+    "WESTLIFE": {
+      "token": "2964481",
+      "read_count": 20
+    },
+    "RAJRATAN": {
+      "token": "4854273",
+      "read_count": 20
+    },
+    "TATATECH": {
+      "token": "5195009",
+      "read_count": 20
+    },
+    "IXIGO": {
+      "token": "6161153",
+      "read_count": 20
+    },
+    "LICI": {
+      "token": "2426881",
+      "read_count": 20
+    },
+    "ARVINDFASN": {
+      "token": "2332417",
+      "read_count": 20
+    },
+    "VIPIND": {
+      "token": "947969",
+      "read_count": 20
+    },
+    "MBEL": {
+      "token": "194086401",
+      "read_count": 19
+    },
+    "BBOX": {
+      "token": "879361",
+      "read_count": 19
+    },
+    "LICHSGFIN": {
+      "token": "511233",
+      "read_count": 19
+    },
+    "ELECON": {
+      "token": "3492609",
+      "read_count": 19
+    },
+    "CENTURYPLY": {
+      "token": "3406081",
+      "read_count": 19
+    },
+    "TATACHEM": {
+      "token": "871681",
+      "read_count": 19
+    },
+    "TDPOWERSYS": {
+      "token": "6445569",
+      "read_count": 19
+    },
+    "AGARWALEYE": {
+      "token": "7539713",
+      "read_count": 19
+    },
+    "SHILPAMED": {
+      "token": "4544513",
+      "read_count": 19
+    },
+    "SWIGGY": {
+      "token": "6928897",
+      "read_count": 19
+    },
+    "SENCO": {
+      "token": "4421377",
+      "read_count": 19
+    },
+    "CYIENTDLM": {
+      "token": "4399873",
+      "read_count": 19
+    },
+    "REPRO": {
+      "token": "3360257",
+      "read_count": 19
+    },
+    "FINCABLES": {
+      "token": "265729",
+      "read_count": 18
+    },
+    "APOLLO": {
+      "token": "290305",
+      "read_count": 18
+    },
+    "DIFFNKG": {
+      "token": "6572033",
+      "read_count": 18
+    },
+    "IONEXCHANG": {
+      "token": "417281",
+      "read_count": 18
+    },
+    "JWL": {
+      "token": "5177345",
+      "read_count": 18
+    },
+    "GESHIP": {
+      "token": "3526657",
+      "read_count": 18
+    },
+    "TAJGVK": {
+      "token": "2394625",
+      "read_count": 18
+    },
+    "NEWGEN": {
+      "token": "297985",
+      "read_count": 18
+    },
+    "PARAS": {
+      "token": "1513217",
+      "read_count": 18
+    },
+    "TRANSRAILL": {
+      "token": "7350785",
+      "read_count": 18
+    },
+    "SUPRIYA": {
+      "token": "1891841",
+      "read_count": 18
+    },
+    "GOCOLORS": {
+      "token": "1782785",
+      "read_count": 18
+    },
+    "NLCINDIA": {
+      "token": "2197761",
+      "read_count": 18
+    },
+    "GOKULAGRO": {
+      "token": "3706881",
+      "read_count": 18
+    },
+    "KPIGREEN": {
+      "token": "1307649",
+      "read_count": 18
+    },
+    "TI": {
+      "token": "4914177",
+      "read_count": 18
+    },
+    "ARE&M": {
+      "token": "25601",
+      "read_count": 18
+    },
+    "TIPSMUSIC": {
+      "token": "2333953",
+      "read_count": 18
+    },
+    "KIRLOSENG": {
+      "token": "5359617",
+      "read_count": 18
+    },
+    "PDSL": {
+      "token": "1347585",
+      "read_count": 17
+    },
+    "POONAWALLA": {
+      "token": "2919169",
+      "read_count": 17
+    },
+    "SBCL": {
+      "token": "1191937",
+      "read_count": 17
+    },
+    "SAATVIKGL": {
+      "token": "194318593",
+      "read_count": 17
+    },
+    "STARHEALTH": {
+      "token": "1813249",
+      "read_count": 17
+    },
+    "EIHOTEL": {
+      "token": "235265",
+      "read_count": 17
+    },
+    "CMSINFO": {
+      "token": "1946369",
+      "read_count": 17
+    },
+    "JKLAKSHMI": {
+      "token": "3453697",
+      "read_count": 17
+    },
+    "EPACK": {
+      "token": "5750529",
+      "read_count": 17
+    },
+    "RAILTEL": {
+      "token": "622337",
+      "read_count": 17
+    },
+    "JUBLINGREA": {
+      "token": "712449",
+      "read_count": 17
+    },
+    "PRINCEPIPE": {
+      "token": "4107521",
+      "read_count": 17
+    },
+    "HEXT": {
+      "token": "7594497",
+      "read_count": 17
+    },
+    "BRIGADE": {
+      "token": "3887105",
+      "read_count": 17
+    },
+    "BLS": {
+      "token": "4423425",
+      "read_count": 17
+    },
+    "GICRE": {
+      "token": "70913",
+      "read_count": 17
+    },
+    "BLUESTONE": {
+      "token": "194378497",
+      "read_count": 17
+    },
+    "PRAJIND": {
+      "token": "692481",
+      "read_count": 16
+    },
+    "EUREKAFORB": {
+      "token": "6441473",
+      "read_count": 16
+    },
+    "SANDHAR": {
+      "token": "613633",
+      "read_count": 16
+    },
+    "PANSARI": {
+      "token": "1572097",
+      "read_count": 16
+    },
+    "INSECTICID": {
+      "token": "3752193",
+      "read_count": 16
+    },
+    "FINOPB": {
+      "token": "1684225",
+      "read_count": 16
+    },
+    "PCBL": {
+      "token": "678145",
+      "read_count": 16
+    },
+    "GRANULES": {
+      "token": "3039233",
+      "read_count": 16
+    },
+    "TANLA": {
+      "token": "3577857",
+      "read_count": 16
+    },
+    "APLLTD": {
+      "token": "6483969",
+      "read_count": 16
+    },
+    "SWANCORP": {
+      "token": "6936321",
+      "read_count": 16
+    },
+    "GUJGASLTD": {
+      "token": "2713345",
+      "read_count": 16
+    },
+    "CRIZAC": {
+      "token": "194009601",
+      "read_count": 16
+    },
+    "GRAPHITE": {
+      "token": "151553",
+      "read_count": 16
+    },
+    "PANACEABIO": {
+      "token": "1038081",
+      "read_count": 16
+    },
+    "GOKEX": {
+      "token": "3015169",
+      "read_count": 16
+    },
+    "LAXMIDENTL": {
+      "token": "7467777",
+      "read_count": 16
+    },
+    "ASTRAMICRO": {
+      "token": "2974209",
+      "read_count": 15
+    },
+    "JYOTICNC": {
+      "token": "5461505",
+      "read_count": 15
+    },
+    "SOLARA": {
+      "token": "940033",
+      "read_count": 15
+    },
+    "RALLIS": {
+      "token": "720897",
+      "read_count": 15
+    },
+    "FDC": {
+      "token": "1253889",
+      "read_count": 15
+    },
+    "CSBBANK": {
+      "token": "3831297",
+      "read_count": 15
+    },
+    "RELAXO": {
+      "token": "6201601",
+      "read_count": 15
+    },
+    "BLUEJET": {
+      "token": "5039617",
+      "read_count": 15
+    },
+    "JBMA": {
+      "token": "2983681",
+      "read_count": 15
+    },
+    "WHEELS": {
+      "token": "964097",
+      "read_count": 15
+    },
+    "KRBL": {
+      "token": "2707713",
+      "read_count": 15
+    },
+    "TRITURBINE": {
+      "token": "6549505",
+      "read_count": 15
+    },
+    "VIJAYA": {
+      "token": "1429761",
+      "read_count": 15
+    },
+    "SAILIFE": {
+      "token": "7126785",
+      "read_count": 15
+    },
+    "MINDACORP": {
+      "token": "6629633",
+      "read_count": 15
+    },
+    "MAMATA": {
+      "token": "7343873",
+      "read_count": 15
+    },
+    "INDRAMEDCO": {
+      "token": "1216257",
+      "read_count": 14
+    },
+    "STARCEMENT": {
+      "token": "5399297",
+      "read_count": 14
+    },
+    "VTL": {
+      "token": "530689",
+      "read_count": 14
+    },
+    "REPCOHOME": {
+      "token": "7577089",
+      "read_count": 14
+    },
+    "GANESHCP": {
+      "token": "194307073",
+      "read_count": 14
+    },
+    "WSTCSTPAPR": {
+      "token": "972545",
+      "read_count": 14
+    },
+    "SUMICHEM": {
+      "token": "4378881",
+      "read_count": 14
+    },
+    "NAVA": {
+      "token": "1027585",
+      "read_count": 14
+    },
+    "HPL": {
+      "token": "4781825",
+      "read_count": 14
+    },
+    "RSYSTEMS": {
+      "token": "3433985",
+      "read_count": 14
+    },
+    "ATGL": {
+      "token": "1552897",
+      "read_count": 14
+    },
+    "HUBTOWN": {
+      "token": "3635969",
+      "read_count": 14
+    },
+    "CARYSIL": {
+      "token": "481025",
+      "read_count": 14
+    },
+    "KHADIM": {
+      "token": "108801",
+      "read_count": 14
+    },
+    "NAHARCAP": {
+      "token": "3932161",
+      "read_count": 14
+    },
+    "GRMOVER": {
+      "token": "2782977",
+      "read_count": 13
+    },
+    "DREDGECORP": {
+      "token": "2885377",
+      "read_count": 13
+    },
+    "ASHAPURMIN": {
+      "token": "51969",
+      "read_count": 13
+    },
+    "GOLDSHARE": {
+      "token": "3720961",
+      "read_count": 13
+    },
+    "ROUTE": {
+      "token": "32769",
+      "read_count": 13
+    },
+    "KPEL": {
+      "token": "6932225",
+      "read_count": 13
+    },
+    "JUSTDIAL": {
+      "token": "7670273",
+      "read_count": 13
+    },
+    "AWHCL": {
+      "token": "460033",
+      "read_count": 13
+    },
+    "PATANJALI": {
+      "token": "4359425",
+      "read_count": 13
+    },
+    "ACMESOLAR": {
+      "token": "6927617",
+      "read_count": 13
+    },
+    "JINDRILL": {
+      "token": "3552001",
+      "read_count": 13
+    },
+    "ELLEN": {
+      "token": "194192129",
+      "read_count": 13
+    },
+    "ZAGGLE": {
+      "token": "4763649",
+      "read_count": 13
+    },
+    "MANYAVAR": {
+      "token": "2090753",
+      "read_count": 13
+    },
+    "KIRIINDUS": {
+      "token": "4259585",
+      "read_count": 13
+    },
+    "MAHSEAMLES": {
+      "token": "534529",
+      "read_count": 13
+    },
+    "YATHARTH": {
+      "token": "4540929",
+      "read_count": 13
+    },
+    "MOIL": {
+      "token": "5332481",
+      "read_count": 13
+    },
+    "BORORENEW": {
+      "token": "806145",
+      "read_count": 13
+    },
+    "MAHLIFE": {
+      "token": "2060801",
+      "read_count": 13
+    },
+    "5PAISA": {
+      "token": "113921",
+      "read_count": 13
+    },
+    "RPEL": {
+      "token": "6332161",
+      "read_count": 13
+    },
+    "CCL": {
+      "token": "2931713",
+      "read_count": 13
+    },
+    "HSCL": {
+      "token": "3669505",
+      "read_count": 13
+    },
+    "GALLANTT": {
+      "token": "3414273",
+      "read_count": 12
+    },
+    "GODREJAGRO": {
+      "token": "36865",
+      "read_count": 12
+    },
+    "WEWORK": {
+      "token": "194415105",
+      "read_count": 12
+    },
+    "ACI": {
+      "token": "3078145",
+      "read_count": 12
+    },
+    "SKYGOLD": {
+      "token": "3489537",
+      "read_count": 12
+    },
+    "NRBBEARING": {
+      "token": "1933569",
+      "read_count": 12
+    },
+    "HLEGLAS": {
+      "token": "585985",
+      "read_count": 12
+    },
+    "BAJAJELEC": {
+      "token": "3848705",
+      "read_count": 12
+    },
+    "AVADHSUGAR": {
+      "token": "5479937",
+      "read_count": 12
+    },
+    "JGCHEM": {
+      "token": "5902337",
+      "read_count": 12
+    },
+    "STYL": {
+      "token": "194543105",
+      "read_count": 12
+    },
+    "ASAL": {
+      "token": "2722305",
+      "read_count": 12
+    },
+    "SHARDACROP": {
+      "token": "1277953",
+      "read_count": 12
+    },
+    "JKIL": {
+      "token": "3908097",
+      "read_count": 12
+    },
+    "SANGHVIMOV": {
+      "token": "3598849",
+      "read_count": 12
+    },
+    "AHLUCONT": {
+      "token": "4565249",
+      "read_count": 12
+    },
+    "ITI": {
+      "token": "428801",
+      "read_count": 12
+    },
+    "TMB": {
+      "token": "2801921",
+      "read_count": 12
+    },
+    "STEL": {
+      "token": "5499905",
+      "read_count": 11
+    },
+    "JSFB": {
+      "token": "5801729",
+      "read_count": 11
+    },
+    "ABSLAMC": {
+      "token": "1540609",
+      "read_count": 11
+    },
+    "SKIPPER": {
+      "token": "2413569",
+      "read_count": 11
+    },
+    "WELENT": {
+      "token": "2976257",
+      "read_count": 11
+    },
+    "HAPPYFORGE": {
+      "token": "5338625",
+      "read_count": 11
+    },
+    "KRSNAA": {
+      "token": "1371905",
+      "read_count": 11
+    },
+    "HIKAL": {
+      "token": "2475009",
+      "read_count": 11
+    },
+    "ICIL": {
+      "token": "3068673",
+      "read_count": 11
+    },
+    "SGMART": {
+      "token": "194275585",
+      "read_count": 11
+    },
+    "VRLLOG": {
+      "token": "2226177",
+      "read_count": 11
+    },
+    "IDEAFORGE": {
+      "token": "4387841",
+      "read_count": 11
+    },
+    "EBGNG": {
+      "token": "194012673",
+      "read_count": 11
+    },
+    "TCIEXP": {
+      "token": "4921089",
+      "read_count": 11
+    },
+    "STANLEY": {
+      "token": "6201857",
+      "read_count": 11
+    },
+    "RAMCOCEM": {
+      "token": "523009",
+      "read_count": 11
+    },
+    "ASAHIINDIA": {
+      "token": "1376769",
+      "read_count": 11
+    },
+    "VARROC": {
+      "token": "987393",
+      "read_count": 11
+    },
+    "STOVEKRAFT": {
+      "token": "539393",
+      "read_count": 11
+    },
+    "SUNTV": {
+      "token": "3431425",
+      "read_count": 11
+    },
+    "SIMPLEXINF": {
+      "token": "809473",
+      "read_count": 11
+    },
+    "RAYMOND": {
+      "token": "731905",
+      "read_count": 11
+    },
+    "EFCIL": {
+      "token": "194220801",
+      "read_count": 11
+    },
+    "IVALUE": {
+      "token": "194314497",
+      "read_count": 11
+    },
+    "AWFIS": {
+      "token": "6109185",
+      "read_count": 11
+    },
+    "ELDEHSG": {
+      "token": "2291969",
+      "read_count": 11
+    },
+    "PNCINFRA": {
+      "token": "2402561",
+      "read_count": 11
+    },
+    "CAMPUS": {
+      "token": "2396673",
+      "read_count": 10
+    },
+    "HEG": {
+      "token": "342017",
+      "read_count": 10
+    },
+    "NAZARA": {
+      "token": "764673",
+      "read_count": 10
+    },
+    "DENTA": {
+      "token": "7489537",
+      "read_count": 10
+    },
+    "MANINDS": {
+      "token": "3042305",
+      "read_count": 10
+    },
+    "SAPPHIRE": {
+      "token": "1719809",
+      "read_count": 10
+    },
+    "SFL": {
+      "token": "4911105",
+      "read_count": 10
+    },
+    "RHIM": {
+      "token": "7977729",
+      "read_count": 10
+    },
+    "ORIENTTECH": {
+      "token": "6390017",
+      "read_count": 10
+    },
+    "SULA": {
+      "token": "3383809",
+      "read_count": 10
+    },
+    "SPANDANA": {
+      "token": "2927361",
+      "read_count": 10
+    },
+    "SURYAROSNI": {
+      "token": "864001",
+      "read_count": 10
+    },
+    "JASH": {
+      "token": "3579393",
+      "read_count": 10
+    },
+    "SANATHAN": {
+      "token": "7374081",
+      "read_count": 10
+    },
+    "UNIVCABLES": {
+      "token": "923393",
+      "read_count": 10
+    },
+    "GMBREW": {
+      "token": "299009",
+      "read_count": 10
+    },
+    "GODIGIT": {
+      "token": "6092545",
+      "read_count": 10
+    },
+    "EMSLIMITED": {
+      "token": "4759809",
+      "read_count": 10
+    },
+    "TARSONS": {
+      "token": "1777409",
+      "read_count": 10
+    },
+    "CIEINDIA": {
+      "token": "3823873",
+      "read_count": 10
+    },
+    "RKFORGE": {
+      "token": "2921217",
+      "read_count": 10
+    },
+    "DCAL": {
+      "token": "5556225",
+      "read_count": 10
+    },
+    "WINDLAS": {
+      "token": "1373697",
+      "read_count": 10
+    },
+    "BALUFORGE": {
+      "token": "6043393",
+      "read_count": 10
+    },
+    "SHYAMMETL": {
+      "token": "1201409",
+      "read_count": 10
+    },
+    "RAMCOSYS": {
+      "token": "2009857",
+      "read_count": 10
+    },
+    "CAPACITE": {
+      "token": "5567745",
+      "read_count": 9
+    },
+    "PROTEAN": {
+      "token": "7544833",
+      "read_count": 9
+    },
+    "NORTHARC": {
+      "token": "6509057",
+      "read_count": 9
+    },
+    "GENESYS": {
+      "token": "2791681",
+      "read_count": 9
+    },
+    "MOBIKWIK": {
+      "token": "7179777",
+      "read_count": 9
+    },
+    "AARTIIND": {
+      "token": "1793",
+      "read_count": 9
+    },
+    "THOMASCOTT": {
+      "token": "7940353",
+      "read_count": 9
+    },
+    "AJAXENGG": {
+      "token": "7583745",
+      "read_count": 9
+    },
+    "USHAMART": {
+      "token": "2263041",
+      "read_count": 9
+    },
+    "ELGIEQUIP": {
+      "token": "239873",
+      "read_count": 9
+    },
+    "VISHNU": {
+      "token": "1768449",
+      "read_count": 9
+    },
+    "JARO": {
+      "token": "194547457",
+      "read_count": 9
+    },
+    "PURVA": {
+      "token": "3820033",
+      "read_count": 9
+    },
+    "CELLO": {
+      "token": "5067521",
+      "read_count": 9
+    },
+    "DBL": {
+      "token": "4630017",
+      "read_count": 9
+    },
+    "SHOPERSTOP": {
+      "token": "3024129",
+      "read_count": 9
+    },
+    "PNGJL": {
+      "token": "6479873",
+      "read_count": 9
+    },
+    "SYMPHONY": {
+      "token": "6192641",
+      "read_count": 9
+    },
+    "HNDFDS": {
+      "token": "3116289",
+      "read_count": 9
+    },
+    "HINDWAREAP": {
+      "token": "4066049",
+      "read_count": 9
+    },
+    "CHOICEIN": {
+      "token": "2269697",
+      "read_count": 9
+    },
+    "VESUVIUS": {
+      "token": "941057",
+      "read_count": 9
+    },
+    "REFEX": {
+      "token": "4547585",
+      "read_count": 9
+    },
+    "PREMEXPLN": {
+      "token": "4453633",
+      "read_count": 9
+    },
+    "SMARTWORKS": {
+      "token": "194039041",
+      "read_count": 9
+    },
+    "RML": {
+      "token": "3065601",
+      "read_count": 9
+    },
+    "AJMERA": {
+      "token": "4430593",
+      "read_count": 9
+    },
+    "63MOONS": {
+      "token": "3038209",
+      "read_count": 9
+    },
+    "ITDC": {
+      "token": "4940545",
+      "read_count": 9
+    },
+    "MANGLMCEM": {
+      "token": "539137",
+      "read_count": 9
+    },
+    "JKPAPER": {
+      "token": "3036161",
+      "read_count": 8
+    },
+    "CONTROLPR": {
+      "token": "4474113",
+      "read_count": 8
+    },
+    "SIGNPOST": {
+      "token": "5799937",
+      "read_count": 8
+    },
+    "INFOBEAN": {
+      "token": "2822913",
+      "read_count": 8
+    },
+    "INDNIPPON": {
+      "token": "1215233",
+      "read_count": 8
+    },
+    "SENORES": {
+      "token": "7395329",
+      "read_count": 8
+    },
+    "VIMTALABS": {
+      "token": "3353857",
+      "read_count": 8
+    },
+    "NUCLEUS": {
+      "token": "2762497",
+      "read_count": 8
+    },
+    "ADVENZYMES": {
+      "token": "4617985",
+      "read_count": 8
+    },
+    "RAMKY": {
+      "token": "5154305",
+      "read_count": 8
+    },
+    "CARRARO": {
+      "token": "7393025",
+      "read_count": 8
+    },
+    "AVL": {
+      "token": "6651905",
+      "read_count": 8
+    },
+    "TIRUMALCHM": {
+      "token": "894977",
+      "read_count": 8
+    },
+    "SIYSIL": {
+      "token": "3608577",
+      "read_count": 8
+    },
+    "JSLL": {
+      "token": "194077441",
+      "read_count": 8
+    },
+    "STERTOOLS": {
+      "token": "1100545",
+      "read_count": 8
+    },
+    "MARATHON": {
+      "token": "4776705",
+      "read_count": 8
+    },
+    "AETHER": {
+      "token": "2511361",
+      "read_count": 8
+    },
+    "MAXESTATES": {
+      "token": "5029377",
+      "read_count": 8
+    },
+    "AGARIND": {
+      "token": "867585",
+      "read_count": 8
+    },
+    "SILVERTUC": {
+      "token": "2412033",
+      "read_count": 8
+    },
+    "MEDIASSIST": {
+      "token": "5556481",
+      "read_count": 8
+    },
+    "EVEREADY": {
+      "token": "3016193",
+      "read_count": 8
+    },
+    "IIFLCAPS": {
+      "token": "3346433",
+      "read_count": 8
+    },
+    "AARTIDRUGS": {
+      "token": "1147137",
+      "read_count": 8
+    },
+    "KSB": {
+      "token": "498945",
+      "read_count": 8
+    },
+    "VSTIND": {
+      "token": "953345",
+      "read_count": 8
+    },
+    "BALRAMCHIN": {
+      "token": "87297",
+      "read_count": 8
+    },
+    "PARAGMILK": {
+      "token": "4385281",
+      "read_count": 8
+    },
+    "MEIL": {
+      "token": "194239489",
+      "read_count": 8
+    },
+    "ATLANTAELE": {
+      "token": "194305793",
+      "read_count": 8
+    },
+    "RATEGAIN": {
+      "token": "1837313",
+      "read_count": 7
+    },
+    "NUVOCO": {
+      "token": "1389057",
+      "read_count": 7
+    },
+    "FAZE3Q": {
+      "token": "3072001",
+      "read_count": 7
+    },
+    "MSTCLTD": {
+      "token": "2395137",
+      "read_count": 7
+    },
+    "INDGN": {
+      "token": "6065409",
+      "read_count": 7
+    },
+    "AKUMS": {
+      "token": "6327041",
+      "read_count": 7
+    },
+    "JNKINDIA": {
+      "token": "6046977",
+      "read_count": 7
+    },
+    "PSPPROJECT": {
+      "token": "5344513",
+      "read_count": 7
+    },
+    "POKARNA": {
+      "token": "4518657",
+      "read_count": 7
+    },
+    "GVPIL": {
+      "token": "2012673",
+      "read_count": 7
+    },
+    "MONTECARLO": {
+      "token": "1520129",
+      "read_count": 7
+    },
+    "ZYDUSWELL": {
+      "token": "4514561",
+      "read_count": 7
+    },
+    "DSSL": {
+      "token": "6576641",
+      "read_count": 7
+    },
+    "SPLPETRO": {
+      "token": "2461953",
+      "read_count": 7
+    },
+    "SUNTECK": {
+      "token": "4516097",
+      "read_count": 7
+    },
+    "HGS": {
+      "token": "3766273",
+      "read_count": 7
+    },
+    "DEEDEV": {
+      "token": "6183425",
+      "read_count": 7
+    },
+    "VGUARD": {
+      "token": "3932673",
+      "read_count": 7
+    },
+    "ZUARI": {
+      "token": "7436801",
+      "read_count": 7
+    },
+    "RPSGVENT": {
+      "token": "2078465",
+      "read_count": 7
+    },
+    "SALZERELEC": {
+      "token": "2918145",
+      "read_count": 7
+    },
+    "IGPL": {
+      "token": "3606017",
+      "read_count": 7
+    },
+    "ASKAUTOLTD": {
+      "token": "5158913",
+      "read_count": 7
+    },
+    "MASFIN": {
+      "token": "50945",
+      "read_count": 7
+    },
+    "SGFIN": {
+      "token": "194266369",
+      "read_count": 7
+    },
+    "HCG": {
+      "token": "3982081",
+      "read_count": 7
+    },
+    "RAYMONDREL": {
+      "token": "194189057",
+      "read_count": 7
+    },
+    "CEWATER": {
+      "token": "7363585",
+      "read_count": 6
+    },
+    "VMART": {
+      "token": "7496705",
+      "read_count": 6
+    },
+    "FAIRCHEMOR": {
+      "token": "413185",
+      "read_count": 6
+    },
+    "ADOR": {
+      "token": "8705",
+      "read_count": 6
+    },
+    "CEMPRO": {
+      "token": "1439233",
+      "read_count": 6
+    },
+    "MACPOWER": {
+      "token": "5720833",
+      "read_count": 6
+    },
+    "FACT": {
+      "token": "258049",
+      "read_count": 6
+    },
+    "ALLTIME": {
+      "token": "194162689",
+      "read_count": 6
+    },
+    "IFBAGRO": {
+      "token": "379393",
+      "read_count": 6
+    },
+    "ISGEC": {
+      "token": "852225",
+      "read_count": 6
+    },
+    "PITTIENG": {
+      "token": "3618305",
+      "read_count": 6
+    },
+    "CHALET": {
+      "token": "2187777",
+      "read_count": 6
+    },
+    "CHEMFAB": {
+      "token": "716545",
+      "read_count": 6
+    },
+    "ATULAUTO": {
+      "token": "7685889",
+      "read_count": 6
+    },
+    "ASALCBR": {
+      "token": "4505089",
+      "read_count": 6
+    },
+    "DYCL": {
+      "token": "2666753",
+      "read_count": 6
+    },
+    "ROSSTECH": {
+      "token": "7002369",
+      "read_count": 6
+    },
+    "VENTIVE": {
+      "token": "7384833",
+      "read_count": 6
+    },
+    "MEDPLUS": {
+      "token": "1857025",
+      "read_count": 6
+    },
+    "DDEVPLSTIK": {
+      "token": "7449089",
+      "read_count": 6
+    },
+    "SOMANYCERA": {
+      "token": "993281",
+      "read_count": 6
+    },
+    "AGI": {
+      "token": "361473",
+      "read_count": 6
+    },
+    "ANTELOPUS": {
+      "token": "3481089",
+      "read_count": 6
+    },
+    "TEMBO": {
+      "token": "838401",
+      "read_count": 6
+    },
+    "KSL": {
+      "token": "4835585",
+      "read_count": 6
+    },
+    "AKSHARCHEM": {
+      "token": "5165569",
+      "read_count": 5
+    },
+    "SHIVALIK": {
+      "token": "1796097",
+      "read_count": 5
+    },
+    "ZUARIIND": {
+      "token": "979713",
+      "read_count": 5
+    },
+    "NAHARPOLY": {
+      "token": "3697921",
+      "read_count": 5
+    },
+    "WONDERLA": {
+      "token": "768513",
+      "read_count": 5
+    },
+    "CHEMCON": {
+      "token": "69121",
+      "read_count": 5
+    },
+    "PLATIND": {
+      "token": "5870081",
+      "read_count": 5
+    },
+    "KOLTEPATIL": {
+      "token": "3871745",
+      "read_count": 5
+    },
+    "SASTASUNDR": {
+      "token": "5136129",
+      "read_count": 5
+    },
+    "MHRIL": {
+      "token": "4437249",
+      "read_count": 5
+    },
+    "STYLEBAAZA": {
+      "token": "6429185",
+      "read_count": 5
+    },
+    "SOLEX": {
+      "token": "194405633",
+      "read_count": 5
+    },
+    "GANESHHOU": {
+      "token": "3670785",
+      "read_count": 5
+    },
+    "APOLLOPIPE": {
+      "token": "3676417",
+      "read_count": 5
+    },
+    "MBAPL": {
+      "token": "3247617",
+      "read_count": 5
+    },
+    "SCHNEIDER": {
+      "token": "7995905",
+      "read_count": 5
+    },
+    "LINCOLN": {
+      "token": "2968577",
+      "read_count": 5
+    },
+    "GOACARBON": {
+      "token": "3759873",
+      "read_count": 5
+    },
+    "ARIES": {
+      "token": "3892225",
+      "read_count": 5
+    },
+    "LANDMARK": {
+      "token": "3398657",
+      "read_count": 5
+    },
+    "HONASA": {
+      "token": "5072129",
+      "read_count": 5
+    },
+    "TVSELECT": {
+      "token": "2883841",
+      "read_count": 5
+    },
+    "NELCO": {
+      "token": "611329",
+      "read_count": 5
+    },
+    "MOLDTKPAC": {
+      "token": "1718529",
+      "read_count": 5
+    },
+    "JINDALPOLY": {
+      "token": "449537",
+      "read_count": 5
+    },
+    "PICCADIL": {
+      "token": "193985025",
+      "read_count": 5
+    },
+    "EMUDHRA": {
+      "token": "2497537",
+      "read_count": 5
+    },
+    "RIIL": {
+      "token": "745473",
+      "read_count": 5
+    },
+    "OPTIEMUS": {
+      "token": "5496065",
+      "read_count": 5
+    },
+    "MIDHANI": {
+      "token": "630529",
+      "read_count": 5
+    },
+    "KKCL": {
+      "token": "3425537",
+      "read_count": 5
+    },
+    "TTKPRESTIG": {
+      "token": "907777",
+      "read_count": 5
+    },
+    "ARROWGREEN": {
+      "token": "2370561",
+      "read_count": 5
+    },
+    "QUICKHEAL": {
+      "token": "3357697",
+      "read_count": 5
+    },
+    "DOLPHIN": {
+      "token": "4643585",
+      "read_count": 5
+    },
+    "DATAMATICS": {
+      "token": "2924289",
+      "read_count": 5
+    },
+    "CENTENKA": {
+      "token": "158465",
+      "read_count": 5
+    },
+    "ICEMAKE": {
+      "token": "125185",
+      "read_count": 5
+    },
+    "GHCL": {
+      "token": "288513",
+      "read_count": 5
+    },
+    "SUNDRMFAST": {
+      "token": "856321",
+      "read_count": 5
+    },
+    "SOFTTECH": {
+      "token": "2116097",
+      "read_count": 4
+    },
+    "MAYURUNIQ": {
+      "token": "7399937",
+      "read_count": 4
+    },
+    "EXPLEOSOL": {
+      "token": "4476417",
+      "read_count": 4
+    },
+    "BFINVEST": {
+      "token": "5404929",
+      "read_count": 4
+    },
+    "MMFL": {
+      "token": "3544065",
+      "read_count": 4
+    },
+    "SRM": {
+      "token": "5990913",
+      "read_count": 4
+    },
+    "VIDHIING": {
+      "token": "3465217",
+      "read_count": 4
+    },
+    "ALICON": {
+      "token": "3495937",
+      "read_count": 4
+    },
+    "WINDMACHIN": {
+      "token": "6392065",
+      "read_count": 4
+    },
+    "CHEMPLASTS": {
+      "token": "1394945",
+      "read_count": 4
+    },
+    "GUFICBIO": {
+      "token": "2971137",
+      "read_count": 4
+    },
+    "BIL": {
+      "token": "2009089",
+      "read_count": 4
+    },
+    "QUADFUTURE": {
+      "token": "7446273",
+      "read_count": 4
+    },
+    "NIITMTS": {
+      "token": "4543233",
+      "read_count": 4
+    },
+    "KABRAEXTRU": {
+      "token": "462081",
+      "read_count": 4
+    },
+    "GUJTHEM": {
+      "token": "7611137",
+      "read_count": 4
+    },
+    "KSOLVES": {
+      "token": "2831361",
+      "read_count": 4
+    },
+    "RPTECH": {
+      "token": "5803521",
+      "read_count": 4
+    },
+    "ARVSMART": {
+      "token": "2676993",
+      "read_count": 4
+    },
+    "DICIND": {
+      "token": "179969",
+      "read_count": 4
+    },
+    "TSFINV": {
+      "token": "558849",
+      "read_count": 4
+    },
+    "MATRIMONY": {
+      "token": "5561857",
+      "read_count": 4
+    },
+    "KRISHANA": {
+      "token": "3288833",
+      "read_count": 4
+    },
+    "UNIPARTS": {
+      "token": "3342593",
+      "read_count": 4
+    },
+    "ROHLTD": {
+      "token": "3374593",
+      "read_count": 4
+    },
+    "TINNARUBR": {
+      "token": "193541121",
+      "read_count": 4
+    },
+    "ORCHPHARMA": {
+      "token": "237057",
+      "read_count": 4
+    },
+    "DALMIASUG": {
+      "token": "199937",
+      "read_count": 4
+    },
+    "BESTAGRO": {
+      "token": "590337",
+      "read_count": 4
+    },
+    "BOROLTD": {
+      "token": "4966657",
+      "read_count": 4
+    },
+    "ASIANENE": {
+      "token": "1799681",
+      "read_count": 4
+    },
+    "GNFC": {
+      "token": "300545",
+      "read_count": 4
+    },
+    "MOGOLD": {
+      "token": "193994497",
+      "read_count": 4
+    },
+    "GALAPREC": {
+      "token": "6434305",
+      "read_count": 4
+    },
+    "DIVGIITTS": {
+      "token": "3706625",
+      "read_count": 4
+    },
+    "TALBROAUTO": {
+      "token": "3493889",
+      "read_count": 4
+    },
+    "ASAHISONG": {
+      "token": "6422529",
+      "read_count": 4
+    },
+    "SIRCA": {
+      "token": "2828801",
+      "read_count": 4
+    },
+    "MAHLOG": {
+      "token": "98561",
+      "read_count": 3
+    },
+    "ELECTHERM": {
+      "token": "1144065",
+      "read_count": 3
+    },
+    "BBNPPGOLD": {
+      "token": "5260033",
+      "read_count": 3
+    },
+    "KILITCH": {
+      "token": "5103873",
+      "read_count": 3
+    },
+    "AEGISVOPAK": {
+      "token": "193878017",
+      "read_count": 3
+    },
+    "JUNIPER": {
+      "token": "5842945",
+      "read_count": 3
+    },
+    "BELLACASA": {
+      "token": "194032129",
+      "read_count": 3
+    },
+    "DMCC": {
+      "token": "1785089",
+      "read_count": 3
+    },
+    "RELIGARE": {
+      "token": "3857409",
+      "read_count": 3
+    },
+    "OAL": {
+      "token": "2756609",
+      "read_count": 3
+    },
+    "ASHIANA": {
+      "token": "6247169",
+      "read_count": 3
+    },
+    "SWELECTES": {
+      "token": "3048705",
+      "read_count": 3
+    },
+    "SOLARWORLD": {
+      "token": "194541825",
+      "read_count": 3
+    },
+    "GOCLCORP": {
+      "token": "1014529",
+      "read_count": 3
+    },
+    "KAMATHOTEL": {
+      "token": "467457",
+      "read_count": 3
+    },
+    "MEDICAMEQ": {
+      "token": "1607169",
+      "read_count": 3
+    },
+    "TIPSFILMS": {
+      "token": "2911745",
+      "read_count": 3
+    },
+    "HGINFRA": {
+      "token": "428033",
+      "read_count": 3
+    },
+    "SURAKSHA": {
+      "token": "6997505",
+      "read_count": 3
+    },
+    "BANSALWIRE": {
+      "token": "6242817",
+      "read_count": 3
+    },
+    "KALYANIFRG": {
+      "token": "3879937",
+      "read_count": 3
+    },
+    "GNA": {
+      "token": "4754177",
+      "read_count": 3
+    },
+    "BAJAJHCARE": {
+      "token": "1756929",
+      "read_count": 3
+    },
+    "GREENPANEL": {
+      "token": "3535361",
+      "read_count": 3
+    },
+    "NIPPOBATRY": {
+      "token": "1736193",
+      "read_count": 3
+    },
+    "ASTEC": {
+      "token": "4538369",
+      "read_count": 3
+    },
+    "AMRUTANJAN": {
+      "token": "4492033",
+      "read_count": 3
+    },
+    "SHALBY": {
+      "token": "182785",
+      "read_count": 3
+    },
+    "EIHAHOTELS": {
+      "token": "3942145",
+      "read_count": 3
+    },
+    "SANGAMIND": {
+      "token": "1071105",
+      "read_count": 3
+    },
+    "SURAJEST": {
+      "token": "5330433",
+      "read_count": 3
+    },
+    "HATSUN": {
+      "token": "996353",
+      "read_count": 3
+    },
+    "RAMRAT": {
+      "token": "2684161",
+      "read_count": 3
+    },
+    "CLSEL": {
+      "token": "891393",
+      "read_count": 3
+    },
+    "CPEDU": {
+      "token": "194288897",
+      "read_count": 3
+    },
+    "CANTABIL": {
+      "token": "5160961",
+      "read_count": 3
+    },
+    "BAJAJINDEF": {
+      "token": "7597569",
+      "read_count": 3
+    },
+    "KALPATARU": {
+      "token": "194190849",
+      "read_count": 3
+    },
+    "DLINKINDIA": {
+      "token": "4569857",
+      "read_count": 3
+    },
+    "BUTTERFLY": {
+      "token": "695297",
+      "read_count": 3
+    },
+    "DEEPINDS": {
+      "token": "842753",
+      "read_count": 3
+    },
+    "NITINSPIN": {
+      "token": "3372801",
+      "read_count": 3
+    },
+    "WANBURY": {
+      "token": "3600129",
+      "read_count": 3
+    },
+    "RUSTOMJEE": {
+      "token": "3128065",
+      "read_count": 3
+    },
+    "HINDCOMPOS": {
+      "token": "351233",
+      "read_count": 3
+    },
+    "S&SPOWER": {
+      "token": "755457",
+      "read_count": 3
+    },
+    "GUJALKALI": {
+      "token": "324353",
+      "read_count": 3
+    },
+    "SUNDROP": {
+      "token": "425729",
+      "read_count": 2
+    },
+    "PPL": {
+      "token": "2636033",
+      "read_count": 2
+    },
+    "DBCORP": {
+      "token": "4577537",
+      "read_count": 2
+    },
+    "EVERESTIND": {
+      "token": "254209",
+      "read_count": 2
+    },
+    "HARIOMPIPE": {
+      "token": "2295809",
+      "read_count": 2
+    },
+    "TRANSWORLD": {
+      "token": "801025",
+      "read_count": 2
+    },
+    "CREATIVE": {
+      "token": "2855681",
+      "read_count": 2
+    },
+    "DYNPRO": {
+      "token": "5456385",
+      "read_count": 2
+    },
+    "RAMCOIND": {
+      "token": "1174273",
+      "read_count": 2
+    },
+    "FLAIR": {
+      "token": "5215233",
+      "read_count": 2
+    },
+    "SPAL": {
+      "token": "4672513",
+      "read_count": 2
+    },
+    "INNOVACAP": {
+      "token": "5391873",
+      "read_count": 2
+    },
+    "VSSL": {
+      "token": "6929153",
+      "read_count": 2
+    },
+    "KRYSTAL": {
+      "token": "5932801",
+      "read_count": 2
+    },
+    "SESHAPAPER": {
+      "token": "784897",
+      "read_count": 2
+    },
+    "IGARASHI": {
+      "token": "162305",
+      "read_count": 2
+    },
+    "SUNFLAG": {
+      "token": "857089",
+      "read_count": 2
+    },
+    "FMGOETZE": {
+      "token": "304641",
+      "read_count": 2
+    },
+    "ALIVUS": {
+      "token": "1347841",
+      "read_count": 2
+    },
+    "GODAVARIB": {
+      "token": "6640897",
+      "read_count": 2
+    },
+    "DIAMINESQ": {
+      "token": "4772865",
+      "read_count": 2
+    },
+    "ROSSARI": {
+      "token": "4968961",
+      "read_count": 2
+    },
+    "AARTISURF": {
+      "token": "4923649",
+      "read_count": 2
+    },
+    "MAGADSUGAR": {
+      "token": "5476353",
+      "read_count": 2
+    },
+    "UNICHEMLAB": {
+      "token": "916225",
+      "read_count": 2
+    },
+    "ARIHANTSUP": {
+      "token": "5160705",
+      "read_count": 2
+    },
+    "CEIGALL": {
+      "token": "6333953",
+      "read_count": 2
+    },
+    "CAPITALSFB": {
+      "token": "5804801",
+      "read_count": 2
+    },
+    "IFGLEXPOR": {
+      "token": "111617",
+      "read_count": 1
+    },
+    "BHAGCHEM": {
+      "token": "1577985",
+      "read_count": 1
+    },
+    "PANAMAPET": {
+      "token": "6500353",
+      "read_count": 1
+    },
+    "LGHL": {
+      "token": "5088257",
+      "read_count": 1
+    },
+    "PASHUPATI": {
+      "token": "194036481",
+      "read_count": 1
+    },
+    "HERANBA": {
+      "token": "669185",
+      "read_count": 1
+    },
+    "LICMFGOLD": {
+      "token": "6563841",
+      "read_count": 1
+    },
+    "YUKEN": {
+      "token": "1408257",
+      "read_count": 1
+    },
+    "ASPINWALL": {
+      "token": "4421121",
+      "read_count": 1
+    },
+    "ABCOTS": {
+      "token": "194337281",
+      "read_count": 1
+    },
+    "NIRAJISPAT": {
+      "token": "4823041",
+      "read_count": 1
+    },
+    "NINSYS": {
+      "token": "3633665",
+      "read_count": 1
+    },
+    "UNITEDTEA": {
+      "token": "4607745",
+      "read_count": 1
+    },
+    "PRIMESECU": {
+      "token": "3037185",
+      "read_count": 1
+    },
+    "SUNDRMBRAK": {
+      "token": "1069825",
+      "read_count": 1
+    },
+    "SAKAR": {
+      "token": "2441985",
+      "read_count": 1
+    },
+    "UNIONGOLD": {
+      "token": "7599873",
+      "read_count": 1
+    },
+    "SGIL": {
+      "token": "1309185",
+      "read_count": 1
+    },
+    "TRF": {
+      "token": "4604673",
+      "read_count": 1
+    },
+    "INDOCO": {
+      "token": "2989313",
+      "read_count": 1
+    },
+    "PODDARMENT": {
+      "token": "4873217",
+      "read_count": 1
+    },
+    "CSLFINANCE": {
+      "token": "2649601",
+      "read_count": 1
+    },
+    "GLOSTERLTD": {
+      "token": "6039041",
+      "read_count": 1
+    },
+    "APCOTEXIND": {
+      "token": "39425",
+      "read_count": 1
+    },
+    "LIBERTSHOE": {
+      "token": "510465",
+      "read_count": 1
+    },
+    "SILINV": {
+      "token": "1050881",
+      "read_count": 1
+    },
+    "ALBERTDAVD": {
+      "token": "4417537",
+      "read_count": 1
+    },
+    "MONARCH": {
+      "token": "1965825",
+      "read_count": 1
+    },
+    "RITCO": {
+      "token": "2289665",
+      "read_count": 1
+    },
+    "DHARMAJ": {
+      "token": "3328257",
+      "read_count": 1
+    },
+    "GEECEE": {
+      "token": "3496449",
+      "read_count": 1
+    },
+    "MUTHOOTCAP": {
+      "token": "2666241",
+      "read_count": 1
+    },
+    "SUYOG": {
+      "token": "6361857",
+      "read_count": 1
+    },
+    "GOLD360": {
+      "token": "7706881",
+      "read_count": 1
+    },
+    "ONWARDTEC": {
+      "token": "635137",
+      "read_count": 1
+    },
+    "ASIANHOTNR": {
+      "token": "4716033",
+      "read_count": 1
+    },
+    "ALLDIGI": {
+      "token": "3020289",
+      "read_count": 1
+    },
+    "UFLEX": {
+      "token": "269569",
+      "read_count": 1
+    },
+    "SIS": {
+      "token": "5504257",
+      "read_count": 1
+    },
+    "CREST": {
+      "token": "3558401",
+      "read_count": 1
+    },
+    "MMP": {
+      "token": "4197121",
+      "read_count": 1
+    },
+    "GANDHITUBE": {
+      "token": "3613697",
+      "read_count": 1
+    },
+    "IVZINGOLD": {
+      "token": "4682753",
+      "read_count": 1
+    },
+    "COSMOFIRST": {
+      "token": "189953",
+      "read_count": 1
+    },
+    "HARSHA": {
+      "token": "2857473",
+      "read_count": 1
+    },
+    "SALONA": {
+      "token": "4441857",
+      "read_count": 1
+    },
+    "NRAIL": {
+      "token": "5200385",
+      "read_count": 1
+    },
+    "SHANTIGEAR": {
+      "token": "787969",
+      "read_count": 1
+    },
+    "DENORA": {
+      "token": "1095425",
+      "read_count": 1
+    },
+    "MANORG": {
+      "token": "1644033",
+      "read_count": 1
+    },
+    "HEUBACHIND": {
+      "token": "183041",
+      "read_count": 1
+    },
+    "RHL": {
+      "token": "3880193",
+      "read_count": 1
+    },
+    "TIL": {
+      "token": "891905",
+      "read_count": 1
+    },
+    "PONNIERODE": {
+      "token": "2729217",
+      "read_count": 1
+    },
+    "SRGHFL": {
+      "token": "4638465",
+      "read_count": 1
+    },
+    "TRIVENI": {
+      "token": "3348737",
+      "read_count": 1
+    },
+    "SRHHYPOLTD": {
+      "token": "3732993",
+      "read_count": 1
+    },
+    "IRMENERGY": {
+      "token": "5016833",
+      "read_count": 1
+    },
+    "DCI": {
+      "token": "2960897",
+      "read_count": 1
+    },
+    "GREENPLY": {
+      "token": "1020673",
+      "read_count": 1
+    },
+    "SAHYADRI": {
+      "token": "3814401",
+      "read_count": 1
+    },
+    "EGOLD": {
+      "token": "5102849",
+      "read_count": 1
+    },
+    "SHREEPUSHK": {
+      "token": "2710529",
+      "read_count": 1
+    },
+    "SEAMECLTD": {
+      "token": "669697",
+      "read_count": 1
+    },
+    "JPOLYINVST": {
+      "token": "8065793",
+      "read_count": 1
+    },
+    "ORIENTBELL": {
+      "token": "3655169",
+      "read_count": 1
+    },
+    "DVL": {
+      "token": "3894785",
+      "read_count": 1
+    },
+    "VINYLINDIA": {
+      "token": "4306177",
+      "read_count": 1
+    },
+    "MAZDA": {
+      "token": "4829697",
+      "read_count": 1
+    },
+    "SOTL": {
+      "token": "773377",
+      "read_count": 1
+    },
+    "DOLLAR": {
+      "token": "5263361",
+      "read_count": 1
+    },
+    "STARTECK": {
+      "token": "2382081",
+      "read_count": 1
+    },
+    "SURAJLTD": {
+      "token": "6391297",
+      "read_count": 1
+    }
+  }
+}

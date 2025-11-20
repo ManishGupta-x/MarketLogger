@@ -22,7 +22,7 @@ class PaperTradingService {
       logger.info(`💼 Initializing Paper Trading Service for channel ${this.channelId}...`);
 
       // Load configuration
-      this.loadConfig(initialCapital, amountPerTrade);
+      await this.loadConfig(initialCapital, amountPerTrade);
 
       // Load existing portfolio state
       await this.loadPortfolio();
@@ -37,8 +37,8 @@ class PaperTradingService {
     }
   }
 
-  loadConfig(initialCapital = null, amountPerTrade = null) {
-    const config = db.getAllConfig(this.channelId);
+  async loadConfig(initialCapital = null, amountPerTrade = null) {
+    const config = await db.getAllConfigAsync(this.channelId);
 
     // Priority: Parameter -> ENV -> DB -> Default
     // Load initial capital
@@ -98,7 +98,7 @@ class PaperTradingService {
 
   async loadPortfolio() {
     // Check if we have any previous portfolio state
-    const latestPortfolio = db.getLatestPortfolio(this.channelId);
+    const latestPortfolio = await db.getLatestPortfolioAsync(this.channelId);
 
     if (latestPortfolio) {
       // Resume from last known state
@@ -111,7 +111,7 @@ class PaperTradingService {
     }
 
     // Load holdings
-    const holdings = db.getAllHoldings(this.channelId);
+    const holdings = await db.getAllHoldingsAsync(this.channelId);
     this.holdings.clear();
 
     holdings.forEach(holding => {
@@ -130,7 +130,7 @@ class PaperTradingService {
     logger.info(`📦 Loaded ${this.holdings.size} holdings`);
 
     // Calculate total invested and realized P&L
-    const stats = db.getTotalPnL(this.channelId);
+    const stats = await db.getTotalPnLAsync(this.channelId);
     this.totalRealizedPnL = stats.realized_pnl || 0;
     this.totalInvested = this.initialCapital - this.cashBalance;
 
@@ -327,6 +327,80 @@ class PaperTradingService {
       pnlPercent: pnlPercent.toNumber(),
       balance: this.cashBalance
     };
+  }
+
+  // Manual sell - bypasses trading enabled check for user-initiated sells
+  async executeManualSell(token, symbol, price) {
+    if (!this.isInitialized) {
+      logger.warn('Paper trading not initialized');
+      return { success: false, message: 'Paper trading not initialized' };
+    }
+
+    try {
+      const priceDecimal = new Decimal(price);
+
+      // Check if we have holdings
+      const holding = this.holdings.get(token);
+
+      if (!holding || holding.qty === 0) {
+        logger.warn(`No holdings to sell for ${symbol}`);
+        return { success: false, message: 'No holdings to sell' };
+      }
+
+      // Sell all holdings for this stock
+      const qty = holding.qty;
+      const orderValue = new Decimal(qty).mul(priceDecimal);
+
+      // Calculate P&L
+      const investedValue = new Decimal(holding.investedValue);
+      const pnl = orderValue.minus(investedValue);
+      const pnlPercent = pnl.div(investedValue).mul(100);
+
+      // Update cash balance
+      this.cashBalance = new Decimal(this.cashBalance).plus(orderValue).toNumber();
+
+      // Update realized P&L
+      this.totalRealizedPnL = new Decimal(this.totalRealizedPnL).plus(pnl).toNumber();
+
+      // Remove holding
+      this.holdings.delete(token);
+      db.deleteHolding(token, this.channelId);
+
+      // Insert order record
+      const orderId = db.insertOrder({
+        type: 'SELL',
+        token: token,
+        symbol: symbol,
+        qty: qty,
+        price: priceDecimal.toNumber(),
+        value: orderValue.toNumber(),
+        balance: this.cashBalance,
+        pnl: pnl.toNumber(),
+        pnl_percent: pnlPercent.toNumber(),
+        grid_level: 0,
+        reference_price: null,
+        notes: `Manual sell | P&L: ₹${pnl.toNumber().toFixed(2)}`
+      }, this.channelId);
+
+      // Save portfolio snapshot
+      this.savePortfolioSnapshot();
+
+      logger.info(`🔴 MANUAL SELL ${symbol} | Qty: ${qty} | Price: ₹${priceDecimal.toNumber()} | P&L: ₹${pnl.toNumber().toFixed(2)} (${pnlPercent.toNumber().toFixed(2)}%) | Balance: ₹${this.cashBalance.toFixed(2)}`);
+
+      return {
+        success: true,
+        orderId: orderId,
+        qty: qty,
+        price: priceDecimal.toNumber(),
+        value: orderValue.toNumber(),
+        pnl: pnl.toNumber(),
+        pnlPercent: pnlPercent.toNumber(),
+        balance: this.cashBalance
+      };
+    } catch (error) {
+      logger.error(`❌ Manual sell failed for ${symbol}:`, error);
+      return { success: false, message: error.message };
+    }
   }
 
   async logOrderToDiscord(type, symbol, qty, price, pnl, pnlPercent, balance, executionReason = null) {

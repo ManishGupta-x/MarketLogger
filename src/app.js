@@ -12,7 +12,7 @@ async function start() {
     logger.info('🚀 Starting Grid Trading Bot...');
 
     // Initialize database first (before any channel initialization)
-    db.initialize();
+    await db.initialize();
     logger.info('✅ Database initialized');
 
     // Start scheduled authentication (will check and auto-login if needed)

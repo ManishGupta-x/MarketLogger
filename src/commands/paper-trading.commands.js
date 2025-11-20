@@ -239,9 +239,66 @@ class PaperTradingCommands {
         reply += `   ${pnlEmoji} P&L: ₹${(holding.unrealized_pnl || 0).toFixed(2)} (${(holding.unrealized_pnl_percent || 0).toFixed(2)}%)\n\n`;
       });
 
+      reply += `💡 Use \`!sell holding <number>\` to sell a specific holding`;
+
       await message.reply(reply);
     } catch (error) {
       logger.error('Holdings command error:', error);
+      await message.reply(`❌ Error: ${error.message}`);
+    }
+  }
+
+  async sellHoldingCommand(args, message) {
+    try {
+      const channel = this.getChannelInstance(message);
+
+      if (args.length < 2 || args[0].toLowerCase() !== 'holding') {
+        await message.reply('Usage: `!sell holding <number>`\nExample: `!sell holding 1` to sell the first holding');
+        return;
+      }
+
+      const holdingNumber = parseInt(args[1]);
+      if (isNaN(holdingNumber) || holdingNumber < 1) {
+        await message.reply('❌ Invalid holding number. Use `!holdings` to see the list.');
+        return;
+      }
+
+      const holdings = channel.paperTradingService.getHoldings();
+
+      if (holdings.length === 0) {
+        await message.reply('📭 No holdings to sell');
+        return;
+      }
+
+      if (holdingNumber > holdings.length) {
+        await message.reply(`❌ Invalid holding number. You have ${holdings.length} holdings. Use \`!holdings\` to see the list.`);
+        return;
+      }
+
+      const holding = holdings[holdingNumber - 1];
+      const currentPrice = holding.current_price || holding.avg_price;
+
+      // Execute the manual sell
+      const result = await channel.paperTradingService.executeManualSell(
+        holding.token,
+        holding.symbol,
+        currentPrice
+      );
+
+      if (result.success) {
+        const pnlEmoji = result.pnl >= 0 ? '📈' : '📉';
+        let reply = `✅ **Sold ${holding.symbol}**\n\n`;
+        reply += `**Qty:** ${result.qty} @ ₹${result.price.toFixed(2)}\n`;
+        reply += `**Value:** ₹${result.value.toFixed(2)}\n`;
+        reply += `${pnlEmoji} **P&L:** ₹${result.pnl.toFixed(2)} (${result.pnlPercent.toFixed(2)}%)\n`;
+        reply += `**Balance:** ₹${result.balance.toLocaleString('en-IN', { minimumFractionDigits: 2 })}`;
+
+        await message.reply(reply);
+      } else {
+        await message.reply(`❌ Failed to sell: ${result.message}`);
+      }
+    } catch (error) {
+      logger.error('Sell holding command error:', error);
       await message.reply(`❌ Error: ${error.message}`);
     }
   }
@@ -254,13 +311,13 @@ class PaperTradingCommands {
 
       switch (period) {
         case 'today':
-          orders = db.getTodayOrders(channel.id);
+          orders = await db.getTodayOrdersAsync(channel.id);
           break;
         case 'week':
-          orders = db.getOrders(channel.id, 100, 0);
+          orders = await db.getOrders(channel.id, 100, 0);
           break;
         case 'all':
-          orders = db.getOrders(channel.id, 200, 0);
+          orders = await db.getOrders(channel.id, 200, 0);
           break;
         default:
           await message.reply('Usage: `!orders [today|week|all]`');
@@ -309,8 +366,8 @@ class PaperTradingCommands {
   async pnlCommand(message) {
     try {
       const channel = this.getChannelInstance(message);
-      const stats = db.getTotalPnL(channel.id);
-      const todayStats = db.getTodayStats(channel.id);
+      const stats = await db.getTotalPnLAsync(channel.id);
+      const todayStats = await db.getTodayStatsAsync(channel.id);
       const portfolio = channel.paperTradingService.getPortfolio();
 
       const embed = {
@@ -376,8 +433,8 @@ class PaperTradingCommands {
   async topStocksCommand(message) {
     try {
       const channel = this.getChannelInstance(message);
-      const topPerformers = db.getTopPerformers(10, channel.id);
-      const worstPerformers = db.getWorstPerformers(10, channel.id);
+      const topPerformers = await db.getTopPerformersAsync(10, channel.id);
+      const worstPerformers = await db.getWorstPerformersAsync(10, channel.id);
 
       let reply = '🏆 **Top Performing Stocks**\n\n';
 
@@ -656,7 +713,7 @@ class PaperTradingCommands {
       const channel = this.getChannelInstance(message);
       const portfolio = channel.paperTradingService.getPortfolio();
       const gridStatus = channel.gridStrategyService.getStatus();
-      const todayStats = db.getTodayStats(channel.id);
+      const todayStats = await db.getTodayStatsAsync(channel.id);
 
       const embed = {
         title: '🤖 Paper Trading Bot Status',

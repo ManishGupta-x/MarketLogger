@@ -109,6 +109,10 @@ class DiscordService {
         await paperTradingCommands.holdingsCommand(message);
         break;
 
+      case 'sell':
+        await paperTradingCommands.sellHoldingCommand(args, message);
+        break;
+
       case 'orders':
         await paperTradingCommands.ordersCommand(args, message);
         break;
@@ -485,6 +489,7 @@ class DiscordService {
 \`!portfolio\` - View current channel portfolio
 \`!portfolio1\` / \`!portfolio2\` / \`!portfolio3\` - View specific channel portfolio
 \`!holdings\` - Current holdings
+\`!sell holding <number>\` - Manually sell a specific holding
 \`!orders [today|week|all]\` - Order history
 \`!pnl\` - Profit & loss summary
 \`!topstocks\` - Best/worst performers

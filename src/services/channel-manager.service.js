@@ -8,34 +8,73 @@ class ChannelManager {
     this.isInitialized = false;
   }
 
+  // Parse combined config format: CHANNEL_ID-NAME-INITIAL_CAPITAL-AMOUNT_PER_TRADE-GRID_PERCENTAGE
+  parseChannelConfig(configString, channelNum) {
+    if (!configString) return null;
+
+    const parts = configString.split('-');
+    if (parts.length < 5) {
+      logger.warn(`⚠️ Invalid config format for channel ${channelNum}: ${configString}`);
+      logger.warn(`Expected format: CHANNEL_ID-NAME-INITIAL_CAPITAL-AMOUNT_PER_TRADE-GRID_PERCENTAGE`);
+      return null;
+    }
+
+    // Handle names with dashes by joining middle parts
+    const id = parts[0];
+    const gridPercentage = parseFloat(parts[parts.length - 1]);
+    const amountPerTrade = parseFloat(parts[parts.length - 2]);
+    const initialCapital = parseFloat(parts[parts.length - 3]);
+    const name = parts.slice(1, parts.length - 3).join('-') || `Channel-${channelNum}`;
+
+    return {
+      id,
+      name,
+      initialCapital: isNaN(initialCapital) ? 100000 : initialCapital,
+      amountPerTrade: isNaN(amountPerTrade) ? 5000 : amountPerTrade,
+      gridPercentage: isNaN(gridPercentage) ? 5.0 : gridPercentage,
+    };
+  }
+
   async initialize() {
     try {
       logger.info('🎛️  Initializing Channel Manager...');
 
       // Define channel configurations from environment variables
-      const channelConfigs = [
-        {
-          id: process.env.DISCORD_CHANNEL_1_ID,
-          name: process.env.CHANNEL_1_NAME || 'Channel-1',
-          initialCapital: parseFloat(process.env.CHANNEL_1_INITIAL_CAPITAL || '100000'),
-          amountPerTrade: parseFloat(process.env.CHANNEL_1_AMOUNT_PER_TRADE || '5000'),
-          gridPercentage: parseFloat(process.env.CHANNEL_1_GRID_PERCENTAGE || '5.0'),
-        },
-        {
-          id: process.env.DISCORD_CHANNEL_2_ID,
-          name: process.env.CHANNEL_2_NAME || 'Channel-2',
-          initialCapital: parseFloat(process.env.CHANNEL_2_INITIAL_CAPITAL || '50000'),
-          amountPerTrade: parseFloat(process.env.CHANNEL_2_AMOUNT_PER_TRADE || '2500'),
-          gridPercentage: parseFloat(process.env.CHANNEL_2_GRID_PERCENTAGE || '7.5'),
-        },
-        {
-          id: process.env.DISCORD_CHANNEL_3_ID,
-          name: process.env.CHANNEL_3_NAME || 'Channel-3',
-          initialCapital: parseFloat(process.env.CHANNEL_3_INITIAL_CAPITAL || '25000'),
-          amountPerTrade: parseFloat(process.env.CHANNEL_3_AMOUNT_PER_TRADE || '2000'),
-          gridPercentage: parseFloat(process.env.CHANNEL_3_GRID_PERCENTAGE || '10.0'),
-        },
-      ];
+      // Support both new combined format and legacy separate variables
+      const channelConfigs = [];
+
+      // Try to load up to 10 channels
+      for (let i = 1; i <= 10; i++) {
+        let config = null;
+
+        // First try new combined format: CHANNEL_X_CONFIG
+        const combinedConfig = process.env[`CHANNEL_${i}_CONFIG`];
+        if (combinedConfig) {
+          config = this.parseChannelConfig(combinedConfig, i);
+          if (config) {
+            logger.info(`📡 Loaded channel ${i} from combined config`);
+          }
+        }
+
+        // Fall back to legacy separate variables
+        if (!config) {
+          const legacyId = process.env[`DISCORD_CHANNEL_${i}_ID`];
+          if (legacyId) {
+            config = {
+              id: legacyId,
+              name: process.env[`CHANNEL_${i}_NAME`] || `Channel-${i}`,
+              initialCapital: parseFloat(process.env[`CHANNEL_${i}_INITIAL_CAPITAL`] || '100000'),
+              amountPerTrade: parseFloat(process.env[`CHANNEL_${i}_AMOUNT_PER_TRADE`] || '5000'),
+              gridPercentage: parseFloat(process.env[`CHANNEL_${i}_GRID_PERCENTAGE`] || '5.0'),
+            };
+            logger.info(`📡 Loaded channel ${i} from legacy config`);
+          }
+        }
+
+        if (config) {
+          channelConfigs.push(config);
+        }
+      }
 
       // Initialize each channel
       for (const config of channelConfigs) {
