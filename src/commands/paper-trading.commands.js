@@ -24,62 +24,76 @@ class PaperTradingCommands {
       const portfolio = channel.paperTradingService.getPortfolio();
       const config = channel.config;
 
+      const fields = [
+        {
+          name: '💵 Cash Balance',
+          value: `₹${portfolio.cash.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`,
+          inline: true
+        },
+        {
+          name: '📊 Holdings Value',
+          value: `₹${portfolio.holdings_value.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`,
+          inline: true
+        }
+      ];
+
+      // Add short liability if there are shorts
+      if (portfolio.short_liability > 0) {
+        fields.push({
+          name: '🔻 Short Liability',
+          value: `₹${portfolio.short_liability.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`,
+          inline: true
+        });
+      }
+
+      fields.push(
+        {
+          name: '💰 Total Value',
+          value: `₹${portfolio.total_value.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`,
+          inline: true
+        },
+        {
+          name: '📈 Total P&L',
+          value: `₹${portfolio.total_pnl.toFixed(2)} (${portfolio.pnl_percent.toFixed(2)}%)`,
+          inline: false
+        },
+        {
+          name: '💹 Realized P&L',
+          value: `₹${portfolio.realized_pnl.toFixed(2)}`,
+          inline: true
+        },
+        {
+          name: '📊 Unrealized P&L',
+          value: `₹${portfolio.unrealized_pnl.toFixed(2)}`,
+          inline: true
+        },
+        {
+          name: '🎯 Positions',
+          value: `${portfolio.holdings_count} long${portfolio.short_count > 0 ? `, ${portfolio.short_count} short` : ''}`,
+          inline: true
+        },
+        {
+          name: '📅 Today\'s Orders',
+          value: `${portfolio.today_orders}`,
+          inline: true
+        },
+        {
+          name: '💵 Today\'s P&L',
+          value: `₹${portfolio.today_pnl.toFixed(2)}`,
+          inline: true
+        },
+        {
+          name: '💼 Initial Capital',
+          value: `₹${portfolio.initial_capital.toLocaleString('en-IN')}`,
+          inline: true
+        }
+      );
+
       const embed = {
         title: `💼 ${config.name} Portfolio`,
         description: `**Config:** Capital: ₹${config.initialCapital.toLocaleString('en-IN')} | Trade: ₹${config.amountPerTrade.toLocaleString('en-IN')} | Grid: ${config.gridPercentage}%`,
         color: portfolio.total_pnl >= 0 ? 0x00ff00 : 0xff0000,
-        fields: [
-          {
-            name: '💵 Cash Balance',
-            value: `₹${portfolio.cash.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`,
-            inline: true
-          },
-          {
-            name: '📊 Holdings Value',
-            value: `₹${portfolio.holdings_value.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`,
-            inline: true
-          },
-          {
-            name: '💰 Total Value',
-            value: `₹${portfolio.total_value.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`,
-            inline: true
-          },
-          {
-            name: '📈 Total P&L',
-            value: `₹${portfolio.total_pnl.toFixed(2)} (${portfolio.pnl_percent.toFixed(2)}%)`,
-            inline: false
-          },
-          {
-            name: '💹 Realized P&L',
-            value: `₹${portfolio.realized_pnl.toFixed(2)}`,
-            inline: true
-          },
-          {
-            name: '📊 Unrealized P&L',
-            value: `₹${portfolio.unrealized_pnl.toFixed(2)}`,
-            inline: true
-          },
-          {
-            name: '🎯 Holdings',
-            value: `${portfolio.holdings_count} stocks`,
-            inline: true
-          },
-          {
-            name: '📅 Today\'s Orders',
-            value: `${portfolio.today_orders} (${portfolio.today_buys} buys, ${portfolio.today_sells} sells)`,
-            inline: true
-          },
-          {
-            name: '💵 Today\'s P&L',
-            value: `₹${portfolio.today_pnl.toFixed(2)}`,
-            inline: true
-          },
-          {
-            name: '💼 Initial Capital',
-            value: `₹${portfolio.initial_capital.toLocaleString('en-IN')}`,
-            inline: true
-          }
-        ],
+        fields: fields,
         timestamp: new Date()
       };
 
@@ -107,62 +121,76 @@ class PaperTradingCommands {
       const portfolio = channel.paperTradingService.getPortfolio();
       const config = channel.config;
 
+      const fields = [
+        {
+          name: '💵 Cash Balance',
+          value: `₹${portfolio.cash.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`,
+          inline: true
+        },
+        {
+          name: '📊 Holdings Value',
+          value: `₹${portfolio.holdings_value.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`,
+          inline: true
+        }
+      ];
+
+      // Add short liability if there are shorts
+      if (portfolio.short_liability > 0) {
+        fields.push({
+          name: '🔻 Short Liability',
+          value: `₹${portfolio.short_liability.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`,
+          inline: true
+        });
+      }
+
+      fields.push(
+        {
+          name: '💰 Total Value',
+          value: `₹${portfolio.total_value.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`,
+          inline: true
+        },
+        {
+          name: '📈 Total P&L',
+          value: `₹${portfolio.total_pnl.toFixed(2)} (${portfolio.pnl_percent.toFixed(2)}%)`,
+          inline: false
+        },
+        {
+          name: '💹 Realized P&L',
+          value: `₹${portfolio.realized_pnl.toFixed(2)}`,
+          inline: true
+        },
+        {
+          name: '📊 Unrealized P&L',
+          value: `₹${portfolio.unrealized_pnl.toFixed(2)}`,
+          inline: true
+        },
+        {
+          name: '🎯 Positions',
+          value: `${portfolio.holdings_count} long${portfolio.short_count > 0 ? `, ${portfolio.short_count} short` : ''}`,
+          inline: true
+        },
+        {
+          name: '📅 Today\'s Orders',
+          value: `${portfolio.today_orders}`,
+          inline: true
+        },
+        {
+          name: '💵 Today\'s P&L',
+          value: `₹${portfolio.today_pnl.toFixed(2)}`,
+          inline: true
+        },
+        {
+          name: '💼 Initial Capital',
+          value: `₹${portfolio.initial_capital.toLocaleString('en-IN')}`,
+          inline: true
+        }
+      );
+
       const embed = {
         title: `💼 ${config.name} Portfolio`,
         description: `**Config:** Capital: ₹${config.initialCapital.toLocaleString('en-IN')} | Trade: ₹${config.amountPerTrade.toLocaleString('en-IN')} | Grid: ${config.gridPercentage}%`,
         color: portfolio.total_pnl >= 0 ? 0x00ff00 : 0xff0000,
-        fields: [
-          {
-            name: '💵 Cash Balance',
-            value: `₹${portfolio.cash.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`,
-            inline: true
-          },
-          {
-            name: '📊 Holdings Value',
-            value: `₹${portfolio.holdings_value.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`,
-            inline: true
-          },
-          {
-            name: '💰 Total Value',
-            value: `₹${portfolio.total_value.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`,
-            inline: true
-          },
-          {
-            name: '📈 Total P&L',
-            value: `₹${portfolio.total_pnl.toFixed(2)} (${portfolio.pnl_percent.toFixed(2)}%)`,
-            inline: false
-          },
-          {
-            name: '💹 Realized P&L',
-            value: `₹${portfolio.realized_pnl.toFixed(2)}`,
-            inline: true
-          },
-          {
-            name: '📊 Unrealized P&L',
-            value: `₹${portfolio.unrealized_pnl.toFixed(2)}`,
-            inline: true
-          },
-          {
-            name: '🎯 Holdings',
-            value: `${portfolio.holdings_count} stocks`,
-            inline: true
-          },
-          {
-            name: '📅 Today\'s Orders',
-            value: `${portfolio.today_orders} (${portfolio.today_buys} buys, ${portfolio.today_sells} sells)`,
-            inline: true
-          },
-          {
-            name: '💵 Today\'s P&L',
-            value: `₹${portfolio.today_pnl.toFixed(2)}`,
-            inline: true
-          },
-          {
-            name: '💼 Initial Capital',
-            value: `₹${portfolio.initial_capital.toLocaleString('en-IN')}`,
-            inline: true
-          }
-        ],
+        fields: fields,
         timestamp: new Date()
       };
 
