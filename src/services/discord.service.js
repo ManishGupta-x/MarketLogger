@@ -1,5 +1,6 @@
 const { Client, GatewayIntentBits } = require('discord.js');
 const logger = require('../utils/logger');
+const controlPanelCommands = require('../commands/control-panel.commands');
 
 class DiscordService {
   constructor() {
@@ -19,6 +20,11 @@ class DiscordService {
   async initialize(channelManager = null) {
     this.channelManager = channelManager;
 
+    // Set channel manager for control panel
+    if (channelManager) {
+      controlPanelCommands.setChannelManager(channelManager);
+    }
+
     return new Promise((resolve) => {
       this.client.once('ready', () => {
         this.logChannel = this.client.channels.cache.get(process.env.DISCORD_LOG_CHANNEL_ID);
@@ -26,11 +32,37 @@ class DiscordService {
         logger.info(`Discord bot logged in as ${this.client.user.tag}`);
 
         this.setupCommands();
+        this.setupInteractions();
         resolve();
       });
 
       this.client.login(process.env.DISCORD_BOT_TOKEN);
     });
+  }
+
+  setupInteractions() {
+    this.client.on('interactionCreate', async (interaction) => {
+      // Handle button clicks and select menus
+      if (interaction.isButton() || interaction.isStringSelectMenu()) {
+        // Check if it's a control panel interaction
+        if (interaction.customId.startsWith('panel_') ||
+            interaction.customId.startsWith('channel_')) {
+          try {
+            await controlPanelCommands.handleInteraction(interaction);
+          } catch (error) {
+            logger.error('Interaction error:', error);
+            if (!interaction.replied && !interaction.deferred) {
+              await interaction.reply({
+                content: `Error: ${error.message}`,
+                ephemeral: true
+              });
+            }
+          }
+        }
+      }
+    });
+
+    logger.info('Discord interactions handler active');
   }
 
   setupCommands() {
@@ -43,8 +75,9 @@ class DiscordService {
       const channelIds = this.channelManager ? this.channelManager.getChannelIds() : [];
       const isLogChannel = message.channel.id === process.env.DISCORD_LOG_CHANNEL_ID;
       const isTradingChannel = channelIds.includes(message.channel.id);
+      const isControlPanelChannel = message.channel.id === process.env.CONTROL_PANEL_CHANNEL_ID;
 
-      if (!isLogChannel && !isTradingChannel) return;
+      if (!isLogChannel && !isTradingChannel && !isControlPanelChannel) return;
       if (!message.content.startsWith(this.commandPrefix)) return;
 
       const args = message.content.slice(this.commandPrefix.length).trim().split(/ +/);
@@ -86,6 +119,10 @@ class DiscordService {
 
       case 'test':
         await this.testCommand(args, message);
+        break;
+
+      case 'panel':
+        await controlPanelCommands.panelCommand(message);
         break;
 
       // Paper Trading Commands
@@ -510,6 +547,7 @@ class DiscordService {
 \`!ticker [status|restart|debug]\` - Manage ticker
 \`!time\` - IST time and market status
 \`!test\` - Run connection tests
+\`!panel\` - Open control panel (in control panel channel)
 \`!help\` - Show this message
 
 **Channel Configurations:**
