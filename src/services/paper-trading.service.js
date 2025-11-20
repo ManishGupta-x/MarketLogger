@@ -359,12 +359,6 @@ class PaperTradingService {
       return { success: false, message: 'Already have short position' };
     }
 
-    // Check if we have a long position (can't short if we own it)
-    if (this.hasHolding(token)) {
-      logger.warn(`Cannot short ${symbol} - already have long position`);
-      return { success: false, message: 'Cannot short - have long position' };
-    }
-
     // Calculate quantity based on amount per trade
     const qty = Math.floor(this.amountPerTrade / price.toNumber());
 
