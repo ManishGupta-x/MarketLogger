@@ -214,8 +214,6 @@ class GridStrategyService {
     const buyThreshold = refPrice.mul(new Decimal(1).minus(gridPercent));
     const dropPercent = refPrice.minus(price).div(refPrice).mul(100);
 
-    console.log(`  🎯 [GRID] ${symbol} | Ref: ₹${gridData.referencePrice.toFixed(2)} | Buy@: ₹${buyThreshold.toFixed(2)} | Current: ₹${currentPrice.toFixed(2)} | Drop: ${dropPercent.toFixed(2)}%`);
-
     if (price.lte(buyThreshold)) {
       console.log(`  🟢 [BUY TRIGGER] ${symbol} hit buy threshold!`);
       this.triggerBuy(token, symbol, price.toNumber(), gridData);
