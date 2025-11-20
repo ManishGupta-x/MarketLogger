@@ -174,11 +174,6 @@ class GridStrategyService {
         this.paperTradingService.updateHoldingPrice(token, currentPrice);
       }
 
-      // Update short position price if we have it
-      if (this.paperTradingService && this.paperTradingService.hasShortPosition(token)) {
-        this.paperTradingService.updateShortPositionPrice(token, currentPrice);
-      }
-
       // Check if we should skip this tick (too soon after last trade)
       const lastProcessed = this.lastProcessedTime.get(token);
       if (lastProcessed && (Date.now() - lastProcessed) < this.minIntervalMs) {
