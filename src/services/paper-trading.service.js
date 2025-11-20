@@ -130,6 +130,24 @@ class PaperTradingService {
 
     logger.info(`📦 Loaded ${this.holdings.size} holdings`);
 
+    // Load short positions
+    const shortPositions = db.getAllShortPositions(this.channelId);
+    this.shortPositions.clear();
+
+    shortPositions.forEach(position => {
+      this.shortPositions.set(position.token, {
+        symbol: position.symbol,
+        qty: position.qty,
+        entryPrice: position.entry_price,
+        currentPrice: position.current_price,
+        shortValue: position.short_value,
+        unrealizedPnl: position.unrealized_pnl,
+        unrealizedPnlPercent: position.unrealized_pnl_percent
+      });
+    });
+
+    logger.info(`🔻 Loaded ${this.shortPositions.size} short positions`);
+
     // Calculate total invested and realized P&L
     const stats = db.getTotalPnL(this.channelId);
     this.totalRealizedPnL = stats.realized_pnl || 0;
@@ -372,6 +390,19 @@ class PaperTradingService {
       unrealizedPnlPercent: 0
     });
 
+    // Save short position to database
+    db.upsertShortPosition({
+      token: token,
+      symbol: symbol,
+      qty: qty,
+      entry_price: price.toNumber(),
+      current_price: price.toNumber(),
+      short_value: orderValue.toNumber(),
+      current_value: orderValue.toNumber(),
+      unrealized_pnl: 0,
+      unrealized_pnl_percent: 0
+    }, this.channelId);
+
     // Insert order record
     const orderId = db.insertOrder({
       type: 'SHORT',
@@ -431,6 +462,7 @@ class PaperTradingService {
 
     // Remove short position
     this.shortPositions.delete(token);
+    db.deleteShortPosition(token, this.channelId);
 
     // Insert order record
     const orderId = db.insertOrder({
@@ -491,6 +523,9 @@ class PaperTradingService {
     position.unrealizedPnlPercent = unrealizedPnlPercent.toNumber();
 
     this.shortPositions.set(token, position);
+
+    // Update in database
+    db.updateShortPositionPrice(token, currentPrice, this.channelId);
   }
 
   async logOrderToDiscord(type, symbol, qty, price, pnl, pnlPercent, balance, executionReason = null) {
@@ -693,6 +728,7 @@ class PaperTradingService {
     db.resetPortfolio(this.channelId);
     this.cashBalance = this.initialCapital;
     this.holdings.clear();
+    this.shortPositions.clear();
     this.totalRealizedPnL = 0;
     this.totalInvested = 0;
 
