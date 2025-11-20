@@ -79,67 +79,166 @@ class DatabaseService {
       // Column already exists, ignore
     }
 
-    // Virtual holdings table
-    this.db.exec(`
-      CREATE TABLE IF NOT EXISTS virtual_holdings (
-        channel_id TEXT NOT NULL DEFAULT 'default',
-        token TEXT NOT NULL,
-        symbol TEXT NOT NULL,
-        qty INTEGER NOT NULL,
-        avg_price REAL NOT NULL,
-        current_price REAL,
-        invested_value REAL NOT NULL,
-        current_value REAL,
-        unrealized_pnl REAL,
-        unrealized_pnl_percent REAL,
-        last_updated DATETIME DEFAULT CURRENT_TIMESTAMP,
-        PRIMARY KEY (channel_id, token)
-      )
-    `);
+    // Virtual holdings table - check and migrate if needed
+    const holdingsTableExists = this.db.prepare("SELECT name FROM sqlite_master WHERE type='table' AND name='virtual_holdings'").get();
 
-    // Virtual portfolio snapshots table
-    this.db.exec(`
-      CREATE TABLE IF NOT EXISTS virtual_portfolio (
-        id INTEGER PRIMARY KEY AUTOINCREMENT,
-        channel_id TEXT NOT NULL DEFAULT 'default',
-        timestamp DATETIME DEFAULT CURRENT_TIMESTAMP,
-        cash_balance REAL NOT NULL,
-        holdings_value REAL NOT NULL,
-        total_value REAL NOT NULL,
-        total_pnl REAL NOT NULL,
-        total_pnl_percent REAL NOT NULL,
-        realized_pnl REAL DEFAULT 0,
-        unrealized_pnl REAL DEFAULT 0,
-        holdings_count INTEGER DEFAULT 0,
-        synced INTEGER DEFAULT 0
-      )
-    `);
+    if (holdingsTableExists) {
+      const tableInfo = this.db.pragma('table_info(virtual_holdings)');
+      const hasChannelId = tableInfo.some(col => col.name === 'channel_id');
 
-    // Add synced column to portfolio if it doesn't exist
-    try {
-      this.db.exec(`ALTER TABLE virtual_portfolio ADD COLUMN synced INTEGER DEFAULT 0`);
-      logger.info('✅ Added synced column to virtual_portfolio');
-    } catch (e) {
-      // Column already exists, ignore
+      if (!hasChannelId) {
+        logger.info('🔄 Migrating virtual_holdings table...');
+        try {
+          // Need to recreate table with new primary key
+          this.db.exec(`ALTER TABLE virtual_holdings RENAME TO virtual_holdings_old`);
+          this.db.exec(`
+            CREATE TABLE virtual_holdings (
+              channel_id TEXT NOT NULL DEFAULT 'default',
+              token TEXT NOT NULL,
+              symbol TEXT NOT NULL,
+              qty INTEGER NOT NULL,
+              avg_price REAL NOT NULL,
+              current_price REAL,
+              invested_value REAL NOT NULL,
+              current_value REAL,
+              unrealized_pnl REAL,
+              unrealized_pnl_percent REAL,
+              last_updated DATETIME DEFAULT CURRENT_TIMESTAMP,
+              PRIMARY KEY (channel_id, token)
+            )
+          `);
+          this.db.exec(`
+            INSERT INTO virtual_holdings (channel_id, token, symbol, qty, avg_price, current_price, invested_value, current_value, unrealized_pnl, unrealized_pnl_percent, last_updated)
+            SELECT 'default', token, symbol, qty, avg_price, current_price, invested_value, current_value, unrealized_pnl, unrealized_pnl_percent, last_updated
+            FROM virtual_holdings_old
+          `);
+          this.db.exec(`DROP TABLE virtual_holdings_old`);
+          logger.info('✅ Migrated virtual_holdings to new format');
+        } catch (e) {
+          logger.error('Failed to migrate virtual_holdings:', e.message);
+        }
+      }
+    } else {
+      this.db.exec(`
+        CREATE TABLE IF NOT EXISTS virtual_holdings (
+          channel_id TEXT NOT NULL DEFAULT 'default',
+          token TEXT NOT NULL,
+          symbol TEXT NOT NULL,
+          qty INTEGER NOT NULL,
+          avg_price REAL NOT NULL,
+          current_price REAL,
+          invested_value REAL NOT NULL,
+          current_value REAL,
+          unrealized_pnl REAL,
+          unrealized_pnl_percent REAL,
+          last_updated DATETIME DEFAULT CURRENT_TIMESTAMP,
+          PRIMARY KEY (channel_id, token)
+        )
+      `);
     }
 
-    // Grid levels table
-    this.db.exec(`
-      CREATE TABLE IF NOT EXISTS grid_levels (
-        channel_id TEXT NOT NULL DEFAULT 'default',
-        token TEXT NOT NULL,
-        symbol TEXT NOT NULL,
-        last_buy_price REAL,
-        last_sell_price REAL,
-        reference_price REAL NOT NULL,
-        buy_count INTEGER DEFAULT 0,
-        sell_count INTEGER DEFAULT 0,
-        total_pnl REAL DEFAULT 0,
-        is_active BOOLEAN DEFAULT 1,
-        last_updated DATETIME DEFAULT CURRENT_TIMESTAMP,
-        PRIMARY KEY (channel_id, token)
-      )
-    `);
+    // Virtual portfolio snapshots table - check and migrate if needed
+    const portfolioTableExists = this.db.prepare("SELECT name FROM sqlite_master WHERE type='table' AND name='virtual_portfolio'").get();
+
+    if (portfolioTableExists) {
+      const tableInfo = this.db.pragma('table_info(virtual_portfolio)');
+      const hasChannelId = tableInfo.some(col => col.name === 'channel_id');
+
+      if (!hasChannelId) {
+        logger.info('🔄 Migrating virtual_portfolio table...');
+        try {
+          this.db.exec(`ALTER TABLE virtual_portfolio ADD COLUMN channel_id TEXT NOT NULL DEFAULT 'default'`);
+          logger.info('✅ Added channel_id to virtual_portfolio');
+        } catch (e) {
+          // Column might already exist
+        }
+      }
+
+      // Add synced column if missing
+      const hasSynced = tableInfo.some(col => col.name === 'synced');
+      if (!hasSynced) {
+        try {
+          this.db.exec(`ALTER TABLE virtual_portfolio ADD COLUMN synced INTEGER DEFAULT 0`);
+          logger.info('✅ Added synced column to virtual_portfolio');
+        } catch (e) {
+          // Column already exists
+        }
+      }
+    } else {
+      this.db.exec(`
+        CREATE TABLE IF NOT EXISTS virtual_portfolio (
+          id INTEGER PRIMARY KEY AUTOINCREMENT,
+          channel_id TEXT NOT NULL DEFAULT 'default',
+          timestamp DATETIME DEFAULT CURRENT_TIMESTAMP,
+          cash_balance REAL NOT NULL,
+          holdings_value REAL NOT NULL,
+          total_value REAL NOT NULL,
+          total_pnl REAL NOT NULL,
+          total_pnl_percent REAL NOT NULL,
+          realized_pnl REAL DEFAULT 0,
+          unrealized_pnl REAL DEFAULT 0,
+          holdings_count INTEGER DEFAULT 0,
+          synced INTEGER DEFAULT 0
+        )
+      `);
+    }
+
+    // Grid levels table - check and migrate if needed
+    const gridTableExists = this.db.prepare("SELECT name FROM sqlite_master WHERE type='table' AND name='grid_levels'").get();
+
+    if (gridTableExists) {
+      const tableInfo = this.db.pragma('table_info(grid_levels)');
+      const hasChannelId = tableInfo.some(col => col.name === 'channel_id');
+
+      if (!hasChannelId) {
+        logger.info('🔄 Migrating grid_levels table...');
+        try {
+          this.db.exec(`ALTER TABLE grid_levels RENAME TO grid_levels_old`);
+          this.db.exec(`
+            CREATE TABLE grid_levels (
+              channel_id TEXT NOT NULL DEFAULT 'default',
+              token TEXT NOT NULL,
+              symbol TEXT NOT NULL,
+              last_buy_price REAL,
+              last_sell_price REAL,
+              reference_price REAL NOT NULL,
+              buy_count INTEGER DEFAULT 0,
+              sell_count INTEGER DEFAULT 0,
+              total_pnl REAL DEFAULT 0,
+              is_active BOOLEAN DEFAULT 1,
+              last_updated DATETIME DEFAULT CURRENT_TIMESTAMP,
+              PRIMARY KEY (channel_id, token)
+            )
+          `);
+          this.db.exec(`
+            INSERT INTO grid_levels (channel_id, token, symbol, last_buy_price, last_sell_price, reference_price, buy_count, sell_count, total_pnl, is_active, last_updated)
+            SELECT 'default', token, symbol, last_buy_price, last_sell_price, reference_price, buy_count, sell_count, total_pnl, is_active, last_updated
+            FROM grid_levels_old
+          `);
+          this.db.exec(`DROP TABLE grid_levels_old`);
+          logger.info('✅ Migrated grid_levels to new format');
+        } catch (e) {
+          logger.error('Failed to migrate grid_levels:', e.message);
+        }
+      }
+    } else {
+      this.db.exec(`
+        CREATE TABLE IF NOT EXISTS grid_levels (
+          channel_id TEXT NOT NULL DEFAULT 'default',
+          token TEXT NOT NULL,
+          symbol TEXT NOT NULL,
+          last_buy_price REAL,
+          last_sell_price REAL,
+          reference_price REAL NOT NULL,
+          buy_count INTEGER DEFAULT 0,
+          sell_count INTEGER DEFAULT 0,
+          total_pnl REAL DEFAULT 0,
+          is_active BOOLEAN DEFAULT 1,
+          last_updated DATETIME DEFAULT CURRENT_TIMESTAMP,
+          PRIMARY KEY (channel_id, token)
+        )
+      `);
+    }
 
     // Configuration table - check if old format exists and migrate
     const configTableExists = this.db.prepare("SELECT name FROM sqlite_master WHERE type='table' AND name='config'").get();
