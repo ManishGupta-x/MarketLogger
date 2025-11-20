@@ -12,6 +12,7 @@ class PaperTradingService {
     this.initialCapital = 0;
     this.amountPerTrade = 0;
     this.holdings = new Map();
+    this.shortPositions = new Map(); // Track short positions
     this.totalRealizedPnL = 0;
     this.totalInvested = 0;
     this.orderChannelId = process.env.DISCORD_ORDER_CHANNEL_ID || '1424357736820379668';
@@ -137,7 +138,7 @@ class PaperTradingService {
     logger.info(`💹 Total Realized P&L: ₹${this.totalRealizedPnL.toFixed(2)}`);
   }
 
-  async executeVirtualOrder(token, symbol, type, price, gridLevel = 0, referencePrice = null) {
+  async executeVirtualOrder(token, symbol, type, price, gridLevel = 0, referencePrice = null, executionReason = null) {
     if (!this.isInitialized) {
       logger.warn('Paper trading not initialized');
       return { success: false, message: 'Paper trading not initialized' };
@@ -152,9 +153,13 @@ class PaperTradingService {
       const priceDecimal = new Decimal(price);
 
       if (type === 'BUY') {
-        return await this.executeBuy(token, symbol, priceDecimal, gridLevel, referencePrice);
+        return await this.executeBuy(token, symbol, priceDecimal, gridLevel, referencePrice, executionReason);
       } else if (type === 'SELL') {
-        return await this.executeSell(token, symbol, priceDecimal, gridLevel, referencePrice);
+        return await this.executeSell(token, symbol, priceDecimal, gridLevel, referencePrice, executionReason);
+      } else if (type === 'SHORT') {
+        return await this.executeShort(token, symbol, priceDecimal, gridLevel, referencePrice, executionReason);
+      } else if (type === 'COVER') {
+        return await this.executeCover(token, symbol, priceDecimal, gridLevel, referencePrice, executionReason);
       } else {
         return { success: false, message: 'Invalid order type' };
       }
@@ -164,7 +169,7 @@ class PaperTradingService {
     }
   }
 
-  async executeBuy(token, symbol, price, gridLevel, referencePrice) {
+  async executeBuy(token, symbol, price, gridLevel, referencePrice, executionReason = null) {
     // Check if we have enough balance
     if (this.cashBalance < this.amountPerTrade) {
       logger.warn(`Insufficient balance for ${symbol}: ₹${this.cashBalance.toFixed(2)} < ₹${this.amountPerTrade}`);
@@ -251,7 +256,7 @@ class PaperTradingService {
     this.savePortfolioSnapshot();
 
     // Log to Discord
-    await this.logOrderToDiscord('BUY', symbol, qty, price.toNumber(), 0, 0, this.cashBalance);
+    await this.logOrderToDiscord('BUY', symbol, qty, price.toNumber(), 0, 0, this.cashBalance, executionReason);
 
     logger.info(`🟢 BUY ${symbol} | Qty: ${qty} | Price: ₹${price.toNumber()} | Value: ₹${orderValue.toNumber().toFixed(2)} | Balance: ₹${this.cashBalance.toFixed(2)}`);
 
@@ -265,7 +270,7 @@ class PaperTradingService {
     };
   }
 
-  async executeSell(token, symbol, price, gridLevel, referencePrice) {
+  async executeSell(token, symbol, price, gridLevel, referencePrice, executionReason = null) {
     // Check if we have holdings
     const holding = this.holdings.get(token);
 
@@ -313,7 +318,7 @@ class PaperTradingService {
     this.savePortfolioSnapshot();
 
     // Log to Discord with special emoji for significant gains/losses
-    await this.logOrderToDiscord('SELL', symbol, qty, price.toNumber(), pnl.toNumber(), pnlPercent.toNumber(), this.cashBalance);
+    await this.logOrderToDiscord('SELL', symbol, qty, price.toNumber(), pnl.toNumber(), pnlPercent.toNumber(), this.cashBalance, executionReason);
 
     logger.info(`🔴 SELL ${symbol} | Qty: ${qty} | Price: ₹${price.toNumber()} | P&L: ₹${pnl.toNumber().toFixed(2)} (${pnlPercent.toNumber().toFixed(2)}%) | Balance: ₹${this.cashBalance.toFixed(2)}`);
 
@@ -329,17 +334,209 @@ class PaperTradingService {
     };
   }
 
-  async logOrderToDiscord(type, symbol, qty, price, pnl, pnlPercent, balance) {
+  async executeShort(token, symbol, price, gridLevel, referencePrice, executionReason = null) {
+    // Check if we already have a short position
+    if (this.shortPositions.has(token)) {
+      logger.warn(`Already have short position for ${symbol}`);
+      return { success: false, message: 'Already have short position' };
+    }
+
+    // Check if we have a long position (can't short if we own it)
+    if (this.hasHolding(token)) {
+      logger.warn(`Cannot short ${symbol} - already have long position`);
+      return { success: false, message: 'Cannot short - have long position' };
+    }
+
+    // Calculate quantity based on amount per trade
+    const qty = Math.floor(this.amountPerTrade / price.toNumber());
+
+    if (qty === 0) {
+      logger.warn(`Stock price too high for ${symbol}: ₹${price.toNumber()}`);
+      return { success: false, message: 'Stock price too high' };
+    }
+
+    const orderValue = new Decimal(qty).mul(price);
+
+    // For shorting, we receive cash upfront (but need margin - simplified here)
+    // In real trading, you'd need margin. Here we'll track the liability.
+    this.cashBalance = new Decimal(this.cashBalance).plus(orderValue).toNumber();
+
+    // Create short position
+    this.shortPositions.set(token, {
+      symbol: symbol,
+      qty: qty,
+      entryPrice: price.toNumber(),
+      currentPrice: price.toNumber(),
+      shortValue: orderValue.toNumber(),
+      unrealizedPnl: 0,
+      unrealizedPnlPercent: 0
+    });
+
+    // Insert order record
+    const orderId = db.insertOrder({
+      type: 'SHORT',
+      token: token,
+      symbol: symbol,
+      qty: qty,
+      price: price.toNumber(),
+      value: orderValue.toNumber(),
+      balance: this.cashBalance,
+      pnl: 0,
+      pnl_percent: 0,
+      grid_level: gridLevel,
+      reference_price: referencePrice,
+      notes: `Short at grid level ${gridLevel}`
+    }, this.channelId);
+
+    // Save portfolio snapshot
+    this.savePortfolioSnapshot();
+
+    // Log to Discord
+    await this.logOrderToDiscord('SHORT', symbol, qty, price.toNumber(), 0, 0, this.cashBalance, executionReason);
+
+    logger.info(`🔻 SHORT ${symbol} | Qty: ${qty} | Price: ₹${price.toNumber()} | Value: ₹${orderValue.toNumber().toFixed(2)} | Balance: ₹${this.cashBalance.toFixed(2)}`);
+
+    return {
+      success: true,
+      orderId: orderId,
+      qty: qty,
+      price: price.toNumber(),
+      value: orderValue.toNumber(),
+      balance: this.cashBalance
+    };
+  }
+
+  async executeCover(token, symbol, price, gridLevel, referencePrice, executionReason = null) {
+    // Check if we have a short position to cover
+    const shortPosition = this.shortPositions.get(token);
+
+    if (!shortPosition || shortPosition.qty === 0) {
+      logger.warn(`No short position to cover for ${symbol}`);
+      return { success: false, message: 'No short position to cover' };
+    }
+
+    const qty = shortPosition.qty;
+    const orderValue = new Decimal(qty).mul(price);
+
+    // Calculate P&L (profit when price drops, loss when price rises)
+    const shortValue = new Decimal(shortPosition.shortValue);
+    const pnl = shortValue.minus(orderValue); // Profit = sell price - buy price
+    const pnlPercent = pnl.div(shortValue).mul(100);
+
+    // Update cash balance (pay to buy back shares)
+    this.cashBalance = new Decimal(this.cashBalance).minus(orderValue).toNumber();
+
+    // Update realized P&L
+    this.totalRealizedPnL = new Decimal(this.totalRealizedPnL).plus(pnl).toNumber();
+
+    // Remove short position
+    this.shortPositions.delete(token);
+
+    // Insert order record
+    const orderId = db.insertOrder({
+      type: 'COVER',
+      token: token,
+      symbol: symbol,
+      qty: qty,
+      price: price.toNumber(),
+      value: orderValue.toNumber(),
+      balance: this.cashBalance,
+      pnl: pnl.toNumber(),
+      pnl_percent: pnlPercent.toNumber(),
+      grid_level: gridLevel,
+      reference_price: referencePrice,
+      notes: `Cover at grid level ${gridLevel} | P&L: ₹${pnl.toNumber().toFixed(2)}`
+    }, this.channelId);
+
+    // Save portfolio snapshot
+    this.savePortfolioSnapshot();
+
+    // Log to Discord
+    await this.logOrderToDiscord('COVER', symbol, qty, price.toNumber(), pnl.toNumber(), pnlPercent.toNumber(), this.cashBalance, executionReason);
+
+    logger.info(`🔺 COVER ${symbol} | Qty: ${qty} | Price: ₹${price.toNumber()} | P&L: ₹${pnl.toNumber().toFixed(2)} (${pnlPercent.toNumber().toFixed(2)}%) | Balance: ₹${this.cashBalance.toFixed(2)}`);
+
+    return {
+      success: true,
+      orderId: orderId,
+      qty: qty,
+      price: price.toNumber(),
+      value: orderValue.toNumber(),
+      pnl: pnl.toNumber(),
+      pnlPercent: pnlPercent.toNumber(),
+      balance: this.cashBalance
+    };
+  }
+
+  hasShortPosition(token) {
+    const position = this.shortPositions.get(token);
+    return position && position.qty > 0;
+  }
+
+  getShortPosition(token) {
+    return this.shortPositions.get(token);
+  }
+
+  updateShortPositionPrice(token, currentPrice) {
+    const position = this.shortPositions.get(token);
+    if (!position) return;
+
+    const currentValue = new Decimal(position.qty).mul(currentPrice);
+    // For shorts: profit when price drops (shortValue - currentValue)
+    const unrealizedPnl = new Decimal(position.shortValue).minus(currentValue);
+    const unrealizedPnlPercent = unrealizedPnl.div(position.shortValue).mul(100);
+
+    position.currentPrice = currentPrice;
+    position.unrealizedPnl = unrealizedPnl.toNumber();
+    position.unrealizedPnlPercent = unrealizedPnlPercent.toNumber();
+
+    this.shortPositions.set(token, position);
+  }
+
+  async logOrderToDiscord(type, symbol, qty, price, pnl, pnlPercent, balance, executionReason = null) {
     if (!discordService.isReady) return;
 
-    const emoji = type === 'BUY' ? '🟢' : '🔴';
+    // Log to the trading channel (channelId) instead of a dedicated order channel
+    const targetChannelId = this.channelId;
+
+    // Log execution reason BEFORE the order message
+    if (executionReason) {
+      let reasonMessage = '';
+      if (executionReason.type === 'BUY') {
+        reasonMessage = `📉 **${symbol} dropped ${executionReason.changePercent}%**\n`;
+        reasonMessage += `Price: ₹${executionReason.referencePrice.toFixed(2)} → ₹${executionReason.currentPrice.toFixed(2)}\n`;
+        reasonMessage += `Grid threshold: ${executionReason.gridPercent}% drop triggered BUY`;
+      } else if (executionReason.type === 'SELL') {
+        reasonMessage = `📈 **${symbol} rose ${executionReason.changePercent}%**\n`;
+        reasonMessage += `Price: ₹${executionReason.referencePrice.toFixed(2)} → ₹${executionReason.currentPrice.toFixed(2)}\n`;
+        reasonMessage += `Grid threshold: ${executionReason.gridPercent}% rise triggered SELL`;
+      } else if (executionReason.type === 'SHORT') {
+        reasonMessage = `📈 **${symbol} rose ${executionReason.changePercent}%**\n`;
+        reasonMessage += `Price: ₹${executionReason.referencePrice.toFixed(2)} → ₹${executionReason.currentPrice.toFixed(2)}\n`;
+        reasonMessage += `Grid threshold: ${executionReason.gridPercent}% rise triggered SHORT`;
+      } else if (executionReason.type === 'COVER') {
+        reasonMessage = `📉 **${symbol} dropped ${executionReason.changePercent}%**\n`;
+        reasonMessage += `Price: ₹${executionReason.referencePrice.toFixed(2)} → ₹${executionReason.currentPrice.toFixed(2)}\n`;
+        reasonMessage += `Grid threshold: ${executionReason.gridPercent}% drop triggered COVER`;
+      }
+      await discordService.logToChannel(targetChannelId, reasonMessage, 'info');
+    }
+
+    // Set emoji based on order type
+    let emoji;
+    if (type === 'BUY') emoji = '🟢';
+    else if (type === 'SELL') emoji = '🔴';
+    else if (type === 'SHORT') emoji = '🔻';
+    else if (type === 'COVER') emoji = '🔺';
+    else emoji = '📊';
+
     const value = qty * price;
 
     let message = `${emoji} **${type} ${symbol}**\n`;
     message += `**Qty:** ${qty} @ ₹${price.toFixed(2)}\n`;
     message += `**Value:** ₹${value.toFixed(2)}\n`;
 
-    if (type === 'SELL') {
+    if (type === 'SELL' || type === 'COVER') {
       const pnlEmoji = pnl >= 0 ? '📈' : '📉';
       const alertEmoji = Math.abs(pnlPercent) > 2 ? '🎉' : '';
       message += `${pnlEmoji} **P&L:** ₹${pnl.toFixed(2)} (${pnlPercent.toFixed(2)}%) ${alertEmoji}\n`;
@@ -349,8 +546,8 @@ class PaperTradingService {
 
     const logType = type === 'BUY' ? 'info' : (pnl >= 0 ? 'success' : 'warning');
 
-    // Log to dedicated order channel
-    await discordService.logToChannel(this.orderChannelId, message, logType);
+    // Log to the trading channel
+    await discordService.logToChannel(targetChannelId, message, logType);
   }
 
   updateHoldingPrice(token, currentPrice) {

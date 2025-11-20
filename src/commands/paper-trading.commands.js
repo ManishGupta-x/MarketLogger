@@ -22,9 +22,11 @@ class PaperTradingCommands {
     try {
       const channel = this.getChannelInstance(message);
       const portfolio = channel.paperTradingService.getPortfolio();
+      const config = channel.config;
 
       const embed = {
-        title: '💼 Virtual Portfolio',
+        title: `💼 ${config.name} Portfolio`,
+        description: `**Config:** Capital: ₹${config.initialCapital.toLocaleString('en-IN')} | Trade: ₹${config.amountPerTrade.toLocaleString('en-IN')} | Grid: ${config.gridPercentage}%`,
         color: portfolio.total_pnl >= 0 ? 0x00ff00 : 0xff0000,
         fields: [
           {
@@ -84,6 +86,89 @@ class PaperTradingCommands {
       await message.reply({ embeds: [embed] });
     } catch (error) {
       logger.error('Portfolio command error:', error);
+      await message.reply(`❌ Error: ${error.message}`);
+    }
+  }
+
+  async portfolioByNumberCommand(channelNumber, message) {
+    try {
+      const channelManager = discordService.channelManager;
+      if (!channelManager) {
+        throw new Error('Channel Manager not initialized.');
+      }
+
+      const channels = channelManager.getAllChannels();
+      if (channelNumber < 1 || channelNumber > channels.length) {
+        await message.reply(`❌ Invalid channel number. Available: 1-${channels.length}`);
+        return;
+      }
+
+      const channel = channels[channelNumber - 1];
+      const portfolio = channel.paperTradingService.getPortfolio();
+      const config = channel.config;
+
+      const embed = {
+        title: `💼 ${config.name} Portfolio`,
+        description: `**Config:** Capital: ₹${config.initialCapital.toLocaleString('en-IN')} | Trade: ₹${config.amountPerTrade.toLocaleString('en-IN')} | Grid: ${config.gridPercentage}%`,
+        color: portfolio.total_pnl >= 0 ? 0x00ff00 : 0xff0000,
+        fields: [
+          {
+            name: '💵 Cash Balance',
+            value: `₹${portfolio.cash.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`,
+            inline: true
+          },
+          {
+            name: '📊 Holdings Value',
+            value: `₹${portfolio.holdings_value.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`,
+            inline: true
+          },
+          {
+            name: '💰 Total Value',
+            value: `₹${portfolio.total_value.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`,
+            inline: true
+          },
+          {
+            name: '📈 Total P&L',
+            value: `₹${portfolio.total_pnl.toFixed(2)} (${portfolio.pnl_percent.toFixed(2)}%)`,
+            inline: false
+          },
+          {
+            name: '💹 Realized P&L',
+            value: `₹${portfolio.realized_pnl.toFixed(2)}`,
+            inline: true
+          },
+          {
+            name: '📊 Unrealized P&L',
+            value: `₹${portfolio.unrealized_pnl.toFixed(2)}`,
+            inline: true
+          },
+          {
+            name: '🎯 Holdings',
+            value: `${portfolio.holdings_count} stocks`,
+            inline: true
+          },
+          {
+            name: '📅 Today\'s Orders',
+            value: `${portfolio.today_orders} (${portfolio.today_buys} buys, ${portfolio.today_sells} sells)`,
+            inline: true
+          },
+          {
+            name: '💵 Today\'s P&L',
+            value: `₹${portfolio.today_pnl.toFixed(2)}`,
+            inline: true
+          },
+          {
+            name: '💼 Initial Capital',
+            value: `₹${portfolio.initial_capital.toLocaleString('en-IN')}`,
+            inline: true
+          }
+        ],
+        timestamp: new Date()
+      };
+
+      await message.reply({ embeds: [embed] });
+    } catch (error) {
+      logger.error('Portfolio by number command error:', error);
       await message.reply(`❌ Error: ${error.message}`);
     }
   }
