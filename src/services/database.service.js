@@ -141,16 +141,47 @@ class DatabaseService {
       )
     `);
 
-    // Configuration table
-    this.db.exec(`
-      CREATE TABLE IF NOT EXISTS config (
-        channel_id TEXT NOT NULL DEFAULT 'default',
-        key TEXT NOT NULL,
-        value TEXT NOT NULL,
-        updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-        PRIMARY KEY (channel_id, key)
-      )
-    `);
+    // Configuration table - check if old format exists and migrate
+    const configTableExists = this.db.prepare("SELECT name FROM sqlite_master WHERE type='table' AND name='config'").get();
+
+    if (configTableExists) {
+      // Check if it has channel_id column
+      const tableInfo = this.db.pragma('table_info(config)');
+      const hasChannelId = tableInfo.some(col => col.name === 'channel_id');
+
+      if (!hasChannelId) {
+        // Old table format - need to migrate
+        logger.info('🔄 Migrating config table to new format...');
+        try {
+          this.db.exec(`ALTER TABLE config RENAME TO config_old`);
+          this.db.exec(`
+            CREATE TABLE config (
+              channel_id TEXT NOT NULL DEFAULT 'default',
+              key TEXT NOT NULL,
+              value TEXT NOT NULL,
+              updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+              PRIMARY KEY (channel_id, key)
+            )
+          `);
+          this.db.exec(`INSERT INTO config (channel_id, key, value, updated_at) SELECT 'default', key, value, updated_at FROM config_old`);
+          this.db.exec(`DROP TABLE config_old`);
+          logger.info('✅ Config table migrated');
+        } catch (e) {
+          logger.error('❌ Config migration failed:', e.message);
+        }
+      }
+    } else {
+      // Create new table
+      this.db.exec(`
+        CREATE TABLE IF NOT EXISTS config (
+          channel_id TEXT NOT NULL DEFAULT 'default',
+          key TEXT NOT NULL,
+          value TEXT NOT NULL,
+          updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+          PRIMARY KEY (channel_id, key)
+        )
+      `);
+    }
 
     // Create indexes for better performance (only if tables have required columns)
     try {
