@@ -502,8 +502,10 @@ class DiscordService {
 \`!orders today\` - View today's trades
 
 **Grid Strategy:**
-🟢 Buys when price drops X% from reference
-🔴 Sells when price rises X% from last buy
+🟢 BUY when price drops X% from reference
+🔴 SELL when price rises X% from last buy
+🔻 SHORT when price rises X% from reference (no position)
+🔺 COVER when price drops X% from short entry
 📊 Monitors 707 stocks automatically
 💰 Each channel has its own config and portfolio`;
 

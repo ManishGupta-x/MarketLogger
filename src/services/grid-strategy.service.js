@@ -174,6 +174,11 @@ class GridStrategyService {
         this.paperTradingService.updateHoldingPrice(token, currentPrice);
       }
 
+      // Update short position price if we have it
+      if (this.paperTradingService && this.paperTradingService.hasShortPosition(token)) {
+        this.paperTradingService.updateShortPositionPrice(token, currentPrice);
+      }
+
       // Check if we should skip this tick (too soon after last trade)
       const lastProcessed = this.lastProcessedTime.get(token);
       if (lastProcessed && (Date.now() - lastProcessed) < this.minIntervalMs) {
@@ -205,9 +210,26 @@ class GridStrategyService {
     const refPrice = new Decimal(gridData.referencePrice);
     const gridPercent = new Decimal(this.gridPercentage).div(100);
 
-    // Check for BUY trigger (5% drop from reference)
+    // Check for BUY trigger (X% drop from reference) - only if no short position
     const buyThreshold = refPrice.mul(new Decimal(1).minus(gridPercent));
     const dropPercent = refPrice.minus(price).div(refPrice).mul(100);
+
+    // Check for COVER trigger first (X% drop from short entry)
+    if (this.paperTradingService && this.paperTradingService.hasShortPosition(token)) {
+      const shortPosition = this.paperTradingService.getShortPosition(token);
+      const shortEntryPrice = new Decimal(shortPosition.entryPrice);
+      const coverThreshold = shortEntryPrice.mul(new Decimal(1).minus(gridPercent));
+      const shortDropPercent = shortEntryPrice.minus(price).div(shortEntryPrice).mul(100);
+
+      console.log(`  🎯 [GRID] ${symbol} | ShortEntry: ₹${shortPosition.entryPrice.toFixed(2)} | Cover@: ₹${coverThreshold.toFixed(2)} | Current: ₹${currentPrice.toFixed(2)} | Drop: ${shortDropPercent.toFixed(2)}%`);
+
+      if (price.lte(coverThreshold)) {
+        console.log(`  🔺 [COVER TRIGGER] ${symbol} hit cover threshold!`);
+        this.triggerCover(token, symbol, price.toNumber(), gridData, shortPosition);
+        return;
+      }
+      return; // If we have a short, only check for cover
+    }
 
     console.log(`  🎯 [GRID] ${symbol} | Ref: ₹${gridData.referencePrice.toFixed(2)} | Buy@: ₹${buyThreshold.toFixed(2)} | Current: ₹${currentPrice.toFixed(2)} | Drop: ${dropPercent.toFixed(2)}%`);
 
@@ -217,8 +239,8 @@ class GridStrategyService {
       return;
     }
 
-    // Check for SELL trigger (5% rise from last buy price)
-    if (gridData.lastBuyPrice) {
+    // Check for SELL trigger (X% rise from last buy price) - only if have holdings
+    if (gridData.lastBuyPrice && this.paperTradingService && this.paperTradingService.hasHolding(token)) {
       const lastBuyPrice = new Decimal(gridData.lastBuyPrice);
       const sellThreshold = lastBuyPrice.mul(new Decimal(1).plus(gridPercent));
       const risePercent = price.minus(lastBuyPrice).div(lastBuyPrice).mul(100);
@@ -228,6 +250,18 @@ class GridStrategyService {
       if (price.gte(sellThreshold)) {
         console.log(`  🔴 [SELL TRIGGER] ${symbol} hit sell threshold!`);
         this.triggerSell(token, symbol, price.toNumber(), gridData);
+        return;
+      }
+    }
+
+    // Check for SHORT trigger (X% rise from reference) - only if no long position
+    if (!this.paperTradingService || !this.paperTradingService.hasHolding(token)) {
+      const shortThreshold = refPrice.mul(new Decimal(1).plus(gridPercent));
+      const risePercent = price.minus(refPrice).div(refPrice).mul(100);
+
+      if (price.gte(shortThreshold)) {
+        console.log(`  🔻 [SHORT TRIGGER] ${symbol} hit short threshold!`);
+        this.triggerShort(token, symbol, price.toNumber(), gridData);
         return;
       }
     }
@@ -355,6 +389,124 @@ class GridStrategyService {
       logger.info(`✅ SELL executed for ${symbol} | Grid level ${gridData.sellCount} | P&L: ₹${result.pnl.toFixed(2)} | Ref updated to ₹${currentPrice}`);
     } else {
       logger.warn(`⚠️ SELL failed for ${symbol}: ${result.message}`);
+    }
+  }
+
+  async triggerShort(token, symbol, currentPrice, gridData) {
+    // Record last processed time
+    this.lastProcessedTime.set(token, Date.now());
+
+    logger.info(`🎯 SHORT trigger for ${symbol} at ₹${currentPrice} (ref: ₹${gridData.referencePrice})`);
+
+    // Execute virtual short order
+    if (!this.paperTradingService) {
+      logger.warn('⚠️ Paper trading service not set for grid strategy');
+      return;
+    }
+
+    // Calculate execution reason details
+    const risePercent = ((currentPrice - gridData.referencePrice) / gridData.referencePrice * 100).toFixed(2);
+    const executionReason = {
+      type: 'SHORT',
+      referencePrice: gridData.referencePrice,
+      currentPrice: currentPrice,
+      changePercent: risePercent,
+      gridPercent: this.gridPercentage
+    };
+
+    const result = await this.paperTradingService.executeVirtualOrder(
+      token,
+      symbol,
+      'SHORT',
+      currentPrice,
+      gridData.sellCount + 1,
+      gridData.referencePrice,
+      executionReason
+    );
+
+    if (result.success) {
+      // Update grid levels - track short entry price
+      gridData.lastShortPrice = currentPrice;
+      gridData.referencePrice = currentPrice;
+      gridData.sellCount++; // Track shorts in sell count
+
+      this.grids.set(token, gridData);
+
+      // Update in database
+      db.upsertGridLevel({
+        token: token,
+        symbol: symbol,
+        last_buy_price: gridData.lastBuyPrice,
+        last_sell_price: currentPrice,
+        reference_price: currentPrice,
+        buy_count: gridData.buyCount,
+        sell_count: gridData.sellCount,
+        total_pnl: gridData.totalPnl,
+        is_active: 1
+      }, this.channelId);
+
+      logger.info(`✅ SHORT executed for ${symbol} | Grid level ${gridData.sellCount} | Ref updated to ₹${currentPrice}`);
+    } else {
+      logger.warn(`⚠️ SHORT failed for ${symbol}: ${result.message}`);
+    }
+  }
+
+  async triggerCover(token, symbol, currentPrice, gridData, shortPosition) {
+    // Record last processed time
+    this.lastProcessedTime.set(token, Date.now());
+
+    logger.info(`🎯 COVER trigger for ${symbol} at ₹${currentPrice} (short entry: ₹${shortPosition.entryPrice})`);
+
+    // Execute virtual cover order
+    if (!this.paperTradingService) {
+      logger.warn('⚠️ Paper trading service not set for grid strategy');
+      return;
+    }
+
+    // Calculate execution reason details
+    const dropPercent = ((shortPosition.entryPrice - currentPrice) / shortPosition.entryPrice * 100).toFixed(2);
+    const executionReason = {
+      type: 'COVER',
+      referencePrice: shortPosition.entryPrice,
+      currentPrice: currentPrice,
+      changePercent: dropPercent,
+      gridPercent: this.gridPercentage
+    };
+
+    const result = await this.paperTradingService.executeVirtualOrder(
+      token,
+      symbol,
+      'COVER',
+      currentPrice,
+      gridData.buyCount + 1,
+      shortPosition.entryPrice,
+      executionReason
+    );
+
+    if (result.success) {
+      // Update grid levels
+      gridData.referencePrice = currentPrice;
+      gridData.buyCount++; // Track covers in buy count
+      gridData.totalPnl = new Decimal(gridData.totalPnl).plus(result.pnl || 0).toNumber();
+
+      this.grids.set(token, gridData);
+
+      // Update in database
+      db.upsertGridLevel({
+        token: token,
+        symbol: symbol,
+        last_buy_price: currentPrice,
+        last_sell_price: gridData.lastSellPrice,
+        reference_price: currentPrice,
+        buy_count: gridData.buyCount,
+        sell_count: gridData.sellCount,
+        total_pnl: gridData.totalPnl,
+        is_active: 1
+      }, this.channelId);
+
+      logger.info(`✅ COVER executed for ${symbol} | Grid level ${gridData.buyCount} | P&L: ₹${result.pnl.toFixed(2)} | Ref updated to ₹${currentPrice}`);
+    } else {
+      logger.warn(`⚠️ COVER failed for ${symbol}: ${result.message}`);
     }
   }
 
