@@ -365,6 +365,9 @@ class DatabaseService {
       // Sync config
       await this.syncConfig();
 
+      // Bidirectional: pull missing data from Supabase
+      await this.syncFromSupabase();
+
       logger.info('✅ Supabase sync complete');
     } catch (error) {
       logger.error('❌ Supabase sync failed:', error);
@@ -503,6 +506,134 @@ class DatabaseService {
     }
 
     logger.info(`✅ Synced ${configs.length} config items to Supabase`);
+  }
+
+  async syncFromSupabase() {
+    if (!this.supabase) return;
+
+    logger.info('🔄 Checking Supabase for missing data...');
+
+    try {
+      // Sync config from Supabase
+      const { data: supabaseConfig, error: configError } = await this.supabase
+        .from('config')
+        .select('*');
+
+      if (!configError && supabaseConfig) {
+        const localConfigs = this.db.prepare('SELECT channel_id, key FROM config').all();
+        const localConfigSet = new Set(localConfigs.map(c => `${c.channel_id}:${c.key}`));
+
+        for (const config of supabaseConfig) {
+          const key = `${config.channel_id}:${config.key}`;
+          if (!localConfigSet.has(key)) {
+            this.db.prepare(`
+              INSERT INTO config (channel_id, key, value, updated_at)
+              VALUES (?, ?, ?, ?)
+              ON CONFLICT(channel_id, key) DO UPDATE SET value = ?, updated_at = ?
+            `).run(config.channel_id, config.key, config.value, config.updated_at, config.value, config.updated_at);
+          }
+        }
+        logger.info(`✅ Synced ${supabaseConfig.length} config items from Supabase`);
+      }
+
+      // Sync orders from Supabase (get orders not in local DB)
+      const localOrderCount = this.db.prepare('SELECT COUNT(*) as count FROM virtual_orders').get().count;
+      const { count: supabaseOrderCount } = await this.supabase
+        .from('virtual_orders')
+        .select('*', { count: 'exact', head: true });
+
+      if (supabaseOrderCount > localOrderCount) {
+        const { data: supabaseOrders, error: ordersError } = await this.supabase
+          .from('virtual_orders')
+          .select('*')
+          .order('timestamp', { ascending: false })
+          .limit(supabaseOrderCount - localOrderCount + 100);
+
+        if (!ordersError && supabaseOrders) {
+          for (const order of supabaseOrders) {
+            // Check if order exists by timestamp and channel
+            const exists = this.db.prepare(
+              'SELECT 1 FROM virtual_orders WHERE channel_id = ? AND timestamp = ? AND symbol = ? AND type = ?'
+            ).get(order.channel_id, order.timestamp, order.symbol, order.type);
+
+            if (!exists) {
+              this.db.prepare(`
+                INSERT INTO virtual_orders
+                (channel_id, timestamp, type, token, symbol, qty, price, value, balance, pnl, pnl_percent, grid_level, reference_price, notes, synced)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1)
+              `).run(
+                order.channel_id, order.timestamp, order.type, order.token, order.symbol,
+                order.qty, order.price, order.value, order.balance, order.pnl || 0,
+                order.pnl_percent || 0, order.grid_level || 0, order.reference_price, order.notes
+              );
+            }
+          }
+          logger.info(`✅ Synced orders from Supabase (local: ${localOrderCount}, remote: ${supabaseOrderCount})`);
+        }
+      }
+
+      // Sync holdings from Supabase
+      const { data: supabaseHoldings, error: holdingsError } = await this.supabase
+        .from('virtual_holdings')
+        .select('*');
+
+      if (!holdingsError && supabaseHoldings) {
+        for (const holding of supabaseHoldings) {
+          const exists = this.db.prepare(
+            'SELECT 1 FROM virtual_holdings WHERE channel_id = ? AND token = ?'
+          ).get(holding.channel_id, holding.token);
+
+          if (!exists) {
+            this.db.prepare(`
+              INSERT INTO virtual_holdings (channel_id, token, symbol, qty, avg_buy_price, total_invested, last_updated)
+              VALUES (?, ?, ?, ?, ?, ?, ?)
+            `).run(
+              holding.channel_id, holding.token, holding.symbol, holding.qty,
+              holding.avg_buy_price, holding.total_invested, holding.last_updated
+            );
+          }
+        }
+        logger.info(`✅ Synced ${supabaseHoldings.length} holdings from Supabase`);
+      }
+
+      // Sync portfolio snapshots from Supabase
+      const localPortfolioCount = this.db.prepare('SELECT COUNT(*) as count FROM virtual_portfolio').get().count;
+      const { count: supabasePortfolioCount } = await this.supabase
+        .from('virtual_portfolio')
+        .select('*', { count: 'exact', head: true });
+
+      if (supabasePortfolioCount > localPortfolioCount) {
+        const { data: supabasePortfolio, error: portfolioError } = await this.supabase
+          .from('virtual_portfolio')
+          .select('*')
+          .order('timestamp', { ascending: false })
+          .limit(supabasePortfolioCount - localPortfolioCount + 50);
+
+        if (!portfolioError && supabasePortfolio) {
+          for (const portfolio of supabasePortfolio) {
+            const exists = this.db.prepare(
+              'SELECT 1 FROM virtual_portfolio WHERE channel_id = ? AND timestamp = ?'
+            ).get(portfolio.channel_id, portfolio.timestamp);
+
+            if (!exists) {
+              this.db.prepare(`
+                INSERT INTO virtual_portfolio
+                (channel_id, timestamp, cash_balance, holdings_value, total_value, total_realized_pnl, synced)
+                VALUES (?, ?, ?, ?, ?, ?, 1)
+              `).run(
+                portfolio.channel_id, portfolio.timestamp, portfolio.cash_balance,
+                portfolio.holdings_value, portfolio.total_value, portfolio.total_realized_pnl
+              );
+            }
+          }
+          logger.info(`✅ Synced portfolio snapshots from Supabase (local: ${localPortfolioCount}, remote: ${supabasePortfolioCount})`);
+        }
+      }
+
+      logger.info('✅ Bidirectional sync complete');
+    } catch (error) {
+      logger.error('❌ Sync from Supabase failed:', error);
+    }
   }
 
   // Configuration methods (synchronous - using SQLite)
