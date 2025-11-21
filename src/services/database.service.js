@@ -519,10 +519,10 @@ class DatabaseService {
         if (!ordersError && supabaseOrders) {
           let insertedCount = 0;
           for (const order of supabaseOrders) {
-            // Check if order exists by unique combination (avoid timestamp format issues)
+            // Check if order exists - include balance to differentiate repeated grid orders
             const exists = this.db.prepare(
-              'SELECT 1 FROM virtual_orders WHERE channel_id = ? AND symbol = ? AND type = ? AND qty = ? AND ABS(price - ?) < 0.01 AND ABS(value - ?) < 0.01'
-            ).get(order.channel_id, order.symbol, order.type, order.qty, order.price, order.value);
+              'SELECT 1 FROM virtual_orders WHERE channel_id = ? AND symbol = ? AND type = ? AND qty = ? AND ABS(price - ?) < 0.01 AND ABS(balance - ?) < 0.01'
+            ).get(order.channel_id, order.symbol, order.type, order.qty, order.price, order.balance);
 
             if (!exists) {
               this.db.prepare(`
