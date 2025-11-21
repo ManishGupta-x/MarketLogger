@@ -52,10 +52,10 @@ export default function OrdersTable({ orders, loading }) {
                 <td className={`py-3 font-medium ${typeColor}`}>
                   {orderType?.toUpperCase()}
                 </td>
-                <td className="py-3 text-right text-gray-300">{order.quantity}</td>
+                <td className="py-3 text-right text-gray-300">{order.qty}</td>
                 <td className="py-3 text-right text-gray-300">₹{Number(order.price).toFixed(2)}</td>
                 <td className="py-3 text-right text-gray-300">
-                  ₹{(order.quantity * order.price).toFixed(2)}
+                  ₹{(order.qty * order.price).toFixed(2)}
                 </td>
                 <td className={`py-3 text-right font-medium ${pnlColor}`}>
                   {pnl !== 0 ? `${pnl >= 0 ? '+' : ''}₹${pnl.toFixed(2)}` : '-'}

@@ -34,8 +34,8 @@ export default function HoldingsPage() {
   }, [channelId])
 
   // Calculate totals
-  const totalInvested = holdings.reduce((sum, h) => sum + (h.quantity * h.average_price), 0)
-  const totalCurrent = holdings.reduce((sum, h) => sum + (h.quantity * h.current_price), 0)
+  const totalInvested = holdings.reduce((sum, h) => sum + (h.qty * h.avg_price), 0)
+  const totalCurrent = holdings.reduce((sum, h) => sum + (h.qty * h.current_price), 0)
   const totalPnl = totalCurrent - totalInvested
 
   return (
