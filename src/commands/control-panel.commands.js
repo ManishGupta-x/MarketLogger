@@ -165,10 +165,16 @@ class ControlPanelCommands {
       }
     } catch (error) {
       logger.error('Panel interaction error:', error);
-      await interaction.reply({
-        content: `Error: ${error.message}`,
-        ephemeral: true
-      });
+      try {
+        if (!interaction.replied && !interaction.deferred) {
+          await interaction.reply({
+            content: `Error: ${error.message}`,
+            ephemeral: true
+          });
+        }
+      } catch (replyError) {
+        logger.error('Failed to send error reply:', replyError.message);
+      }
     }
   }
 
