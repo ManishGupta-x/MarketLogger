@@ -94,12 +94,6 @@ class PaperTradingService {
       this.isEnabled = false;
       logger.info(`🎯 Trading Enabled from DEFAULT: ${this.isEnabled}`);
     }
-
-    // Save config to database for Supabase sync
-    db.setConfig('initial_capital', this.initialCapital.toString(), this.channelId);
-    db.setConfig('amount_per_trade', this.amountPerTrade.toString(), this.channelId);
-    db.setConfig('grid_percentage', this.gridPercentage.toString(), this.channelId);
-    db.setConfig('trading_enabled', this.isEnabled.toString(), this.channelId);
   }
 
   async loadPortfolio() {
@@ -561,14 +555,12 @@ class PaperTradingService {
 
   async enableTrading() {
     this.isEnabled = true;
-    db.setConfig('trading_enabled', 'true', this.channelId);
     await discordService.log('✅ **Paper Trading Enabled**', 'success');
     logger.info('✅ Paper trading enabled');
   }
 
   async disableTrading() {
     this.isEnabled = false;
-    db.setConfig('trading_enabled', 'false', this.channelId);
     await discordService.log('⏸️ **Paper Trading Disabled**', 'warning');
     logger.info('⏸️ Paper trading disabled');
   }
@@ -633,12 +625,10 @@ class PaperTradingService {
     switch (key) {
       case 'amount_per_trade':
         this.amountPerTrade = parseFloat(value);
-        db.setConfig('amount_per_trade', value, this.channelId);
         logger.info(`💵 Amount per trade updated to: ₹${this.amountPerTrade}`);
         break;
       case 'grid_percentage':
         this.gridPercentage = parseFloat(value);
-        db.setConfig('grid_percentage', value, this.channelId);
         logger.info(`📈 Grid percentage updated to: ${this.gridPercentage}%`);
         break;
       default:
