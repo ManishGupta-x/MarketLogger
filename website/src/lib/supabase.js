@@ -76,23 +76,54 @@ export async function getConfig(channelId) {
   checkCredentials()
   const { data, error } = await supabase
     .from('config')
-    .select('*')
+    .select('key, value')
     .eq('channel_id', channelId)
-    .single()
 
-  if (error && error.code !== 'PGRST116') throw error
-  return data || null
+  if (error) throw error
+
+  // Convert key-value rows to object
+  const config = {}
+  if (data) {
+    data.forEach(row => {
+      config[row.key] = row.value
+    })
+  }
+
+  return {
+    channel_id: channelId,
+    capital: parseFloat(config.initial_capital || 0),
+    amount_per_trade: parseFloat(config.amount_per_trade || 0),
+    grid_percentage: parseFloat(config.grid_percentage || 0)
+  }
 }
 
 export async function getAllChannels() {
   checkCredentials()
   const { data, error } = await supabase
     .from('config')
-    .select('channel_id, capital, per_trade_amount, grid_percentage')
+    .select('channel_id, key, value')
     .order('channel_id')
 
   if (error) throw error
-  return data || []
+
+  // Group by channel_id and convert to objects
+  const channelMap = {}
+  if (data) {
+    data.forEach(row => {
+      if (!channelMap[row.channel_id]) {
+        channelMap[row.channel_id] = { channel_id: row.channel_id }
+      }
+      channelMap[row.channel_id][row.key] = row.value
+    })
+  }
+
+  // Convert to array with parsed values
+  return Object.values(channelMap).map(ch => ({
+    channel_id: ch.channel_id,
+    capital: parseFloat(ch.initial_capital || 0),
+    amount_per_trade: parseFloat(ch.amount_per_trade || 0),
+    grid_percentage: parseFloat(ch.grid_percentage || 0)
+  }))
 }
 
 export async function getPortfolioHistory(channelId, days = 30) {
