@@ -3,17 +3,27 @@ import { createClient } from '@supabase/supabase-js'
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL
 const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
 
-if (!supabaseUrl || !supabaseAnonKey) {
-  console.warn('Supabase credentials not found. Please set NEXT_PUBLIC_SUPABASE_URL and NEXT_PUBLIC_SUPABASE_ANON_KEY')
+const isMissingCredentials = !supabaseUrl || !supabaseAnonKey
+
+if (isMissingCredentials) {
+  console.warn('Supabase credentials not found. Please set NEXT_PUBLIC_SUPABASE_URL and NEXT_PUBLIC_SUPABASE_ANON_KEY in .env.local')
 }
 
 export const supabase = createClient(
-  supabaseUrl || '',
-  supabaseAnonKey || ''
+  supabaseUrl || 'https://placeholder.supabase.co',
+  supabaseAnonKey || 'placeholder'
 )
+
+// Helper to check credentials before queries
+function checkCredentials() {
+  if (isMissingCredentials) {
+    throw new Error('Missing Supabase URL/Key - configure .env.local')
+  }
+}
 
 // Helper functions for common queries
 export async function getPortfolio(channelId) {
+  checkCredentials()
   const { data, error } = await supabase
     .from('virtual_portfolio')
     .select('*')
@@ -26,6 +36,7 @@ export async function getPortfolio(channelId) {
 }
 
 export async function getHoldings(channelId) {
+  checkCredentials()
   const { data, error } = await supabase
     .from('virtual_holdings')
     .select('*')
@@ -37,6 +48,7 @@ export async function getHoldings(channelId) {
 }
 
 export async function getOrders(channelId, limit = 50) {
+  checkCredentials()
   const { data, error } = await supabase
     .from('virtual_orders')
     .select('*')
@@ -49,6 +61,7 @@ export async function getOrders(channelId, limit = 50) {
 }
 
 export async function getGridLevels(channelId) {
+  checkCredentials()
   const { data, error } = await supabase
     .from('grid_levels')
     .select('*')
@@ -60,6 +73,7 @@ export async function getGridLevels(channelId) {
 }
 
 export async function getConfig(channelId) {
+  checkCredentials()
   const { data, error } = await supabase
     .from('config')
     .select('*')
@@ -71,6 +85,7 @@ export async function getConfig(channelId) {
 }
 
 export async function getAllChannels() {
+  checkCredentials()
   const { data, error } = await supabase
     .from('config')
     .select('channel_id, capital, per_trade_amount, grid_percentage')
@@ -81,6 +96,7 @@ export async function getAllChannels() {
 }
 
 export async function getPortfolioHistory(channelId, days = 30) {
+  checkCredentials()
   const fromDate = new Date()
   fromDate.setDate(fromDate.getDate() - days)
 

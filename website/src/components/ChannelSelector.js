@@ -6,6 +6,7 @@ import { getAllChannels } from '@/lib/supabase'
 export default function ChannelSelector({ selectedChannel, onChannelChange }) {
   const [channels, setChannels] = useState([])
   const [loading, setLoading] = useState(true)
+  const [error, setError] = useState(null)
 
   useEffect(() => {
     async function fetchChannels() {
@@ -15,8 +16,9 @@ export default function ChannelSelector({ selectedChannel, onChannelChange }) {
         if (data.length > 0 && !selectedChannel) {
           onChannelChange(data[0].channel_id)
         }
-      } catch (error) {
-        console.error('Error fetching channels:', error)
+      } catch (err) {
+        console.error('Error fetching channels:', err)
+        setError(err.message || 'Failed to connect to database')
       } finally {
         setLoading(false)
       }
@@ -27,6 +29,14 @@ export default function ChannelSelector({ selectedChannel, onChannelChange }) {
   if (loading) {
     return (
       <div className="animate-pulse bg-gray-700 h-10 w-48 rounded"></div>
+    )
+  }
+
+  if (error) {
+    return (
+      <div className="text-red-400 text-sm">
+        {error.includes('URL') ? 'Configure .env.local with Supabase credentials' : error}
+      </div>
     )
   }
 
