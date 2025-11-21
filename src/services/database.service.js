@@ -411,9 +411,54 @@ class DatabaseService {
   async syncHoldings() {
     const holdings = this.db.prepare('SELECT * FROM virtual_holdings').all();
 
-    if (holdings.length === 0) return;
+    // Get all channels from channels table to handle channels with 0 holdings
+    const channels = this.db.prepare('SELECT channel_id FROM channels').all();
+    const channelIds = channels.map(c => c.channel_id);
 
-    // Upsert all holdings
+    // Group local holdings by channel_id
+    const holdingsByChannel = {};
+    for (const channelId of channelIds) {
+      holdingsByChannel[channelId] = [];
+    }
+    for (const holding of holdings) {
+      if (!holdingsByChannel[holding.channel_id]) {
+        holdingsByChannel[holding.channel_id] = [];
+      }
+      holdingsByChannel[holding.channel_id].push(holding);
+    }
+
+    // For each channel, delete holdings from Supabase that don't exist locally
+    for (const channelId of Object.keys(holdingsByChannel)) {
+      const channelHoldings = holdingsByChannel[channelId];
+      const localTokens = channelHoldings.map(h => h.token);
+
+      if (localTokens.length === 0) {
+        // Channel has no holdings - delete all holdings for this channel in Supabase
+        const { error } = await this.supabase
+          .from('virtual_holdings')
+          .delete()
+          .eq('channel_id', channelId);
+
+        if (error) {
+          logger.error(`❌ Failed to delete holdings for channel ${channelId}:`, error);
+        } else {
+          console.log(`   → Deleted all holdings for channel ${channelId} from Supabase`);
+        }
+      } else {
+        // Delete holdings that are not in local DB (sold positions)
+        const { error } = await this.supabase
+          .from('virtual_holdings')
+          .delete()
+          .eq('channel_id', channelId)
+          .not('token', 'in', `(${localTokens.join(',')})`);
+
+        if (error) {
+          logger.error(`❌ Failed to delete sold holdings for channel ${channelId}:`, error);
+        }
+      }
+    }
+
+    // Upsert all current holdings
     for (const holding of holdings) {
       await this.supabase.from('virtual_holdings').upsert({
         channel_id: holding.channel_id,
@@ -430,7 +475,7 @@ class DatabaseService {
       }, { onConflict: 'channel_id,token' });
     }
 
-    console.log(`   → Synced ${holdings.length} holdings`);
+    console.log(`   → Synced ${holdings.length} holdings (deleted stale entries from Supabase)`);
   }
 
   async syncChannels() {
