@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from 'react'
 import { getPortfolio, getHoldings, getConfig } from '@/lib/supabase'
+import { CHANNEL_CONFIG } from '@/lib/channels'
 import ChannelSelector from '@/components/ChannelSelector'
 import StatCard from '@/components/StatCard'
 import HoldingsTable from '@/components/HoldingsTable'
@@ -37,17 +38,24 @@ export default function Dashboard() {
     fetchData()
   }, [channelId])
 
+  const channelConfig = CHANNEL_CONFIG[channelId]
+  const channelName = channelConfig?.name || 'Select Channel'
+
   const totalValue = portfolio?.total_value || 0
   const cashBalance = portfolio?.cash_balance || 0
   const holdingsValue = portfolio?.holdings_value || 0
-  const initialCapital = config?.capital || 0
+  const initialCapital = config?.capital || channelConfig?.capital || 0
   const totalPnl = totalValue - initialCapital
   const pnlPercent = initialCapital > 0 ? ((totalPnl / initialCapital) * 100).toFixed(2) : 0
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-8 animate-fade-in">
+      {/* Header */}
       <div className="flex items-center justify-between">
-        <h1 className="text-3xl font-bold">Dashboard</h1>
+        <div>
+          <h1 className="text-3xl font-bold text-white">{channelName}</h1>
+          <p className="text-gray-500 mt-1">Portfolio Overview</p>
+        </div>
         <ChannelSelector
           selectedChannel={channelId}
           onChannelChange={setChannelId}
@@ -55,28 +63,28 @@ export default function Dashboard() {
       </div>
 
       {/* Stats Grid */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
         <StatCard
           title="Total Value"
-          value={`₹${totalValue.toLocaleString('en-IN', { maximumFractionDigits: 2 })}`}
+          value={`₹${totalValue.toLocaleString('en-IN', { maximumFractionDigits: 0 })}`}
           subtitle={`${pnlPercent >= 0 ? '+' : ''}${pnlPercent}% overall`}
           trend={totalPnl}
           icon="💰"
         />
         <StatCard
           title="Cash Balance"
-          value={`₹${cashBalance.toLocaleString('en-IN', { maximumFractionDigits: 2 })}`}
+          value={`₹${cashBalance.toLocaleString('en-IN', { maximumFractionDigits: 0 })}`}
           icon="💵"
         />
         <StatCard
           title="Holdings Value"
-          value={`₹${holdingsValue.toLocaleString('en-IN', { maximumFractionDigits: 2 })}`}
+          value={`₹${holdingsValue.toLocaleString('en-IN', { maximumFractionDigits: 0 })}`}
           subtitle={`${holdings.length} positions`}
           icon="📊"
         />
         <StatCard
           title="Total P&L"
-          value={`${totalPnl >= 0 ? '+' : ''}₹${totalPnl.toLocaleString('en-IN', { maximumFractionDigits: 2 })}`}
+          value={`${totalPnl >= 0 ? '+' : ''}₹${totalPnl.toLocaleString('en-IN', { maximumFractionDigits: 0 })}`}
           subtitle={`${pnlPercent >= 0 ? '+' : ''}${pnlPercent}%`}
           trend={totalPnl}
           icon="📈"
@@ -84,8 +92,11 @@ export default function Dashboard() {
       </div>
 
       {/* Holdings */}
-      <div className="bg-gray-800 rounded-lg p-6 border border-gray-700">
-        <h2 className="text-xl font-semibold mb-4">Current Holdings</h2>
+      <div className="dashboard-card p-6">
+        <div className="flex items-center justify-between mb-6">
+          <h2 className="text-xl font-semibold text-white">Current Holdings</h2>
+          <span className="text-sm text-gray-500">{holdings.length} positions</span>
+        </div>
         <HoldingsTable holdings={holdings} loading={loading} />
       </div>
     </div>

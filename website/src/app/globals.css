@@ -1,26 +1,96 @@
 @import "tailwindcss";
+@import url('https://fonts.googleapis.com/css2?family=Signika:wght@300;400;500;600;700&display=swap');
 
 :root {
-  --background: #ffffff;
-  --foreground: #171717;
+  --background: #000000;
+  --foreground: #ffffff;
+  --card-bg: #0a0a0a;
+  --card-border: #1a1a1a;
+  --accent-green: #00ff88;
+  --accent-red: #ff4444;
+  --accent-blue: #3b82f6;
+  --text-muted: #888888;
 }
 
 @theme inline {
   --color-background: var(--background);
   --color-foreground: var(--foreground);
-  --font-sans: var(--font-geist-sans);
+  --font-sans: 'Signika', sans-serif;
   --font-mono: var(--font-geist-mono);
-}
-
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
-  }
 }
 
 body {
   background: var(--background);
   color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
+  font-family: 'Signika', sans-serif;
+}
+
+/* Custom scrollbar */
+::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+
+::-webkit-scrollbar-track {
+  background: #0a0a0a;
+}
+
+::-webkit-scrollbar-thumb {
+  background: #333;
+  border-radius: 4px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: #444;
+}
+
+/* Stock colors */
+.text-profit {
+  color: var(--accent-green);
+}
+
+.text-loss {
+  color: var(--accent-red);
+}
+
+/* Card styles */
+.dashboard-card {
+  background: var(--card-bg);
+  border: 1px solid var(--card-border);
+  border-radius: 12px;
+}
+
+/* Glow effects */
+.glow-green {
+  box-shadow: 0 0 20px rgba(0, 255, 136, 0.1);
+}
+
+.glow-red {
+  box-shadow: 0 0 20px rgba(255, 68, 68, 0.1);
+}
+
+/* Sidebar active state */
+.sidebar-active {
+  background: linear-gradient(90deg, rgba(59, 130, 246, 0.2) 0%, transparent 100%);
+  border-left: 3px solid var(--accent-blue);
+}
+
+/* Table hover */
+.table-row-hover:hover {
+  background: rgba(255, 255, 255, 0.02);
+}
+
+/* Animations */
+@keyframes fadeIn {
+  from { opacity: 0; transform: translateY(10px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+.animate-fade-in {
+  animation: fadeIn 0.3s ease-out;
+}
+
+/* Number formatting */
+.tabular-nums {
+  font-variant-numeric: tabular-nums;
 }
