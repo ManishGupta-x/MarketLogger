@@ -112,7 +112,7 @@ export default function AnalyticsPage() {
                 <th className="pb-4 font-medium text-right uppercase tracking-wider text-xs">ROI %</th>
                 <th className="pb-4 font-medium text-right uppercase tracking-wider text-xs">Win Rate</th>
                 <th className="pb-4 font-medium text-right uppercase tracking-wider text-xs">Trades</th>
-                <th className="pb-4 font-medium uppercase tracking-wider text-xs">Best Stock</th>
+                <th className="pb-4 font-medium text-right uppercase tracking-wider text-xs">Best Stock</th>
               </tr>
             </thead>
             <tbody>
@@ -131,7 +131,7 @@ export default function AnalyticsPage() {
                   </td>
                   <td className="py-4 text-right text-gray-300 tabular-nums">{strategy.win_rate?.toFixed(1)}%</td>
                   <td className="py-4 text-right text-gray-300 tabular-nums">{strategy.total_trades}</td>
-                  <td className="py-4 text-gray-300">
+                  <td className="py-4 text-right text-gray-300">
                     {strategy.best_stock && (
                       <span className="text-[#00ff88]">{strategy.best_stock}</span>
                     )}

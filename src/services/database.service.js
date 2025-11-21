@@ -234,10 +234,10 @@ class DatabaseService {
   }
 
   startSyncInterval() {
-    // Sync every 5 minutes
+    // Sync every 5 seconds
     this.syncInterval = setInterval(() => {
       this.syncToSupabase();
-    }, 5 * 60 * 1000);
+    }, 5 * 60000);
 
     logger.info('🔄 Supabase sync interval started (every 5 minutes)');
   }
@@ -277,15 +277,17 @@ class DatabaseService {
       logger.info(`   Portfolio: Local=${localPortfolio}, Supabase=${remotePortfolio || 0}`);
       logger.info(`   Channels: Local=${localChannels}, Supabase=${remoteChannels || 0}`);
 
-      // Log to Discord
-      await discordService.log(
-        `📊 **Database Sync Comparison**\n` +
-        `Orders: Local=${localOrders}, Supabase=${remoteOrders || 0}\n` +
-        `Holdings: Local=${localHoldings}, Supabase=${remoteHoldings || 0}\n` +
-        `Portfolio: Local=${localPortfolio}, Supabase=${remotePortfolio || 0}\n` +
-        `Channels: Local=${localChannels}, Supabase=${remoteChannels || 0}`,
-        'info'
-      );
+      // Store sync status for later Discord logging
+      this.lastSyncStatus = {
+        localOrders,
+        remoteOrders: remoteOrders || 0,
+        localHoldings,
+        remoteHoldings: remoteHoldings || 0,
+        localPortfolio,
+        remotePortfolio: remotePortfolio || 0,
+        localChannels,
+        remoteChannels: remoteChannels || 0
+      };
 
       // Perform bidirectional sync
       await this.syncToSupabase();
@@ -296,11 +298,25 @@ class DatabaseService {
     }
   }
 
+  async logSyncStatusToDiscord() {
+    if (!this.lastSyncStatus) return;
+
+    const s = this.lastSyncStatus;
+    await discordService.log(
+      `📊 **Database Sync Comparison**\n` +
+      `Orders: Local=${s.localOrders}, Supabase=${s.remoteOrders}\n` +
+      `Holdings: Local=${s.localHoldings}, Supabase=${s.remoteHoldings}\n` +
+      `Portfolio: Local=${s.localPortfolio}, Supabase=${s.remotePortfolio}\n` +
+      `Channels: Local=${s.localChannels}, Supabase=${s.remoteChannels}`,
+      'info'
+    );
+  }
+
   async syncToSupabase() {
     if (!this.supabase || this.isProcessingQueue) return;
 
     this.isProcessingQueue = true;
-    logger.info('🔄 Starting Supabase sync...');
+    console.log(`[${new Date().toLocaleTimeString()}] 🔄 Starting Supabase sync...`);
 
     try {
       // Sync unsynced orders
@@ -318,7 +334,7 @@ class DatabaseService {
       // Bidirectional: pull missing data from Supabase
       await this.syncFromSupabase();
 
-      logger.info('✅ Supabase sync complete');
+      console.log(`[${new Date().toLocaleTimeString()}] ✅ Supabase sync complete`);
     } catch (error) {
       logger.error('❌ Supabase sync failed:', error);
     } finally {
@@ -355,7 +371,7 @@ class DatabaseService {
     if (!error) {
       const ids = unsyncedOrders.map(o => o.id);
       this.db.prepare(`UPDATE virtual_orders SET synced = 1 WHERE id IN (${ids.join(',')})`).run();
-      logger.info(`✅ Synced ${unsyncedOrders.length} orders to Supabase`);
+      console.log(`   → Synced ${unsyncedOrders.length} orders`);
     } else {
       logger.error('❌ Failed to sync orders:', error);
     }
@@ -386,7 +402,7 @@ class DatabaseService {
     if (!error) {
       const ids = unsyncedSnapshots.map(s => s.id);
       this.db.prepare(`UPDATE virtual_portfolio SET synced = 1 WHERE id IN (${ids.join(',')})`).run();
-      logger.info(`✅ Synced ${unsyncedSnapshots.length} portfolio snapshots to Supabase`);
+      console.log(`   → Synced ${unsyncedSnapshots.length} portfolio snapshots`);
     } else {
       logger.error('❌ Failed to sync portfolio snapshots:', error);
     }
@@ -414,7 +430,7 @@ class DatabaseService {
       }, { onConflict: 'channel_id,token' });
     }
 
-    logger.info(`✅ Synced ${holdings.length} holdings to Supabase`);
+    console.log(`   → Synced ${holdings.length} holdings`);
   }
 
   async syncChannels() {
@@ -433,7 +449,7 @@ class DatabaseService {
       }, { onConflict: 'channel_id' });
     }
 
-    logger.info(`✅ Synced ${channels.length} channels to Supabase`);
+    console.log(`   → Synced ${channels.length} channels`);
   }
 
   async syncFromSupabase() {
@@ -491,11 +507,13 @@ class DatabaseService {
 
           if (!exists) {
             this.db.prepare(`
-              INSERT INTO virtual_holdings (channel_id, token, symbol, qty, avg_buy_price, total_invested, last_updated)
-              VALUES (?, ?, ?, ?, ?, ?, ?)
+              INSERT INTO virtual_holdings (channel_id, token, symbol, qty, avg_price, invested_value, current_price, current_value, unrealized_pnl, unrealized_pnl_percent, last_updated)
+              VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             `).run(
               holding.channel_id, holding.token, holding.symbol, holding.qty,
-              holding.avg_buy_price, holding.total_invested, holding.last_updated
+              holding.avg_price, holding.invested_value, holding.current_price,
+              holding.current_value, holding.unrealized_pnl, holding.unrealized_pnl_percent,
+              holding.last_updated
             );
           }
         }
@@ -524,11 +542,13 @@ class DatabaseService {
             if (!exists) {
               this.db.prepare(`
                 INSERT INTO virtual_portfolio
-                (channel_id, timestamp, cash_balance, holdings_value, total_value, total_realized_pnl, synced)
-                VALUES (?, ?, ?, ?, ?, ?, 1)
+                (channel_id, timestamp, cash_balance, holdings_value, total_value, total_pnl, total_pnl_percent, realized_pnl, unrealized_pnl, holdings_count, synced)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1)
               `).run(
                 portfolio.channel_id, portfolio.timestamp, portfolio.cash_balance,
-                portfolio.holdings_value, portfolio.total_value, portfolio.total_realized_pnl
+                portfolio.holdings_value, portfolio.total_value, portfolio.total_pnl,
+                portfolio.total_pnl_percent, portfolio.realized_pnl || 0,
+                portfolio.unrealized_pnl || 0, portfolio.holdings_count || 0
               );
             }
           }
