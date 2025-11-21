@@ -234,12 +234,12 @@ class DatabaseService {
   }
 
   startSyncInterval() {
-    // Sync every 5 minutes
+    // Sync every 5 seconds
     this.syncInterval = setInterval(() => {
       this.syncToSupabase();
-    }, 5 * 60 * 1000);
+    }, 5 * 1000);
 
-    logger.info('🔄 Supabase sync interval started (every 5 minutes)');
+    logger.info('🔄 Supabase sync interval started (every 5 seconds)');
   }
 
   async initialSyncComparison() {
@@ -316,7 +316,7 @@ class DatabaseService {
     if (!this.supabase || this.isProcessingQueue) return;
 
     this.isProcessingQueue = true;
-    logger.info('🔄 Starting Supabase sync...');
+    console.log(`[${new Date().toLocaleTimeString()}] 🔄 Starting Supabase sync...`);
 
     try {
       // Sync unsynced orders
@@ -334,7 +334,7 @@ class DatabaseService {
       // Bidirectional: pull missing data from Supabase
       await this.syncFromSupabase();
 
-      logger.info('✅ Supabase sync complete');
+      console.log(`[${new Date().toLocaleTimeString()}] ✅ Supabase sync complete`);
     } catch (error) {
       logger.error('❌ Supabase sync failed:', error);
     } finally {
@@ -371,7 +371,7 @@ class DatabaseService {
     if (!error) {
       const ids = unsyncedOrders.map(o => o.id);
       this.db.prepare(`UPDATE virtual_orders SET synced = 1 WHERE id IN (${ids.join(',')})`).run();
-      logger.info(`✅ Synced ${unsyncedOrders.length} orders to Supabase`);
+      console.log(`   → Synced ${unsyncedOrders.length} orders`);
     } else {
       logger.error('❌ Failed to sync orders:', error);
     }
@@ -402,7 +402,7 @@ class DatabaseService {
     if (!error) {
       const ids = unsyncedSnapshots.map(s => s.id);
       this.db.prepare(`UPDATE virtual_portfolio SET synced = 1 WHERE id IN (${ids.join(',')})`).run();
-      logger.info(`✅ Synced ${unsyncedSnapshots.length} portfolio snapshots to Supabase`);
+      console.log(`   → Synced ${unsyncedSnapshots.length} portfolio snapshots`);
     } else {
       logger.error('❌ Failed to sync portfolio snapshots:', error);
     }
@@ -430,7 +430,7 @@ class DatabaseService {
       }, { onConflict: 'channel_id,token' });
     }
 
-    logger.info(`✅ Synced ${holdings.length} holdings to Supabase`);
+    console.log(`   → Synced ${holdings.length} holdings`);
   }
 
   async syncChannels() {
@@ -449,7 +449,7 @@ class DatabaseService {
       }, { onConflict: 'channel_id' });
     }
 
-    logger.info(`✅ Synced ${channels.length} channels to Supabase`);
+    console.log(`   → Synced ${channels.length} channels`);
   }
 
   async syncFromSupabase() {
