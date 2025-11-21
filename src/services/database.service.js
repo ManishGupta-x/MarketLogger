@@ -510,13 +510,14 @@ class DatabaseService {
         .select('*', { count: 'exact', head: true });
 
       if (supabaseOrderCount > localOrderCount) {
+        // Fetch ALL orders from Supabase to ensure complete sync
         const { data: supabaseOrders, error: ordersError } = await this.supabase
           .from('virtual_orders')
           .select('*')
-          .order('timestamp', { ascending: false })
-          .limit(supabaseOrderCount - localOrderCount + 100);
+          .order('timestamp', { ascending: true });
 
         if (!ordersError && supabaseOrders) {
+          let insertedCount = 0;
           for (const order of supabaseOrders) {
             // Check if order exists by timestamp and channel
             const exists = this.db.prepare(
@@ -533,9 +534,10 @@ class DatabaseService {
                 order.qty, order.price, order.value, order.balance, order.pnl || 0,
                 order.pnl_percent || 0, order.grid_level || 0, order.reference_price, order.notes
               );
+              insertedCount++;
             }
           }
-          logger.info(`✅ Synced orders from Supabase (local: ${localOrderCount}, remote: ${supabaseOrderCount})`);
+          logger.info(`✅ Synced orders from Supabase (inserted: ${insertedCount}, local: ${localOrderCount}, remote: ${supabaseOrderCount})`);
         }
       }
 
@@ -572,13 +574,14 @@ class DatabaseService {
         .select('*', { count: 'exact', head: true });
 
       if (supabasePortfolioCount > localPortfolioCount) {
+        // Fetch ALL portfolio snapshots from Supabase to ensure complete sync
         const { data: supabasePortfolio, error: portfolioError } = await this.supabase
           .from('virtual_portfolio')
           .select('*')
-          .order('timestamp', { ascending: false })
-          .limit(supabasePortfolioCount - localPortfolioCount + 50);
+          .order('timestamp', { ascending: true });
 
         if (!portfolioError && supabasePortfolio) {
+          let insertedCount = 0;
           for (const portfolio of supabasePortfolio) {
             const exists = this.db.prepare(
               'SELECT 1 FROM virtual_portfolio WHERE channel_id = ? AND timestamp = ?'
@@ -595,9 +598,10 @@ class DatabaseService {
                 portfolio.total_pnl_percent, portfolio.realized_pnl || 0,
                 portfolio.unrealized_pnl || 0, portfolio.holdings_count || 0
               );
+              insertedCount++;
             }
           }
-          logger.info(`✅ Synced portfolio snapshots from Supabase (local: ${localPortfolioCount}, remote: ${supabasePortfolioCount})`);
+          logger.info(`✅ Synced portfolio snapshots from Supabase (inserted: ${insertedCount}, local: ${localPortfolioCount}, remote: ${supabasePortfolioCount})`);
         }
       }
 
