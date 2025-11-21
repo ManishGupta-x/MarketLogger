@@ -450,7 +450,7 @@ class DatabaseService {
           .from('virtual_holdings')
           .delete()
           .eq('channel_id', channelId)
-          .not('token', 'in', `(${localTokens.join(',')})`);
+          .not('token', 'in', `(${localTokens.map(t => `"${t}"`).join(',')})`);
 
         if (error) {
           logger.error(`❌ Failed to delete sold holdings for channel ${channelId}:`, error);
@@ -459,8 +459,9 @@ class DatabaseService {
     }
 
     // Upsert all current holdings
+    let upsertErrors = 0;
     for (const holding of holdings) {
-      await this.supabase.from('virtual_holdings').upsert({
+      const { error } = await this.supabase.from('virtual_holdings').upsert({
         channel_id: holding.channel_id,
         token: holding.token,
         symbol: holding.symbol,
@@ -473,9 +474,18 @@ class DatabaseService {
         unrealized_pnl_percent: holding.unrealized_pnl_percent,
         last_updated: holding.last_updated
       }, { onConflict: 'channel_id,token' });
+
+      if (error) {
+        upsertErrors++;
+        logger.error(`❌ Failed to upsert holding ${holding.symbol}:`, error);
+      }
     }
 
-    console.log(`   → Synced ${holdings.length} holdings (deleted stale entries from Supabase)`);
+    if (upsertErrors > 0) {
+      console.log(`   → Synced ${holdings.length - upsertErrors}/${holdings.length} holdings (${upsertErrors} errors)`);
+    } else {
+      console.log(`   → Synced ${holdings.length} holdings (deleted stale entries from Supabase)`);
+    }
   }
 
   async syncChannels() {
@@ -483,8 +493,9 @@ class DatabaseService {
 
     if (channels.length === 0) return;
 
+    let upsertErrors = 0;
     for (const channel of channels) {
-      await this.supabase.from('channels').upsert({
+      const { error } = await this.supabase.from('channels').upsert({
         channel_id: channel.channel_id,
         name: channel.name,
         initial_capital: channel.initial_capital,
@@ -492,9 +503,18 @@ class DatabaseService {
         grid_percentage: channel.grid_percentage,
         last_updated: channel.last_updated
       }, { onConflict: 'channel_id' });
+
+      if (error) {
+        upsertErrors++;
+        logger.error(`❌ Failed to upsert channel ${channel.name}:`, error);
+      }
     }
 
-    console.log(`   → Synced ${channels.length} channels`);
+    if (upsertErrors > 0) {
+      console.log(`   → Synced ${channels.length - upsertErrors}/${channels.length} channels (${upsertErrors} errors)`);
+    } else {
+      console.log(`   → Synced ${channels.length} channels`);
+    }
   }
 
   async syncFromSupabase() {
@@ -510,18 +530,19 @@ class DatabaseService {
         .select('*', { count: 'exact', head: true });
 
       if (supabaseOrderCount > localOrderCount) {
+        // Fetch ALL orders from Supabase to ensure complete sync
         const { data: supabaseOrders, error: ordersError } = await this.supabase
           .from('virtual_orders')
           .select('*')
-          .order('timestamp', { ascending: false })
-          .limit(supabaseOrderCount - localOrderCount + 100);
+          .order('timestamp', { ascending: true });
 
         if (!ordersError && supabaseOrders) {
+          let insertedCount = 0;
           for (const order of supabaseOrders) {
-            // Check if order exists by timestamp and channel
+            // Check if order exists - include balance to differentiate repeated grid orders
             const exists = this.db.prepare(
-              'SELECT 1 FROM virtual_orders WHERE channel_id = ? AND timestamp = ? AND symbol = ? AND type = ?'
-            ).get(order.channel_id, order.timestamp, order.symbol, order.type);
+              'SELECT 1 FROM virtual_orders WHERE channel_id = ? AND symbol = ? AND type = ? AND qty = ? AND ABS(price - ?) < 0.01 AND ABS(balance - ?) < 0.01'
+            ).get(order.channel_id, order.symbol, order.type, order.qty, order.price, order.balance);
 
             if (!exists) {
               this.db.prepare(`
@@ -533,37 +554,18 @@ class DatabaseService {
                 order.qty, order.price, order.value, order.balance, order.pnl || 0,
                 order.pnl_percent || 0, order.grid_level || 0, order.reference_price, order.notes
               );
+              insertedCount++;
             }
           }
-          logger.info(`✅ Synced orders from Supabase (local: ${localOrderCount}, remote: ${supabaseOrderCount})`);
+          logger.info(`✅ Synced orders from Supabase (inserted: ${insertedCount}, local: ${localOrderCount}, remote: ${supabaseOrderCount})`);
         }
+      } else {
+        logger.info(`✅ Orders in sync (local: ${localOrderCount}, remote: ${supabaseOrderCount})`);
       }
 
-      // Sync holdings from Supabase
-      const { data: supabaseHoldings, error: holdingsError } = await this.supabase
-        .from('virtual_holdings')
-        .select('*');
-
-      if (!holdingsError && supabaseHoldings) {
-        for (const holding of supabaseHoldings) {
-          const exists = this.db.prepare(
-            'SELECT 1 FROM virtual_holdings WHERE channel_id = ? AND token = ?'
-          ).get(holding.channel_id, holding.token);
-
-          if (!exists) {
-            this.db.prepare(`
-              INSERT INTO virtual_holdings (channel_id, token, symbol, qty, avg_price, invested_value, current_price, current_value, unrealized_pnl, unrealized_pnl_percent, last_updated)
-              VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-            `).run(
-              holding.channel_id, holding.token, holding.symbol, holding.qty,
-              holding.avg_price, holding.invested_value, holding.current_price,
-              holding.current_value, holding.unrealized_pnl, holding.unrealized_pnl_percent,
-              holding.last_updated
-            );
-          }
-        }
-        logger.info(`✅ Synced ${supabaseHoldings.length} holdings from Supabase`);
-      }
+      // Holdings are NOT synced FROM Supabase - local SQLite is source of truth
+      // Holdings are pushed TO Supabase via syncHoldings() which also deletes sold positions
+      logger.info(`✅ Holdings sync skipped (local is source of truth)`);
 
       // Sync portfolio snapshots from Supabase
       const localPortfolioCount = this.db.prepare('SELECT COUNT(*) as count FROM virtual_portfolio').get().count;
@@ -572,17 +574,19 @@ class DatabaseService {
         .select('*', { count: 'exact', head: true });
 
       if (supabasePortfolioCount > localPortfolioCount) {
+        // Fetch ALL portfolio snapshots from Supabase to ensure complete sync
         const { data: supabasePortfolio, error: portfolioError } = await this.supabase
           .from('virtual_portfolio')
           .select('*')
-          .order('timestamp', { ascending: false })
-          .limit(supabasePortfolioCount - localPortfolioCount + 50);
+          .order('timestamp', { ascending: true });
 
         if (!portfolioError && supabasePortfolio) {
+          let insertedCount = 0;
           for (const portfolio of supabasePortfolio) {
+            // Check by values to avoid timestamp format issues
             const exists = this.db.prepare(
-              'SELECT 1 FROM virtual_portfolio WHERE channel_id = ? AND timestamp = ?'
-            ).get(portfolio.channel_id, portfolio.timestamp);
+              'SELECT 1 FROM virtual_portfolio WHERE channel_id = ? AND ABS(cash_balance - ?) < 0.01 AND ABS(holdings_value - ?) < 0.01 AND ABS(total_value - ?) < 0.01'
+            ).get(portfolio.channel_id, portfolio.cash_balance, portfolio.holdings_value, portfolio.total_value);
 
             if (!exists) {
               this.db.prepare(`
@@ -595,10 +599,13 @@ class DatabaseService {
                 portfolio.total_pnl_percent, portfolio.realized_pnl || 0,
                 portfolio.unrealized_pnl || 0, portfolio.holdings_count || 0
               );
+              insertedCount++;
             }
           }
-          logger.info(`✅ Synced portfolio snapshots from Supabase (local: ${localPortfolioCount}, remote: ${supabasePortfolioCount})`);
+          logger.info(`✅ Synced portfolio snapshots from Supabase (inserted: ${insertedCount}, local: ${localPortfolioCount}, remote: ${supabasePortfolioCount})`);
         }
+      } else {
+        logger.info(`✅ Portfolio in sync (local: ${localPortfolioCount}, remote: ${supabasePortfolioCount})`);
       }
 
       // Sync channels from Supabase
