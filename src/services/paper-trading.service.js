@@ -94,6 +94,12 @@ class PaperTradingService {
       this.isEnabled = false;
       logger.info(`🎯 Trading Enabled from DEFAULT: ${this.isEnabled}`);
     }
+
+    // Save config to database for Supabase sync
+    db.setConfig('initial_capital', this.initialCapital.toString(), this.channelId);
+    db.setConfig('amount_per_trade', this.amountPerTrade.toString(), this.channelId);
+    db.setConfig('grid_percentage', this.gridPercentage.toString(), this.channelId);
+    db.setConfig('trading_enabled', this.isEnabled.toString(), this.channelId);
   }
 
   async loadPortfolio() {

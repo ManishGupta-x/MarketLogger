@@ -44,7 +44,7 @@ export default function Dashboard() {
   const totalValue = portfolio?.total_value || 0
   const cashBalance = portfolio?.cash_balance || 0
   const holdingsValue = portfolio?.holdings_value || 0
-  const initialCapital = config?.capital || channelConfig?.capital || 0
+  const initialCapital = config?.capital || 0
   const totalPnl = totalValue - initialCapital
   const pnlPercent = initialCapital > 0 ? ((totalPnl / initialCapital) * 100).toFixed(2) : 0
 
