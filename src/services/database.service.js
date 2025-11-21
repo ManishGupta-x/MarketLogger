@@ -237,7 +237,7 @@ class DatabaseService {
     // Sync every 5 seconds
     this.syncInterval = setInterval(() => {
       this.syncToSupabase();
-    }, 5 * 60000);
+    }, 5 * 1000);
 
     logger.info('🔄 Supabase sync interval started (every 5 minutes)');
   }
