@@ -33,6 +33,9 @@ async function start() {
         await discordService.initialize(channelManager);
         logger.info('✅ Discord initialized with multi-channel support');
 
+        // Log database sync status to Discord (now that Discord is initialized)
+        await db.logSyncStatusToDiscord();
+
         // Initialize WebSocket with callback to channel manager
         await gridWebSocketService.initialize((ticks) => {
           channelManager.processTicks(ticks);
@@ -49,6 +52,9 @@ async function start() {
       // Initialize Discord without channel manager
       await discordService.initialize();
       logger.info('✅ Discord initialized (limited mode - waiting for connection)');
+
+      // Log database sync status to Discord
+      await db.logSyncStatusToDiscord();
 
       logger.warn('⚠️ Grid Trading Bot - Zerodha connection failed');
       logger.warn('⚠️ Please check auto-login logs above');

@@ -277,15 +277,17 @@ class DatabaseService {
       logger.info(`   Portfolio: Local=${localPortfolio}, Supabase=${remotePortfolio || 0}`);
       logger.info(`   Channels: Local=${localChannels}, Supabase=${remoteChannels || 0}`);
 
-      // Log to Discord
-      await discordService.log(
-        `📊 **Database Sync Comparison**\n` +
-        `Orders: Local=${localOrders}, Supabase=${remoteOrders || 0}\n` +
-        `Holdings: Local=${localHoldings}, Supabase=${remoteHoldings || 0}\n` +
-        `Portfolio: Local=${localPortfolio}, Supabase=${remotePortfolio || 0}\n` +
-        `Channels: Local=${localChannels}, Supabase=${remoteChannels || 0}`,
-        'info'
-      );
+      // Store sync status for later Discord logging
+      this.lastSyncStatus = {
+        localOrders,
+        remoteOrders: remoteOrders || 0,
+        localHoldings,
+        remoteHoldings: remoteHoldings || 0,
+        localPortfolio,
+        remotePortfolio: remotePortfolio || 0,
+        localChannels,
+        remoteChannels: remoteChannels || 0
+      };
 
       // Perform bidirectional sync
       await this.syncToSupabase();
@@ -294,6 +296,20 @@ class DatabaseService {
     } catch (error) {
       logger.error('❌ Initial sync comparison failed:', error);
     }
+  }
+
+  async logSyncStatusToDiscord() {
+    if (!this.lastSyncStatus) return;
+
+    const s = this.lastSyncStatus;
+    await discordService.log(
+      `📊 **Database Sync Comparison**\n` +
+      `Orders: Local=${s.localOrders}, Supabase=${s.remoteOrders}\n` +
+      `Holdings: Local=${s.localHoldings}, Supabase=${s.remoteHoldings}\n` +
+      `Portfolio: Local=${s.localPortfolio}, Supabase=${s.remotePortfolio}\n` +
+      `Channels: Local=${s.localChannels}, Supabase=${s.remoteChannels}`,
+      'info'
+    );
   }
 
   async syncToSupabase() {
