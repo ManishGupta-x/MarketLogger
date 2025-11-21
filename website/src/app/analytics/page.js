@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useEffect } from 'react'
-import { getPortfolioHistory, getOrders, getGridLevels } from '@/lib/supabase'
+import { getPortfolioHistory, getOrders, getStrategyComparison } from '@/lib/supabase'
 import { CHANNEL_CONFIG } from '@/lib/channels'
 import ChannelSelector from '@/components/ChannelSelector'
 import {
@@ -21,9 +21,22 @@ export default function AnalyticsPage() {
   const [channelId, setChannelId] = useState('')
   const [portfolioHistory, setPortfolioHistory] = useState([])
   const [orders, setOrders] = useState([])
-  const [gridLevels, setGridLevels] = useState([])
+  const [strategyComparison, setStrategyComparison] = useState([])
   const [loading, setLoading] = useState(true)
   const [days, setDays] = useState(30)
+
+  useEffect(() => {
+    // Load strategy comparison on mount
+    async function loadComparison() {
+      try {
+        const comparison = await getStrategyComparison()
+        setStrategyComparison(comparison)
+      } catch (error) {
+        console.error('Error fetching strategy comparison:', error)
+      }
+    }
+    loadComparison()
+  }, [])
 
   useEffect(() => {
     if (!channelId) return
@@ -31,14 +44,12 @@ export default function AnalyticsPage() {
     async function fetchData() {
       setLoading(true)
       try {
-        const [historyData, ordersData, gridData] = await Promise.all([
+        const [historyData, ordersData] = await Promise.all([
           getPortfolioHistory(channelId, days),
-          getOrders(channelId, 500),
-          getGridLevels(channelId)
+          getOrders(channelId, 500)
         ])
         setPortfolioHistory(historyData)
         setOrders(ordersData)
-        setGridLevels(gridData)
       } catch (error) {
         console.error('Error fetching analytics:', error)
       } finally {
@@ -59,14 +70,18 @@ export default function AnalyticsPage() {
     pnl: p.total_value - (portfolioHistory[0]?.total_value || 0)
   }))
 
-  // Top performers
-  const topPerformers = [...gridLevels]
-    .sort((a, b) => (b.total_pnl || 0) - (a.total_pnl || 0))
-    .slice(0, 10)
+  // Calculate top/worst performers from orders
+  const stockPnl = {}
+  orders.filter(o => o.type === 'SELL').forEach(o => {
+    stockPnl[o.symbol] = (stockPnl[o.symbol] || 0) + (o.pnl || 0)
+  })
 
-  const worstPerformers = [...gridLevels]
-    .sort((a, b) => (a.total_pnl || 0) - (b.total_pnl || 0))
-    .slice(0, 10)
+  const sortedStocks = Object.entries(stockPnl)
+    .map(([symbol, pnl]) => ({ symbol, total_pnl: pnl }))
+    .sort((a, b) => b.total_pnl - a.total_pnl)
+
+  const topPerformers = sortedStocks.filter(s => s.total_pnl > 0).slice(0, 10)
+  const worstPerformers = sortedStocks.filter(s => s.total_pnl < 0).slice(-10).reverse()
 
   // Daily P&L
   const dailyPnl = orders.reduce((acc, order) => {
@@ -83,10 +98,62 @@ export default function AnalyticsPage() {
 
   return (
     <div className="space-y-8 animate-fade-in">
-      {/* Header */}
+      {/* Strategy Comparison */}
+      <div className="dashboard-card p-6">
+        <h2 className="text-xl font-semibold text-white mb-6">Strategy Comparison</h2>
+        <div className="overflow-x-auto">
+          <table className="w-full text-sm">
+            <thead>
+              <tr className="text-left text-gray-500 border-b border-[#1a1a1a]">
+                <th className="pb-4 font-medium uppercase tracking-wider text-xs">Rank</th>
+                <th className="pb-4 font-medium uppercase tracking-wider text-xs">Strategy</th>
+                <th className="pb-4 font-medium text-right uppercase tracking-wider text-xs">Initial</th>
+                <th className="pb-4 font-medium text-right uppercase tracking-wider text-xs">Current</th>
+                <th className="pb-4 font-medium text-right uppercase tracking-wider text-xs">ROI %</th>
+                <th className="pb-4 font-medium text-right uppercase tracking-wider text-xs">Win Rate</th>
+                <th className="pb-4 font-medium text-right uppercase tracking-wider text-xs">Trades</th>
+                <th className="pb-4 font-medium uppercase tracking-wider text-xs">Best Stock</th>
+              </tr>
+            </thead>
+            <tbody>
+              {strategyComparison.map((strategy, i) => (
+                <tr key={strategy.channel_id} className="border-b border-[#1a1a1a]/50 table-row-hover">
+                  <td className="py-4 text-gray-400">{i + 1}</td>
+                  <td className="py-4 font-semibold text-white">{strategy.name}</td>
+                  <td className="py-4 text-right text-gray-300 tabular-nums">
+                    ₹{strategy.initial_capital?.toLocaleString('en-IN', { maximumFractionDigits: 0 })}
+                  </td>
+                  <td className="py-4 text-right text-white tabular-nums">
+                    ₹{strategy.current_value?.toLocaleString('en-IN', { maximumFractionDigits: 0 })}
+                  </td>
+                  <td className={`py-4 text-right font-semibold tabular-nums ${strategy.roi_percent >= 0 ? 'text-[#00ff88]' : 'text-[#ff4444]'}`}>
+                    {strategy.roi_percent >= 0 ? '+' : ''}{strategy.roi_percent?.toFixed(2)}%
+                  </td>
+                  <td className="py-4 text-right text-gray-300 tabular-nums">{strategy.win_rate?.toFixed(1)}%</td>
+                  <td className="py-4 text-right text-gray-300 tabular-nums">{strategy.total_trades}</td>
+                  <td className="py-4 text-gray-300">
+                    {strategy.best_stock && (
+                      <span className="text-[#00ff88]">{strategy.best_stock}</span>
+                    )}
+                  </td>
+                </tr>
+              ))}
+              {strategyComparison.length === 0 && (
+                <tr>
+                  <td colSpan="8" className="py-8 text-center text-gray-500">
+                    No strategy data available
+                  </td>
+                </tr>
+              )}
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      {/* Header for channel-specific analytics */}
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-3xl font-bold text-white">Analytics</h1>
+          <h1 className="text-3xl font-bold text-white">Channel Analytics</h1>
           <p className="text-gray-500 mt-1">{channelName}</p>
         </div>
         <div className="flex items-center gap-4">
@@ -174,7 +241,7 @@ export default function AnalyticsPage() {
               </div>
             ))}
             {topPerformers.length === 0 && (
-              <p className="text-gray-500 text-center py-4">No data</p>
+              <p className="text-gray-500 text-center py-4">No winning trades</p>
             )}
           </div>
         </div>
@@ -194,7 +261,7 @@ export default function AnalyticsPage() {
               </div>
             ))}
             {worstPerformers.length === 0 && (
-              <p className="text-gray-500 text-center py-4">No data</p>
+              <p className="text-gray-500 text-center py-4">No losing trades</p>
             )}
           </div>
         </div>

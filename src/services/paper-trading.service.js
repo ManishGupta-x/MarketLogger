@@ -38,9 +38,7 @@ class PaperTradingService {
   }
 
   async loadConfig(initialCapital = null, amountPerTrade = null) {
-    const config = await db.getAllConfigAsync(this.channelId);
-
-    // Priority: Parameter -> ENV -> DB -> Default
+    // Priority: Parameter -> ENV -> Default (config comes from env vars now)
     // Load initial capital
     if (initialCapital !== null) {
       this.initialCapital = initialCapital;
@@ -48,9 +46,6 @@ class PaperTradingService {
     } else if (process.env.INITIAL_CAPITAL) {
       this.initialCapital = parseFloat(process.env.INITIAL_CAPITAL);
       logger.info(`💰 Initial Capital from ENV: ₹${this.initialCapital.toLocaleString()}`);
-    } else if (config.initial_capital) {
-      this.initialCapital = parseFloat(config.initial_capital);
-      logger.info(`💰 Initial Capital from DB: ₹${this.initialCapital.toLocaleString()}`);
     } else {
       this.initialCapital = 500000;
       logger.info(`💰 Initial Capital from DEFAULT: ₹${this.initialCapital.toLocaleString()}`);
@@ -63,9 +58,6 @@ class PaperTradingService {
     } else if (process.env.AMOUNT_PER_TRADE) {
       this.amountPerTrade = parseFloat(process.env.AMOUNT_PER_TRADE);
       logger.info(`📊 Amount per Trade from ENV: ₹${this.amountPerTrade.toLocaleString()}`);
-    } else if (config.amount_per_trade) {
-      this.amountPerTrade = parseFloat(config.amount_per_trade);
-      logger.info(`📊 Amount per Trade from DB: ₹${this.amountPerTrade.toLocaleString()}`);
     } else {
       this.amountPerTrade = 10000;
       logger.info(`📊 Amount per Trade from DEFAULT: ₹${this.amountPerTrade.toLocaleString()}`);
@@ -75,9 +67,6 @@ class PaperTradingService {
     if (process.env.GRID_PERCENTAGE) {
       this.gridPercentage = parseFloat(process.env.GRID_PERCENTAGE);
       logger.info(`📈 Grid Percentage from ENV: ${this.gridPercentage}%`);
-    } else if (config.grid_percentage) {
-      this.gridPercentage = parseFloat(config.grid_percentage);
-      logger.info(`📈 Grid Percentage from DB: ${this.gridPercentage}%`);
     } else {
       this.gridPercentage = 5.0;
       logger.info(`📈 Grid Percentage from DEFAULT: ${this.gridPercentage}%`);
@@ -87,9 +76,6 @@ class PaperTradingService {
     if (process.env.PAPER_TRADING_ENABLED !== undefined) {
       this.isEnabled = process.env.PAPER_TRADING_ENABLED === 'true';
       logger.info(`🎯 Trading Enabled from ENV: ${this.isEnabled}`);
-    } else if (config.trading_enabled !== undefined) {
-      this.isEnabled = config.trading_enabled === 'true';
-      logger.info(`🎯 Trading Enabled from DB: ${this.isEnabled}`);
     } else {
       this.isEnabled = false;
       logger.info(`🎯 Trading Enabled from DEFAULT: ${this.isEnabled}`);

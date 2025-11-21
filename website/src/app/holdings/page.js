@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useEffect } from 'react'
-import { getHoldings, getGridLevels } from '@/lib/supabase'
+import { getHoldings } from '@/lib/supabase'
 import { CHANNEL_CONFIG } from '@/lib/channels'
 import ChannelSelector from '@/components/ChannelSelector'
 import HoldingsTable from '@/components/HoldingsTable'
@@ -9,7 +9,6 @@ import HoldingsTable from '@/components/HoldingsTable'
 export default function HoldingsPage() {
   const [channelId, setChannelId] = useState('')
   const [holdings, setHoldings] = useState([])
-  const [gridLevels, setGridLevels] = useState([])
   const [loading, setLoading] = useState(true)
 
   useEffect(() => {
@@ -18,12 +17,8 @@ export default function HoldingsPage() {
     async function fetchData() {
       setLoading(true)
       try {
-        const [holdingsData, gridData] = await Promise.all([
-          getHoldings(channelId),
-          getGridLevels(channelId)
-        ])
+        const holdingsData = await getHoldings(channelId)
         setHoldings(holdingsData)
-        setGridLevels(gridData)
       } catch (error) {
         console.error('Error fetching holdings:', error)
       } finally {
@@ -82,43 +77,6 @@ export default function HoldingsPage() {
         </div>
         <HoldingsTable holdings={holdings} loading={loading} />
       </div>
-
-      {/* Grid Levels */}
-      {gridLevels.length > 0 && (
-        <div className="dashboard-card p-6">
-          <div className="flex items-center justify-between mb-6">
-            <h2 className="text-xl font-semibold text-white">Grid Levels Performance</h2>
-            <span className="text-sm text-gray-500">Top 20</span>
-          </div>
-          <div className="overflow-x-auto">
-            <table className="w-full text-sm">
-              <thead>
-                <tr className="text-left text-gray-500 border-b border-[#1a1a1a]">
-                  <th className="pb-4 font-medium uppercase tracking-wider text-xs">Symbol</th>
-                  <th className="pb-4 font-medium text-right uppercase tracking-wider text-xs">Buy Count</th>
-                  <th className="pb-4 font-medium text-right uppercase tracking-wider text-xs">Sell Count</th>
-                  <th className="pb-4 font-medium text-right uppercase tracking-wider text-xs">Total P&L</th>
-                </tr>
-              </thead>
-              <tbody>
-                {gridLevels.slice(0, 20).map((grid) => {
-                  const pnl = Number(grid.total_pnl || 0)
-                  return (
-                    <tr key={grid.symbol} className="border-b border-[#1a1a1a]/50 table-row-hover">
-                      <td className="py-4 font-semibold text-white">{grid.symbol}</td>
-                      <td className="py-4 text-right text-gray-300 tabular-nums">{grid.buy_count || 0}</td>
-                      <td className="py-4 text-right text-gray-300 tabular-nums">{grid.sell_count || 0}</td>
-                      <td className={`py-4 text-right font-semibold tabular-nums ${pnl >= 0 ? 'text-[#00ff88]' : 'text-[#ff4444]'}`}>
-                        {pnl >= 0 ? '+' : ''}₹{pnl.toFixed(2)}
-                      </td>
-                    </tr>
-                  )
-                })}
-              </tbody>
-            </table>
-          </div>
-        </div>
-      )}
     </div>
   )
 }
