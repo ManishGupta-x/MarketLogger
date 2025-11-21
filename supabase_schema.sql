@@ -50,6 +50,16 @@ CREATE TABLE IF NOT EXISTS virtual_portfolio (
   holdings_count INTEGER DEFAULT 0
 );
 
+-- Channels configuration table
+CREATE TABLE IF NOT EXISTS channels (
+  channel_id TEXT PRIMARY KEY,
+  name TEXT NOT NULL,
+  initial_capital REAL NOT NULL,
+  amount_per_trade REAL NOT NULL,
+  grid_percentage REAL NOT NULL,
+  last_updated TIMESTAMPTZ DEFAULT NOW()
+);
+
 -- Create indexes for better performance
 CREATE INDEX IF NOT EXISTS idx_orders_channel ON virtual_orders(channel_id);
 CREATE INDEX IF NOT EXISTS idx_orders_timestamp ON virtual_orders(timestamp);

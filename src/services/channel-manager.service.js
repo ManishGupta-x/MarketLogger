@@ -1,5 +1,6 @@
 const PaperTradingService = require('./paper-trading.service');
 const GridStrategyService = require('./grid-strategy.service');
+const db = require('./database.service');
 const logger = require('../utils/logger');
 
 class ChannelManager {
@@ -98,6 +99,15 @@ class ChannelManager {
 
         // Link paper trading service to grid strategy
         gridStrategyService.setPaperTradingService(paperTradingService);
+
+        // Save channel config to database for Supabase sync
+        db.upsertChannel({
+          channel_id: config.id,
+          name: config.name,
+          initial_capital: config.initialCapital,
+          amount_per_trade: config.amountPerTrade,
+          grid_percentage: config.gridPercentage
+        });
 
         // Store channel instance (only name from config, other params can change)
         this.channels.set(config.id, {

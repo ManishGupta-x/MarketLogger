@@ -189,6 +189,18 @@ class DatabaseService {
       `);
     }
 
+    // Channels table for storing channel configuration
+    this.db.exec(`
+      CREATE TABLE IF NOT EXISTS channels (
+        channel_id TEXT PRIMARY KEY,
+        name TEXT NOT NULL,
+        initial_capital REAL NOT NULL,
+        amount_per_trade REAL NOT NULL,
+        grid_percentage REAL NOT NULL,
+        last_updated DATETIME DEFAULT CURRENT_TIMESTAMP
+      )
+    `);
+
     // Create indexes for better performance
     try {
       this.db.exec(`
@@ -241,6 +253,9 @@ class DatabaseService {
 
       // Sync current holdings
       await this.syncHoldings();
+
+      // Sync channel configurations
+      await this.syncChannels();
 
       // Bidirectional: pull missing data from Supabase
       await this.syncFromSupabase();
@@ -344,6 +359,25 @@ class DatabaseService {
     logger.info(`✅ Synced ${holdings.length} holdings to Supabase`);
   }
 
+  async syncChannels() {
+    const channels = this.db.prepare('SELECT * FROM channels').all();
+
+    if (channels.length === 0) return;
+
+    for (const channel of channels) {
+      await this.supabase.from('channels').upsert({
+        channel_id: channel.channel_id,
+        name: channel.name,
+        initial_capital: channel.initial_capital,
+        amount_per_trade: channel.amount_per_trade,
+        grid_percentage: channel.grid_percentage,
+        last_updated: channel.last_updated
+      }, { onConflict: 'channel_id' });
+    }
+
+    logger.info(`✅ Synced ${channels.length} channels to Supabase`);
+  }
+
   async syncFromSupabase() {
     if (!this.supabase) return;
 
@@ -444,10 +478,72 @@ class DatabaseService {
         }
       }
 
+      // Sync channels from Supabase
+      const { data: supabaseChannels, error: channelsError } = await this.supabase
+        .from('channels')
+        .select('*');
+
+      if (!channelsError && supabaseChannels) {
+        for (const channel of supabaseChannels) {
+          this.db.prepare(`
+            INSERT INTO channels (channel_id, name, initial_capital, amount_per_trade, grid_percentage, last_updated)
+            VALUES (?, ?, ?, ?, ?, ?)
+            ON CONFLICT(channel_id) DO UPDATE SET
+              name = ?,
+              initial_capital = ?,
+              amount_per_trade = ?,
+              grid_percentage = ?,
+              last_updated = ?
+          `).run(
+            channel.channel_id, channel.name, channel.initial_capital,
+            channel.amount_per_trade, channel.grid_percentage, channel.last_updated,
+            channel.name, channel.initial_capital, channel.amount_per_trade,
+            channel.grid_percentage, channel.last_updated
+          );
+        }
+        logger.info(`✅ Synced ${supabaseChannels.length} channels from Supabase`);
+      }
+
       logger.info('✅ Bidirectional sync complete');
     } catch (error) {
       logger.error('❌ Sync from Supabase failed:', error);
     }
+  }
+
+  // Channel methods
+  upsertChannel(channel) {
+    const stmt = this.db.prepare(`
+      INSERT INTO channels (channel_id, name, initial_capital, amount_per_trade, grid_percentage, last_updated)
+      VALUES (?, ?, ?, ?, ?, CURRENT_TIMESTAMP)
+      ON CONFLICT(channel_id) DO UPDATE SET
+        name = ?,
+        initial_capital = ?,
+        amount_per_trade = ?,
+        grid_percentage = ?,
+        last_updated = CURRENT_TIMESTAMP
+    `);
+
+    stmt.run(
+      channel.channel_id,
+      channel.name,
+      channel.initial_capital,
+      channel.amount_per_trade,
+      channel.grid_percentage,
+      channel.name,
+      channel.initial_capital,
+      channel.amount_per_trade,
+      channel.grid_percentage
+    );
+  }
+
+  getChannel(channelId) {
+    const stmt = this.db.prepare('SELECT * FROM channels WHERE channel_id = ?');
+    return stmt.get(channelId);
+  }
+
+  getAllChannels() {
+    const stmt = this.db.prepare('SELECT * FROM channels ORDER BY name');
+    return stmt.all();
   }
 
   // Order methods
