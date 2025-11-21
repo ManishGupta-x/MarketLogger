@@ -519,10 +519,10 @@ class DatabaseService {
         if (!ordersError && supabaseOrders) {
           let insertedCount = 0;
           for (const order of supabaseOrders) {
-            // Check if order exists by timestamp and channel
+            // Check if order exists by unique combination (avoid timestamp format issues)
             const exists = this.db.prepare(
-              'SELECT 1 FROM virtual_orders WHERE channel_id = ? AND timestamp = ? AND symbol = ? AND type = ?'
-            ).get(order.channel_id, order.timestamp, order.symbol, order.type);
+              'SELECT 1 FROM virtual_orders WHERE channel_id = ? AND symbol = ? AND type = ? AND qty = ? AND ABS(price - ?) < 0.01 AND ABS(value - ?) < 0.01'
+            ).get(order.channel_id, order.symbol, order.type, order.qty, order.price, order.value);
 
             if (!exists) {
               this.db.prepare(`
@@ -583,9 +583,10 @@ class DatabaseService {
         if (!portfolioError && supabasePortfolio) {
           let insertedCount = 0;
           for (const portfolio of supabasePortfolio) {
+            // Check by values to avoid timestamp format issues
             const exists = this.db.prepare(
-              'SELECT 1 FROM virtual_portfolio WHERE channel_id = ? AND timestamp = ?'
-            ).get(portfolio.channel_id, portfolio.timestamp);
+              'SELECT 1 FROM virtual_portfolio WHERE channel_id = ? AND ABS(cash_balance - ?) < 0.01 AND ABS(holdings_value - ?) < 0.01 AND ABS(total_value - ?) < 0.01'
+            ).get(portfolio.channel_id, portfolio.cash_balance, portfolio.holdings_value, portfolio.total_value);
 
             if (!exists) {
               this.db.prepare(`
