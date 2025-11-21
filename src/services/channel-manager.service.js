@@ -99,11 +99,10 @@ class ChannelManager {
         // Link paper trading service to grid strategy
         gridStrategyService.setPaperTradingService(paperTradingService);
 
-        // Store channel instance
+        // Store channel instance (only name from config, other params can change)
         this.channels.set(config.id, {
           id: config.id,
           name: config.name,
-          config: config,
           paperTradingService,
           gridStrategyService,
         });
@@ -177,7 +176,6 @@ class ChannelManager {
     return {
       id: channel.id,
       name: channel.name,
-      config: channel.config,
       tradingEnabled: channel.paperTradingService.isEnabled,
       gridActive: channel.gridStrategyService.isActive,
       paperTradingStatus: channel.paperTradingService.getStatus(),
