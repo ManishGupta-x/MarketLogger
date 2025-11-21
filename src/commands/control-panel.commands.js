@@ -11,6 +11,26 @@ class ControlPanelCommands {
     this.channelManager = channelManager;
   }
 
+  // Safe interaction reply that won't crash on expired interactions
+  async safeReply(interaction, options) {
+    try {
+      if (!interaction.replied && !interaction.deferred) {
+        await interaction.reply(options);
+      }
+    } catch (error) {
+      logger.error('Failed to reply to interaction:', error.message);
+    }
+  }
+
+  // Safe interaction update that won't crash on expired interactions
+  async safeUpdate(interaction, options) {
+    try {
+      await interaction.update(options);
+    } catch (error) {
+      logger.error('Failed to update interaction:', error.message);
+    }
+  }
+
   // Main panel command - creates or updates the control panel
   async panelCommand(message) {
     if (!this.channelManager) {
@@ -44,7 +64,7 @@ class ControlPanelCommands {
 
     if (interaction) {
       // Update existing message (keeps embed in place)
-      await interaction.update({ embeds: [embed], components });
+      await this.safeUpdate(interaction, { embeds: [embed], components });
     } else {
       // Send new message
       const sentMessage = await channel.send({ embeds: [embed], components });
@@ -212,7 +232,7 @@ class ControlPanelCommands {
   async showChannelDetails(interaction, channelId) {
     const channel = this.channelManager.getChannel(channelId);
     if (!channel) {
-      await interaction.reply({ content: 'Channel not found', ephemeral: true });
+      await this.safeReply(interaction, { content: 'Channel not found', ephemeral: true });
       return;
     }
 
@@ -331,7 +351,7 @@ class ControlPanelCommands {
         .setStyle(ButtonStyle.Primary)
     );
 
-    await interaction.update({ embeds: [embed], components: [row1, row2] });
+    await this.safeUpdate(interaction, { embeds: [embed], components: [row1, row2] });
   }
 
   // Handle start button for specific channel
@@ -354,7 +374,7 @@ class ControlPanelCommands {
     const channel = this.channelManager.getChannel(channelId);
 
     if (!channel) {
-      await interaction.reply({ content: 'Channel not found', ephemeral: true });
+      await this.safeReply(interaction, { content: 'Channel not found', ephemeral: true });
       return;
     }
 
@@ -376,7 +396,7 @@ class ControlPanelCommands {
       ])
       .setTimestamp();
 
-    await interaction.reply({ embeds: [embed], ephemeral: true });
+    await this.safeReply(interaction, { embeds: [embed], ephemeral: true });
   }
 
   // Show holdings details (ephemeral)
@@ -385,14 +405,14 @@ class ControlPanelCommands {
     const channel = this.channelManager.getChannel(channelId);
 
     if (!channel) {
-      await interaction.reply({ content: 'Channel not found', ephemeral: true });
+      await this.safeReply(interaction, { content: 'Channel not found', ephemeral: true });
       return;
     }
 
     const holdings = channel.paperTradingService.getHoldings();
 
     if (holdings.length === 0) {
-      await interaction.reply({
+      await this.safeReply(interaction, {
         content: `**${channel.config.name}** - No holdings`,
         ephemeral: true
       });
@@ -416,7 +436,7 @@ class ControlPanelCommands {
       .setColor(0x0099ff)
       .setTimestamp();
 
-    await interaction.reply({ embeds: [embed], ephemeral: true });
+    await this.safeReply(interaction, { embeds: [embed], ephemeral: true });
   }
 
   // Show recent orders (ephemeral)
@@ -425,14 +445,14 @@ class ControlPanelCommands {
     const channel = this.channelManager.getChannel(channelId);
 
     if (!channel) {
-      await interaction.reply({ content: 'Channel not found', ephemeral: true });
+      await this.safeReply(interaction, { content: 'Channel not found', ephemeral: true });
       return;
     }
 
     const orders = channel.paperTradingService.getOrders('today');
 
     if (orders.length === 0) {
-      await interaction.reply({
+      await this.safeReply(interaction, {
         content: `**${channel.config.name}** - No orders today`,
         ephemeral: true
       });
@@ -452,7 +472,7 @@ class ControlPanelCommands {
       .setColor(0x0099ff)
       .setTimestamp();
 
-    await interaction.reply({ embeds: [embed], ephemeral: true });
+    await this.safeReply(interaction, { embeds: [embed], ephemeral: true });
   }
 
   // Show grid info (ephemeral)
@@ -461,14 +481,14 @@ class ControlPanelCommands {
     const channel = this.channelManager.getChannel(channelId);
 
     if (!channel) {
-      await interaction.reply({ content: 'Channel not found', ephemeral: true });
+      await this.safeReply(interaction, { content: 'Channel not found', ephemeral: true });
       return;
     }
 
     const grids = channel.gridStrategyService.getAllGrids();
 
     if (grids.length === 0) {
-      await interaction.reply({
+      await this.safeReply(interaction, {
         content: `**${channel.config.name}** - No active grids`,
         ephemeral: true
       });
@@ -489,7 +509,7 @@ class ControlPanelCommands {
       .setColor(0x0099ff)
       .setTimestamp();
 
-    await interaction.reply({ embeds: [embed], ephemeral: true });
+    await this.safeReply(interaction, { embeds: [embed], ephemeral: true });
   }
 
   // Show config (ephemeral)
@@ -498,7 +518,7 @@ class ControlPanelCommands {
     const channel = this.channelManager.getChannel(channelId);
 
     if (!channel) {
-      await interaction.reply({ content: 'Channel not found', ephemeral: true });
+      await this.safeReply(interaction, { content: 'Channel not found', ephemeral: true });
       return;
     }
 
@@ -520,7 +540,7 @@ class ControlPanelCommands {
       .setFooter({ text: 'Use !config set in the channel to modify settings' })
       .setTimestamp();
 
-    await interaction.reply({ embeds: [embed], ephemeral: true });
+    await this.safeReply(interaction, { embeds: [embed], ephemeral: true });
   }
 }
 
