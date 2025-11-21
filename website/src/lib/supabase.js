@@ -61,69 +61,110 @@ export async function getOrders(channelId, limit = 50) {
 }
 
 export async function getGridLevels(channelId) {
-  checkCredentials()
-  const { data, error } = await supabase
-    .from('grid_levels')
-    .select('*')
-    .eq('channel_id', channelId)
-    .order('total_pnl', { ascending: false })
-
-  if (error) throw error
-  return data || []
+  // Grid levels table removed - return empty array
+  // Grid stats can be calculated from virtual_orders if needed
+  return []
 }
 
 export async function getConfig(channelId) {
   checkCredentials()
   const { data, error } = await supabase
-    .from('config')
-    .select('key, value')
+    .from('channels')
+    .select('*')
     .eq('channel_id', channelId)
+    .limit(1)
 
   if (error) throw error
 
-  // Convert key-value rows to object
-  const config = {}
-  if (data) {
-    data.forEach(row => {
-      config[row.key] = row.value
-    })
-  }
-
+  const channel = data?.[0]
   return {
     channel_id: channelId,
-    capital: parseFloat(config.initial_capital || 0),
-    amount_per_trade: parseFloat(config.amount_per_trade || 0),
-    grid_percentage: parseFloat(config.grid_percentage || 0)
+    name: channel?.name || 'Unknown',
+    capital: parseFloat(channel?.initial_capital || 0),
+    amount_per_trade: parseFloat(channel?.amount_per_trade || 0),
+    grid_percentage: parseFloat(channel?.grid_percentage || 0)
   }
 }
 
 export async function getAllChannels() {
   checkCredentials()
   const { data, error } = await supabase
-    .from('config')
-    .select('channel_id, key, value')
-    .order('channel_id')
+    .from('channels')
+    .select('*')
+    .order('name')
 
   if (error) throw error
 
-  // Group by channel_id and convert to objects
-  const channelMap = {}
-  if (data) {
-    data.forEach(row => {
-      if (!channelMap[row.channel_id]) {
-        channelMap[row.channel_id] = { channel_id: row.channel_id }
-      }
-      channelMap[row.channel_id][row.key] = row.value
-    })
-  }
-
-  // Convert to array with parsed values
-  return Object.values(channelMap).map(ch => ({
+  return (data || []).map(ch => ({
     channel_id: ch.channel_id,
+    name: ch.name,
     capital: parseFloat(ch.initial_capital || 0),
     amount_per_trade: parseFloat(ch.amount_per_trade || 0),
     grid_percentage: parseFloat(ch.grid_percentage || 0)
   }))
+}
+
+// Strategy comparison analytics
+export async function getStrategyComparison() {
+  checkCredentials()
+
+  // Get all channels
+  const { data: channels, error: channelsError } = await supabase
+    .from('channels')
+    .select('*')
+    .order('name')
+
+  if (channelsError) throw channelsError
+
+  // Get stats for each channel
+  const comparisons = await Promise.all((channels || []).map(async (channel) => {
+    // Get latest portfolio
+    const { data: portfolio } = await supabase
+      .from('virtual_portfolio')
+      .select('*')
+      .eq('channel_id', channel.channel_id)
+      .order('timestamp', { ascending: false })
+      .limit(1)
+
+    // Get order stats
+    const { data: orders } = await supabase
+      .from('virtual_orders')
+      .select('type, pnl, symbol')
+      .eq('channel_id', channel.channel_id)
+
+    const latestPortfolio = portfolio?.[0]
+    const sellOrders = (orders || []).filter(o => o.type === 'SELL')
+    const winningTrades = sellOrders.filter(o => o.pnl > 0).length
+    const totalPnl = sellOrders.reduce((sum, o) => sum + (o.pnl || 0), 0)
+    const winRate = sellOrders.length > 0 ? (winningTrades / sellOrders.length * 100) : 0
+
+    // Find best performing stock
+    const stockPnl = {}
+    sellOrders.forEach(o => {
+      stockPnl[o.symbol] = (stockPnl[o.symbol] || 0) + (o.pnl || 0)
+    })
+    const bestStock = Object.entries(stockPnl).sort((a, b) => b[1] - a[1])[0]
+
+    return {
+      channel_id: channel.channel_id,
+      name: channel.name,
+      initial_capital: channel.initial_capital,
+      amount_per_trade: channel.amount_per_trade,
+      grid_percentage: channel.grid_percentage,
+      current_value: latestPortfolio?.total_value || channel.initial_capital,
+      total_pnl: totalPnl,
+      roi_percent: channel.initial_capital > 0
+        ? ((latestPortfolio?.total_value || channel.initial_capital) - channel.initial_capital) / channel.initial_capital * 100
+        : 0,
+      total_trades: (orders || []).length,
+      win_rate: winRate,
+      best_stock: bestStock ? bestStock[0] : null,
+      best_stock_pnl: bestStock ? bestStock[1] : 0
+    }
+  }))
+
+  // Sort by ROI
+  return comparisons.sort((a, b) => b.roi_percent - a.roi_percent)
 }
 
 export async function getPortfolioHistory(channelId, days = 30) {

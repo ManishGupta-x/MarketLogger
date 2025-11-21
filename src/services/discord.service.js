@@ -519,7 +519,7 @@ class DiscordService {
     if (this.channelManager) {
       const channels = this.channelManager.getAllChannels();
       channelInfo = channels.map((ch, i) =>
-        `**${ch.config.name}:** ₹${ch.config.initialCapital.toLocaleString('en-IN')} | ₹${ch.config.amountPerTrade.toLocaleString('en-IN')}/trade | ${ch.config.gridPercentage}% grid`
+        `**${ch.name}:** ₹${ch.paperTradingService.initialCapital.toLocaleString('en-IN')} | ₹${ch.paperTradingService.amountPerTrade.toLocaleString('en-IN')}/trade | ${ch.paperTradingService.gridPercentage}% grid`
       ).join('\n');
     }
 

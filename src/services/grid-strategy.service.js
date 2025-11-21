@@ -1,5 +1,4 @@
 const Decimal = require('decimal.js');
-const db = require('./database.service');
 const discordService = require('./discord.service');
 const zerodhaService = require('./zerodha.service');
 const logger = require('../utils/logger');
@@ -58,7 +57,7 @@ class GridStrategyService {
       // Load instruments to build token mapping
       await this.loadInstruments();
 
-      // Load grid percentage: parameter > environment variable > config > default
+      // Load grid percentage: parameter > environment variable > default
       if (gridPercentage !== null) {
         this.gridPercentage = parseFloat(gridPercentage);
         logger.info(`📈 Grid percentage from parameter: ${this.gridPercentage}%`);
@@ -68,18 +67,9 @@ class GridStrategyService {
           this.gridPercentage = parseFloat(envGridPercentage);
           logger.info(`📈 Grid percentage from ENV: ${this.gridPercentage}%`);
         } else {
-          const gridPercentageConfig = db.getConfig('grid_percentage', this.channelId);
-          if (gridPercentageConfig) {
-            this.gridPercentage = parseFloat(gridPercentageConfig);
-            logger.info(`📈 Grid percentage from DB: ${this.gridPercentage}%`);
-          } else {
-            logger.info(`📈 Grid percentage (default): ${this.gridPercentage}%`);
-          }
+          logger.info(`📈 Grid percentage (default): ${this.gridPercentage}%`);
         }
       }
-
-      // Load existing grid levels from database
-      await this.loadGridLevels();
 
       this.isInitialized = true;
       logger.info('✅ Grid Strategy Service initialized');
@@ -89,25 +79,6 @@ class GridStrategyService {
       logger.error('❌ Failed to initialize grid strategy:', error);
       throw error;
     }
-  }
-
-  async loadGridLevels() {
-    const gridLevels = db.getAllGridLevels(this.channelId);
-
-    gridLevels.forEach(grid => {
-      this.grids.set(grid.token, {
-        symbol: grid.symbol,
-        lastBuyPrice: grid.last_buy_price,
-        lastSellPrice: grid.last_sell_price,
-        referencePrice: grid.reference_price,
-        buyCount: grid.buy_count,
-        sellCount: grid.sell_count,
-        totalPnl: grid.total_pnl,
-        isActive: grid.is_active === 1
-      });
-    });
-
-    logger.info(`📊 Loaded ${this.grids.size} grid levels`);
   }
 
   initializeGridForToken(token, symbol, currentPrice) {
@@ -129,19 +100,6 @@ class GridStrategyService {
     };
 
     this.grids.set(token, gridData);
-
-    // Save to database
-    db.upsertGridLevel({
-      token: token,
-      symbol: symbol,
-      last_buy_price: null,
-      last_sell_price: null,
-      reference_price: currentPrice,
-      buy_count: 0,
-      sell_count: 0,
-      total_pnl: 0,
-      is_active: 1
-    }, this.channelId);
 
     logger.info(`🆕 Initialized grid for ${symbol} at ₹${currentPrice}`);
   }
@@ -210,7 +168,6 @@ class GridStrategyService {
     const dropPercent = refPrice.minus(price).div(refPrice).mul(100);
 
     if (price.lte(buyThreshold)) {
-      console.log(`  🟢 [BUY TRIGGER] ${symbol} hit buy threshold!`);
       this.triggerBuy(token, symbol, price.toNumber(), gridData);
       return;
     }
@@ -219,12 +176,8 @@ class GridStrategyService {
     if (gridData.lastBuyPrice && this.paperTradingService && this.paperTradingService.hasHolding(token)) {
       const lastBuyPrice = new Decimal(gridData.lastBuyPrice);
       const sellThreshold = lastBuyPrice.mul(new Decimal(1).plus(gridPercent));
-      const risePercent = price.minus(lastBuyPrice).div(lastBuyPrice).mul(100);
-
-      console.log(`  🎯 [GRID] ${symbol} | LastBuy: ₹${gridData.lastBuyPrice.toFixed(2)} | Sell@: ₹${sellThreshold.toFixed(2)} | Rise: ${risePercent.toFixed(2)}%`);
 
       if (price.gte(sellThreshold)) {
-        console.log(`  🔴 [SELL TRIGGER] ${symbol} hit sell threshold!`);
         this.triggerSell(token, symbol, price.toNumber(), gridData);
         return;
       }
@@ -270,19 +223,6 @@ class GridStrategyService {
       gridData.buyCount++;
 
       this.grids.set(token, gridData);
-
-      // Update in database
-      db.upsertGridLevel({
-        token: token,
-        symbol: symbol,
-        last_buy_price: currentPrice,
-        last_sell_price: gridData.lastSellPrice,
-        reference_price: currentPrice,
-        buy_count: gridData.buyCount,
-        sell_count: gridData.sellCount,
-        total_pnl: gridData.totalPnl,
-        is_active: 1
-      }, this.channelId);
 
       logger.info(`✅ BUY executed for ${symbol} | Grid level ${gridData.buyCount} | Ref updated to ₹${currentPrice}`);
     } else {
@@ -336,19 +276,6 @@ class GridStrategyService {
       gridData.totalPnl = new Decimal(gridData.totalPnl).plus(result.pnl || 0).toNumber();
 
       this.grids.set(token, gridData);
-
-      // Update in database
-      db.upsertGridLevel({
-        token: token,
-        symbol: symbol,
-        last_buy_price: gridData.lastBuyPrice,
-        last_sell_price: currentPrice,
-        reference_price: currentPrice,
-        buy_count: gridData.buyCount,
-        sell_count: gridData.sellCount,
-        total_pnl: gridData.totalPnl,
-        is_active: 1
-      }, this.channelId);
 
       logger.info(`✅ SELL executed for ${symbol} | Grid level ${gridData.sellCount} | P&L: ₹${result.pnl.toFixed(2)} | Ref updated to ₹${currentPrice}`);
     } else {
@@ -431,12 +358,6 @@ class GridStrategyService {
     }
 
     this.isActive = true;
-    console.log(`\n🎯 ============================================`);
-    console.log(`🎯 GRID TRADING STRATEGY STARTED`);
-    console.log(`🎯 Grid Percentage: ${this.gridPercentage}%`);
-    console.log(`🎯 Active Grids: ${this.getActiveGridsCount()}`);
-    console.log(`🎯 Monitoring ${this.tokenToSymbolMap.size} stocks`);
-    console.log(`🎯 ============================================\n`);
 
     await discordService.log('🎯 **Grid Trading Strategy Started**\n' +
       `Grid Percentage: ${this.gridPercentage}%\n` +
@@ -472,9 +393,6 @@ class GridStrategyService {
     // Remove from memory
     this.grids.delete(targetToken);
 
-    // Deactivate in database
-    db.deactivateGridLevel(targetToken, this.channelId);
-
     logger.info(`🔄 Grid reset for ${symbol}`);
 
     return { success: true, message: `Grid reset for ${symbol}` };
@@ -494,7 +412,6 @@ class GridStrategyService {
 
   updateGridPercentage(percentage) {
     this.gridPercentage = parseFloat(percentage);
-    db.setConfig('grid_percentage', percentage.toString(), this.channelId);
 
     logger.info(`📈 Grid percentage updated to: ${this.gridPercentage}%`);
 
@@ -549,7 +466,7 @@ class GridStrategyService {
       // Write to file
       fs.writeFileSync(this.statsFilePath, JSON.stringify(stats, null, 2), 'utf8');
 
-      console.log(`\n📊 [STATS SAVED] Total reads: ${this.totalReadsProcessed} | Active tokens: ${this.priceReadCounts.size} | File: grid-stats.json\n`);
+      logger.info(`Stats saved: Total reads: ${this.totalReadsProcessed} | Active tokens: ${this.priceReadCounts.size}`);
 
       this.lastStatsSaveTime = Date.now();
     } catch (error) {

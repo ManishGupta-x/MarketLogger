@@ -23,7 +23,6 @@ class DatabaseService {
       this.db = new Database(this.dbPath);
       this.db.pragma('journal_mode = WAL');
       this.createTables();
-      this.initializeConfig();
       logger.info('✅ Local SQLite database initialized');
 
       // Initialize Supabase connection
@@ -33,6 +32,9 @@ class DatabaseService {
       if (supabaseUrl && supabaseKey) {
         this.supabase = createClient(supabaseUrl, supabaseKey);
         logger.info('✅ Supabase connection established');
+
+        // Initial sync comparison on startup
+        await this.initialSyncComparison();
 
         // Start sync interval (every 5 minutes)
         this.startSyncInterval();
@@ -190,106 +192,19 @@ class DatabaseService {
       `);
     }
 
-    // Grid levels table - check and migrate if needed
-    const gridTableExists = this.db.prepare("SELECT name FROM sqlite_master WHERE type='table' AND name='grid_levels'").get();
+    // Channels table for storing channel configuration
+    this.db.exec(`
+      CREATE TABLE IF NOT EXISTS channels (
+        channel_id TEXT PRIMARY KEY,
+        name TEXT NOT NULL,
+        initial_capital REAL NOT NULL,
+        amount_per_trade REAL NOT NULL,
+        grid_percentage REAL NOT NULL,
+        last_updated DATETIME DEFAULT CURRENT_TIMESTAMP
+      )
+    `);
 
-    if (gridTableExists) {
-      const tableInfo = this.db.pragma('table_info(grid_levels)');
-      const hasChannelId = tableInfo.some(col => col.name === 'channel_id');
-
-      if (!hasChannelId) {
-        logger.info('🔄 Migrating grid_levels table...');
-        try {
-          this.db.exec(`ALTER TABLE grid_levels RENAME TO grid_levels_old`);
-          this.db.exec(`
-            CREATE TABLE grid_levels (
-              channel_id TEXT NOT NULL DEFAULT 'default',
-              token TEXT NOT NULL,
-              symbol TEXT NOT NULL,
-              last_buy_price REAL,
-              last_sell_price REAL,
-              reference_price REAL NOT NULL,
-              buy_count INTEGER DEFAULT 0,
-              sell_count INTEGER DEFAULT 0,
-              total_pnl REAL DEFAULT 0,
-              is_active BOOLEAN DEFAULT 1,
-              last_updated DATETIME DEFAULT CURRENT_TIMESTAMP,
-              PRIMARY KEY (channel_id, token)
-            )
-          `);
-          this.db.exec(`
-            INSERT INTO grid_levels (channel_id, token, symbol, last_buy_price, last_sell_price, reference_price, buy_count, sell_count, total_pnl, is_active, last_updated)
-            SELECT 'default', token, symbol, last_buy_price, last_sell_price, reference_price, buy_count, sell_count, total_pnl, is_active, last_updated
-            FROM grid_levels_old
-          `);
-          this.db.exec(`DROP TABLE grid_levels_old`);
-          logger.info('✅ Migrated grid_levels to new format');
-        } catch (e) {
-          logger.error('Failed to migrate grid_levels:', e.message);
-        }
-      }
-    } else {
-      this.db.exec(`
-        CREATE TABLE IF NOT EXISTS grid_levels (
-          channel_id TEXT NOT NULL DEFAULT 'default',
-          token TEXT NOT NULL,
-          symbol TEXT NOT NULL,
-          last_buy_price REAL,
-          last_sell_price REAL,
-          reference_price REAL NOT NULL,
-          buy_count INTEGER DEFAULT 0,
-          sell_count INTEGER DEFAULT 0,
-          total_pnl REAL DEFAULT 0,
-          is_active BOOLEAN DEFAULT 1,
-          last_updated DATETIME DEFAULT CURRENT_TIMESTAMP,
-          PRIMARY KEY (channel_id, token)
-        )
-      `);
-    }
-
-    // Configuration table - check if old format exists and migrate
-    const configTableExists = this.db.prepare("SELECT name FROM sqlite_master WHERE type='table' AND name='config'").get();
-
-    if (configTableExists) {
-      // Check if it has channel_id column
-      const tableInfo = this.db.pragma('table_info(config)');
-      const hasChannelId = tableInfo.some(col => col.name === 'channel_id');
-
-      if (!hasChannelId) {
-        // Old table format - need to migrate
-        logger.info('🔄 Migrating config table to new format...');
-        try {
-          this.db.exec(`ALTER TABLE config RENAME TO config_old`);
-          this.db.exec(`
-            CREATE TABLE config (
-              channel_id TEXT NOT NULL DEFAULT 'default',
-              key TEXT NOT NULL,
-              value TEXT NOT NULL,
-              updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-              PRIMARY KEY (channel_id, key)
-            )
-          `);
-          this.db.exec(`INSERT INTO config (channel_id, key, value, updated_at) SELECT 'default', key, value, updated_at FROM config_old`);
-          this.db.exec(`DROP TABLE config_old`);
-          logger.info('✅ Config table migrated');
-        } catch (e) {
-          logger.error('❌ Config migration failed:', e.message);
-        }
-      }
-    } else {
-      // Create new table
-      this.db.exec(`
-        CREATE TABLE IF NOT EXISTS config (
-          channel_id TEXT NOT NULL DEFAULT 'default',
-          key TEXT NOT NULL,
-          value TEXT NOT NULL,
-          updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-          PRIMARY KEY (channel_id, key)
-        )
-      `);
-    }
-
-    // Create indexes for better performance (only if tables have required columns)
+    // Create indexes for better performance
     try {
       this.db.exec(`
         CREATE INDEX IF NOT EXISTS idx_orders_channel ON virtual_orders(channel_id);
@@ -299,29 +214,12 @@ class DatabaseService {
         CREATE INDEX IF NOT EXISTS idx_holdings_channel ON virtual_holdings(channel_id);
         CREATE INDEX IF NOT EXISTS idx_portfolio_channel ON virtual_portfolio(channel_id);
         CREATE INDEX IF NOT EXISTS idx_portfolio_synced ON virtual_portfolio(synced);
-        CREATE INDEX IF NOT EXISTS idx_grid_channel ON grid_levels(channel_id);
-        CREATE INDEX IF NOT EXISTS idx_grid_active ON grid_levels(is_active);
       `);
     } catch (e) {
       logger.warn('⚠️ Some indexes could not be created:', e.message);
     }
 
     logger.info('✅ Database tables created');
-  }
-
-  initializeConfig() {
-    const defaultConfig = {
-      initial_capital: '500000',
-      amount_per_trade: '10000',
-      grid_percentage: '5.0',
-      max_positions_per_stock: '5',
-      trading_enabled: 'false'
-    };
-
-    const stmt = this.db.prepare('INSERT OR IGNORE INTO config (channel_id, key, value) VALUES (?, ?, ?)');
-    for (const [key, value] of Object.entries(defaultConfig)) {
-      stmt.run('default', key, value);
-    }
   }
 
   // Queue management
@@ -343,6 +241,50 @@ class DatabaseService {
     logger.info('🔄 Supabase sync interval started (every 5 minutes)');
   }
 
+  async initialSyncComparison() {
+    if (!this.supabase) return;
+
+    logger.info('🔄 Running initial database sync comparison...');
+
+    try {
+      // Get local counts
+      const localOrders = this.db.prepare('SELECT COUNT(*) as count FROM virtual_orders').get().count;
+      const localHoldings = this.db.prepare('SELECT COUNT(*) as count FROM virtual_holdings').get().count;
+      const localPortfolio = this.db.prepare('SELECT COUNT(*) as count FROM virtual_portfolio').get().count;
+      const localChannels = this.db.prepare('SELECT COUNT(*) as count FROM channels').get().count;
+
+      // Get Supabase counts
+      const { count: remoteOrders } = await this.supabase
+        .from('virtual_orders')
+        .select('*', { count: 'exact', head: true });
+
+      const { count: remoteHoldings } = await this.supabase
+        .from('virtual_holdings')
+        .select('*', { count: 'exact', head: true });
+
+      const { count: remotePortfolio } = await this.supabase
+        .from('virtual_portfolio')
+        .select('*', { count: 'exact', head: true });
+
+      const { count: remoteChannels } = await this.supabase
+        .from('channels')
+        .select('*', { count: 'exact', head: true });
+
+      logger.info(`📊 Database comparison:`);
+      logger.info(`   Orders: Local=${localOrders}, Supabase=${remoteOrders || 0}`);
+      logger.info(`   Holdings: Local=${localHoldings}, Supabase=${remoteHoldings || 0}`);
+      logger.info(`   Portfolio: Local=${localPortfolio}, Supabase=${remotePortfolio || 0}`);
+      logger.info(`   Channels: Local=${localChannels}, Supabase=${remoteChannels || 0}`);
+
+      // Perform bidirectional sync
+      await this.syncToSupabase();
+
+      logger.info('✅ Initial sync comparison complete');
+    } catch (error) {
+      logger.error('❌ Initial sync comparison failed:', error);
+    }
+  }
+
   async syncToSupabase() {
     if (!this.supabase || this.isProcessingQueue) return;
 
@@ -359,11 +301,8 @@ class DatabaseService {
       // Sync current holdings
       await this.syncHoldings();
 
-      // Sync grid levels
-      await this.syncGridLevels();
-
-      // Sync config
-      await this.syncConfig();
+      // Sync channel configurations
+      await this.syncChannels();
 
       // Bidirectional: pull missing data from Supabase
       await this.syncFromSupabase();
@@ -467,45 +406,23 @@ class DatabaseService {
     logger.info(`✅ Synced ${holdings.length} holdings to Supabase`);
   }
 
-  async syncGridLevels() {
-    const grids = this.db.prepare('SELECT * FROM grid_levels').all();
+  async syncChannels() {
+    const channels = this.db.prepare('SELECT * FROM channels').all();
 
-    if (grids.length === 0) return;
+    if (channels.length === 0) return;
 
-    for (const grid of grids) {
-      await this.supabase.from('grid_levels').upsert({
-        channel_id: grid.channel_id,
-        token: grid.token,
-        symbol: grid.symbol,
-        last_buy_price: grid.last_buy_price,
-        last_sell_price: grid.last_sell_price,
-        reference_price: grid.reference_price,
-        buy_count: grid.buy_count,
-        sell_count: grid.sell_count,
-        total_pnl: grid.total_pnl,
-        is_active: grid.is_active === 1,
-        last_updated: grid.last_updated
-      }, { onConflict: 'channel_id,token' });
+    for (const channel of channels) {
+      await this.supabase.from('channels').upsert({
+        channel_id: channel.channel_id,
+        name: channel.name,
+        initial_capital: channel.initial_capital,
+        amount_per_trade: channel.amount_per_trade,
+        grid_percentage: channel.grid_percentage,
+        last_updated: channel.last_updated
+      }, { onConflict: 'channel_id' });
     }
 
-    logger.info(`✅ Synced ${grids.length} grid levels to Supabase`);
-  }
-
-  async syncConfig() {
-    const configs = this.db.prepare('SELECT * FROM config').all();
-
-    if (configs.length === 0) return;
-
-    for (const config of configs) {
-      await this.supabase.from('config').upsert({
-        channel_id: config.channel_id,
-        key: config.key,
-        value: config.value,
-        updated_at: config.updated_at
-      }, { onConflict: 'channel_id,key' });
-    }
-
-    logger.info(`✅ Synced ${configs.length} config items to Supabase`);
+    logger.info(`✅ Synced ${channels.length} channels to Supabase`);
   }
 
   async syncFromSupabase() {
@@ -514,28 +431,6 @@ class DatabaseService {
     logger.info('🔄 Checking Supabase for missing data...');
 
     try {
-      // Sync config from Supabase
-      const { data: supabaseConfig, error: configError } = await this.supabase
-        .from('config')
-        .select('*');
-
-      if (!configError && supabaseConfig) {
-        const localConfigs = this.db.prepare('SELECT channel_id, key FROM config').all();
-        const localConfigSet = new Set(localConfigs.map(c => `${c.channel_id}:${c.key}`));
-
-        for (const config of supabaseConfig) {
-          const key = `${config.channel_id}:${config.key}`;
-          if (!localConfigSet.has(key)) {
-            this.db.prepare(`
-              INSERT INTO config (channel_id, key, value, updated_at)
-              VALUES (?, ?, ?, ?)
-              ON CONFLICT(channel_id, key) DO UPDATE SET value = ?, updated_at = ?
-            `).run(config.channel_id, config.key, config.value, config.updated_at, config.value, config.updated_at);
-          }
-        }
-        logger.info(`✅ Synced ${supabaseConfig.length} config items from Supabase`);
-      }
-
       // Sync orders from Supabase (get orders not in local DB)
       const localOrderCount = this.db.prepare('SELECT COUNT(*) as count FROM virtual_orders').get().count;
       const { count: supabaseOrderCount } = await this.supabase
@@ -630,41 +525,72 @@ class DatabaseService {
         }
       }
 
+      // Sync channels from Supabase
+      const { data: supabaseChannels, error: channelsError } = await this.supabase
+        .from('channels')
+        .select('*');
+
+      if (!channelsError && supabaseChannels) {
+        for (const channel of supabaseChannels) {
+          this.db.prepare(`
+            INSERT INTO channels (channel_id, name, initial_capital, amount_per_trade, grid_percentage, last_updated)
+            VALUES (?, ?, ?, ?, ?, ?)
+            ON CONFLICT(channel_id) DO UPDATE SET
+              name = ?,
+              initial_capital = ?,
+              amount_per_trade = ?,
+              grid_percentage = ?,
+              last_updated = ?
+          `).run(
+            channel.channel_id, channel.name, channel.initial_capital,
+            channel.amount_per_trade, channel.grid_percentage, channel.last_updated,
+            channel.name, channel.initial_capital, channel.amount_per_trade,
+            channel.grid_percentage, channel.last_updated
+          );
+        }
+        logger.info(`✅ Synced ${supabaseChannels.length} channels from Supabase`);
+      }
+
       logger.info('✅ Bidirectional sync complete');
     } catch (error) {
       logger.error('❌ Sync from Supabase failed:', error);
     }
   }
 
-  // Configuration methods (synchronous - using SQLite)
-  getConfig(key, channelId = 'default') {
-    const stmt = this.db.prepare('SELECT value FROM config WHERE channel_id = ? AND key = ?');
-    const row = stmt.get(channelId, key);
-    return row ? row.value : null;
-  }
-
-  setConfig(key, value, channelId = 'default') {
+  // Channel methods
+  upsertChannel(channel) {
     const stmt = this.db.prepare(`
-      INSERT INTO config (channel_id, key, value, updated_at)
-      VALUES (?, ?, ?, CURRENT_TIMESTAMP)
-      ON CONFLICT(channel_id, key) DO UPDATE SET value = ?, updated_at = CURRENT_TIMESTAMP
+      INSERT INTO channels (channel_id, name, initial_capital, amount_per_trade, grid_percentage, last_updated)
+      VALUES (?, ?, ?, ?, ?, CURRENT_TIMESTAMP)
+      ON CONFLICT(channel_id) DO UPDATE SET
+        name = ?,
+        initial_capital = ?,
+        amount_per_trade = ?,
+        grid_percentage = ?,
+        last_updated = CURRENT_TIMESTAMP
     `);
-    stmt.run(channelId, key, value, value);
+
+    stmt.run(
+      channel.channel_id,
+      channel.name,
+      channel.initial_capital,
+      channel.amount_per_trade,
+      channel.grid_percentage,
+      channel.name,
+      channel.initial_capital,
+      channel.amount_per_trade,
+      channel.grid_percentage
+    );
   }
 
-  getAllConfig(channelId = 'default') {
-    const stmt = this.db.prepare('SELECT key, value FROM config WHERE channel_id = ?');
-    const rows = stmt.all(channelId);
-    const config = {};
-    rows.forEach(row => {
-      config[row.key] = row.value;
-    });
-    return config;
+  getChannel(channelId) {
+    const stmt = this.db.prepare('SELECT * FROM channels WHERE channel_id = ?');
+    return stmt.get(channelId);
   }
 
-  // Async wrapper for compatibility
-  async getAllConfigAsync(channelId = 'default') {
-    return this.getAllConfig(channelId);
+  getAllChannels() {
+    const stmt = this.db.prepare('SELECT * FROM channels ORDER BY name');
+    return stmt.all();
   }
 
   // Order methods
@@ -835,96 +761,6 @@ class DatabaseService {
     return this.getLatestPortfolio(channelId);
   }
 
-  // Grid levels methods
-  upsertGridLevel(grid, channelId = 'default') {
-    const stmt = this.db.prepare(`
-      INSERT INTO grid_levels
-      (channel_id, token, symbol, last_buy_price, last_sell_price, reference_price,
-       buy_count, sell_count, total_pnl, is_active, last_updated)
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP)
-      ON CONFLICT(channel_id, token) DO UPDATE SET
-        last_buy_price = ?,
-        last_sell_price = ?,
-        reference_price = ?,
-        buy_count = ?,
-        sell_count = ?,
-        total_pnl = ?,
-        is_active = ?,
-        last_updated = CURRENT_TIMESTAMP
-    `);
-
-    stmt.run(
-      channelId,
-      grid.token,
-      grid.symbol,
-      grid.last_buy_price || null,
-      grid.last_sell_price || null,
-      grid.reference_price,
-      grid.buy_count || 0,
-      grid.sell_count || 0,
-      grid.total_pnl || 0,
-      grid.is_active !== undefined ? grid.is_active : 1,
-      grid.last_buy_price || null,
-      grid.last_sell_price || null,
-      grid.reference_price,
-      grid.buy_count || 0,
-      grid.sell_count || 0,
-      grid.total_pnl || 0,
-      grid.is_active !== undefined ? grid.is_active : 1
-    );
-  }
-
-  getGridLevel(token, channelId = 'default') {
-    const stmt = this.db.prepare('SELECT * FROM grid_levels WHERE channel_id = ? AND token = ?');
-    return stmt.get(channelId, token);
-  }
-
-  getAllGridLevels(channelId = 'default') {
-    const stmt = this.db.prepare('SELECT * FROM grid_levels WHERE channel_id = ? AND is_active = 1 ORDER BY symbol');
-    return stmt.all(channelId);
-  }
-
-  // Async wrapper for compatibility
-  async getAllGridLevelsAsync(channelId = 'default') {
-    return this.getAllGridLevels(channelId);
-  }
-
-  incrementGridBuyCount(token, channelId = 'default') {
-    const stmt = this.db.prepare(`
-      UPDATE grid_levels
-      SET buy_count = buy_count + 1, last_updated = CURRENT_TIMESTAMP
-      WHERE channel_id = ? AND token = ?
-    `);
-    stmt.run(channelId, token);
-  }
-
-  incrementGridSellCount(token, channelId = 'default') {
-    const stmt = this.db.prepare(`
-      UPDATE grid_levels
-      SET sell_count = sell_count + 1, last_updated = CURRENT_TIMESTAMP
-      WHERE channel_id = ? AND token = ?
-    `);
-    stmt.run(channelId, token);
-  }
-
-  updateGridPnl(token, pnl, channelId = 'default') {
-    const stmt = this.db.prepare(`
-      UPDATE grid_levels
-      SET total_pnl = total_pnl + ?, last_updated = CURRENT_TIMESTAMP
-      WHERE channel_id = ? AND token = ?
-    `);
-    stmt.run(pnl, channelId, token);
-  }
-
-  deactivateGridLevel(token, channelId = 'default') {
-    const stmt = this.db.prepare(`
-      UPDATE grid_levels
-      SET is_active = 0, last_updated = CURRENT_TIMESTAMP
-      WHERE channel_id = ? AND token = ?
-    `);
-    stmt.run(channelId, token);
-  }
-
   // Statistics methods
   getTotalPnL(channelId = 'default') {
     const stmt = this.db.prepare(`
@@ -1008,7 +844,6 @@ class DatabaseService {
     this.db.exec(`DELETE FROM virtual_orders WHERE channel_id = '${channelId}'`);
     this.db.exec(`DELETE FROM virtual_holdings WHERE channel_id = '${channelId}'`);
     this.db.exec(`DELETE FROM virtual_portfolio WHERE channel_id = '${channelId}'`);
-    this.db.exec(`DELETE FROM grid_levels WHERE channel_id = '${channelId}'`);
 
     logger.info(`🔄 Portfolio reset complete for channel ${channelId}`);
   }

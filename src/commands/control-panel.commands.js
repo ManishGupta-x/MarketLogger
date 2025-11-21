@@ -139,7 +139,7 @@ class ControlPanelCommands {
 
     // Row 2: Channel selector for detailed view
     const channelOptions = channels.map(ch => ({
-      label: ch.config.name,
+      label: ch.name,
       description: `View portfolio and controls`,
       value: `channel_${ch.id}`
     }));
