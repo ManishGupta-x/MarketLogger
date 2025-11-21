@@ -84,12 +84,13 @@ class ControlPanelCommands {
         : portfolio.total_pnl.toFixed(2);
       const pnlColor = portfolio.total_pnl >= 0 ? '' : '';
 
+      const pts = ch.paperTradingService;
       return {
-        name: `${ch.config.name} ${status}`,
+        name: `${ch.name} ${status}`,
         value: [
-          `**Capital:** ₹${ch.config.initialCapital.toLocaleString('en-IN')}`,
-          `**Trade Size:** ₹${ch.config.amountPerTrade.toLocaleString('en-IN')}`,
-          `**Grid:** ${ch.config.gridPercentage}%`,
+          `**Capital:** ₹${pts.initialCapital.toLocaleString('en-IN')}`,
+          `**Trade Size:** ₹${pts.amountPerTrade.toLocaleString('en-IN')}`,
+          `**Grid:** ${pts.gridPercentage}%`,
           `**P&L:** ₹${pnl} (${portfolio.pnl_percent.toFixed(2)}%)`,
           `**Holdings:** ${portfolio.holdings_count}`
         ].join('\n'),
@@ -239,9 +240,10 @@ class ControlPanelCommands {
     const portfolio = channel.paperTradingService.getPortfolio();
     const gridStatus = channel.gridStrategyService.getStatus();
     const status = channel.gridStrategyService.isActive ? '🟢 Active' : '🔴 Stopped';
+    const pts = channel.paperTradingService;
 
     const embed = new EmbedBuilder()
-      .setTitle(`${channel.config.name} - Detailed View`)
+      .setTitle(`${channel.name} - Detailed View`)
       .setColor(portfolio.total_pnl >= 0 ? 0x00ff00 : 0xff0000)
       .addFields([
         {
@@ -251,7 +253,7 @@ class ControlPanelCommands {
         },
         {
           name: 'Grid Percentage',
-          value: `${channel.config.gridPercentage}%`,
+          value: `${pts.gridPercentage}%`,
           inline: true
         },
         {
@@ -305,7 +307,7 @@ class ControlPanelCommands {
           inline: true
         }
       ])
-      .setFooter({ text: `Initial Capital: ₹${channel.config.initialCapital.toLocaleString('en-IN')} | Trade Size: ₹${channel.config.amountPerTrade.toLocaleString('en-IN')}` })
+      .setFooter({ text: `Initial Capital: ₹${pts.initialCapital.toLocaleString('en-IN')} | Trade Size: ₹${pts.amountPerTrade.toLocaleString('en-IN')}` })
       .setTimestamp();
 
     // Build action buttons for this channel
@@ -381,7 +383,7 @@ class ControlPanelCommands {
     const portfolio = channel.paperTradingService.getPortfolio();
 
     const embed = new EmbedBuilder()
-      .setTitle(`${channel.config.name} - Full Portfolio`)
+      .setTitle(`${channel.name} - Full Portfolio`)
       .setColor(portfolio.total_pnl >= 0 ? 0x00ff00 : 0xff0000)
       .addFields([
         { name: 'Initial Capital', value: `₹${portfolio.initial_capital.toLocaleString('en-IN')}`, inline: true },
@@ -413,7 +415,7 @@ class ControlPanelCommands {
 
     if (holdings.length === 0) {
       await this.safeReply(interaction, {
-        content: `**${channel.config.name}** - No holdings`,
+        content: `**${channel.name}** - No holdings`,
         ephemeral: true
       });
       return;
@@ -431,7 +433,7 @@ class ControlPanelCommands {
     }
 
     const embed = new EmbedBuilder()
-      .setTitle(`${channel.config.name} - Holdings (${holdings.length})`)
+      .setTitle(`${channel.name} - Holdings (${holdings.length})`)
       .setDescription(holdingsText)
       .setColor(0x0099ff)
       .setTimestamp();
@@ -453,7 +455,7 @@ class ControlPanelCommands {
 
     if (orders.length === 0) {
       await this.safeReply(interaction, {
-        content: `**${channel.config.name}** - No orders today`,
+        content: `**${channel.name}** - No orders today`,
         ephemeral: true
       });
       return;
@@ -467,7 +469,7 @@ class ControlPanelCommands {
     }).join('\n');
 
     const embed = new EmbedBuilder()
-      .setTitle(`${channel.config.name} - Today's Orders (${orders.length})`)
+      .setTitle(`${channel.name} - Today's Orders (${orders.length})`)
       .setDescription(ordersText)
       .setColor(0x0099ff)
       .setTimestamp();
@@ -489,7 +491,7 @@ class ControlPanelCommands {
 
     if (grids.length === 0) {
       await this.safeReply(interaction, {
-        content: `**${channel.config.name}** - No active grids`,
+        content: `**${channel.name}** - No active grids`,
         ephemeral: true
       });
       return;
@@ -504,7 +506,7 @@ class ControlPanelCommands {
     }).join('\n\n');
 
     const embed = new EmbedBuilder()
-      .setTitle(`${channel.config.name} - Active Grids (${grids.length})`)
+      .setTitle(`${channel.name} - Active Grids (${grids.length})`)
       .setDescription(gridsText)
       .setColor(0x0099ff)
       .setTimestamp();
@@ -522,18 +524,18 @@ class ControlPanelCommands {
       return;
     }
 
-    const config = channel.config;
+    const pts = channel.paperTradingService;
     const gridStatus = channel.gridStrategyService.getStatus();
 
     const embed = new EmbedBuilder()
-      .setTitle(`${channel.config.name} - Configuration`)
+      .setTitle(`${channel.name} - Configuration`)
       .setColor(0x0099ff)
       .addFields([
-        { name: 'Channel ID', value: config.id, inline: false },
-        { name: 'Initial Capital', value: `₹${config.initialCapital.toLocaleString('en-IN')}`, inline: true },
-        { name: 'Amount Per Trade', value: `₹${config.amountPerTrade.toLocaleString('en-IN')}`, inline: true },
-        { name: 'Grid Percentage', value: `${config.gridPercentage}%`, inline: true },
-        { name: 'Trading Enabled', value: channel.paperTradingService.isEnabled ? 'Yes' : 'No', inline: true },
+        { name: 'Channel ID', value: channel.id, inline: false },
+        { name: 'Initial Capital', value: `₹${pts.initialCapital.toLocaleString('en-IN')}`, inline: true },
+        { name: 'Amount Per Trade', value: `₹${pts.amountPerTrade.toLocaleString('en-IN')}`, inline: true },
+        { name: 'Grid Percentage', value: `${pts.gridPercentage}%`, inline: true },
+        { name: 'Trading Enabled', value: pts.isEnabled ? 'Yes' : 'No', inline: true },
         { name: 'Grid Active', value: gridStatus.active ? 'Yes' : 'No', inline: true },
         { name: 'Active Grids', value: gridStatus.active_grids.toString(), inline: true }
       ])

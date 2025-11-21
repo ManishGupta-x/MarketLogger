@@ -57,7 +57,7 @@ class PaperTradingCommands {
     try {
       const channel = this.getChannelInstance(message);
       const portfolio = channel.paperTradingService.getPortfolio();
-      const config = channel.config;
+      const pts = channel.paperTradingService;
 
       const fields = [
         {
@@ -116,8 +116,8 @@ class PaperTradingCommands {
       );
 
       const embed = {
-        title: `💼 ${config.name} Portfolio`,
-        description: `**Config:** Capital: ₹${config.initialCapital.toLocaleString('en-IN')} | Trade: ₹${config.amountPerTrade.toLocaleString('en-IN')} | Grid: ${config.gridPercentage}%`,
+        title: `💼 ${channel.name} Portfolio`,
+        description: `**Config:** Capital: ₹${pts.initialCapital.toLocaleString('en-IN')} | Trade: ₹${pts.amountPerTrade.toLocaleString('en-IN')} | Grid: ${pts.gridPercentage}%`,
         color: portfolio.total_pnl >= 0 ? 0x00ff00 : 0xff0000,
         fields: fields,
         timestamp: new Date()
@@ -145,7 +145,7 @@ class PaperTradingCommands {
 
       const channel = channels[channelNumber - 1];
       const portfolio = channel.paperTradingService.getPortfolio();
-      const config = channel.config;
+      const pts = channel.paperTradingService;
 
       const fields = [
         {
@@ -204,8 +204,8 @@ class PaperTradingCommands {
       );
 
       const embed = {
-        title: `💼 ${config.name} Portfolio`,
-        description: `**Config:** Capital: ₹${config.initialCapital.toLocaleString('en-IN')} | Trade: ₹${config.amountPerTrade.toLocaleString('en-IN')} | Grid: ${config.gridPercentage}%`,
+        title: `💼 ${channel.name} Portfolio`,
+        description: `**Config:** Capital: ₹${pts.initialCapital.toLocaleString('en-IN')} | Trade: ₹${pts.amountPerTrade.toLocaleString('en-IN')} | Grid: ${pts.gridPercentage}%`,
         color: portfolio.total_pnl >= 0 ? 0x00ff00 : 0xff0000,
         fields: fields,
         timestamp: new Date()
@@ -567,9 +567,9 @@ class PaperTradingCommands {
     try {
       const channel = this.getChannelInstance(message);
       if (args.length === 0) {
-        // Show current config - use channel.config for accurate values
-        const channelConfig = channel.config;
-        const tradingConfig = channel.paperTradingService.getConfig();
+        // Show current config from paper trading service
+        const pts = channel.paperTradingService;
+        const tradingConfig = pts.getConfig();
         const gridStatus = channel.gridStrategyService.getStatus();
 
         const embed = {
@@ -578,17 +578,17 @@ class PaperTradingCommands {
           fields: [
             {
               name: '💰 Initial Capital',
-              value: `₹${channelConfig.initialCapital.toLocaleString('en-IN')}`,
+              value: `₹${pts.initialCapital.toLocaleString('en-IN')}`,
               inline: true
             },
             {
               name: '📊 Amount per Trade',
-              value: `₹${channelConfig.amountPerTrade.toLocaleString('en-IN')}`,
+              value: `₹${pts.amountPerTrade.toLocaleString('en-IN')}`,
               inline: true
             },
             {
               name: '📈 Grid Percentage',
-              value: `${channelConfig.gridPercentage}%`,
+              value: `${pts.gridPercentage}%`,
               inline: true
             },
             {
@@ -694,14 +694,14 @@ class PaperTradingCommands {
         return;
       }
 
-      const config = channel.config;
-      await channel.paperTradingService.resetPortfolio();
+      const pts = channel.paperTradingService;
+      await pts.resetPortfolio();
 
       // Also reset grids
       await channel.gridStrategyService.stop();
       channel.gridStrategyService.grids.clear();
 
-      await message.reply(`🔄 **Portfolio Reset Complete for ${config.name}**\n\nAll holdings, orders, and grid levels have been cleared.\nStarting fresh with ₹${config.initialCapital.toLocaleString('en-IN')} capital.\n\nUse \`!start-trading\` to begin trading again.`);
+      await message.reply(`🔄 **Portfolio Reset Complete for ${channel.name}**\n\nAll holdings, orders, and grid levels have been cleared.\nStarting fresh with ₹${pts.initialCapital.toLocaleString('en-IN')} capital.\n\nUse \`!start-trading\` to begin trading again.`);
     } catch (error) {
       logger.error('Reset portfolio command error:', error);
       await message.reply(`❌ Error: ${error.message}`);

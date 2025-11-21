@@ -75,9 +75,9 @@ async function start() {
       const channels = channelManager.getAllChannels();
       channelStatus = '\n\n**Trading Channels:**\n';
       channels.forEach(channel => {
-        const capital = formatCapital(channel.config.initialCapital);
+        const capital = formatCapital(channel.paperTradingService.initialCapital);
         const tradingStatus = channel.paperTradingService.isEnabled ? '🟢' : '⏸️';
-        channelStatus += `${tradingStatus} **${channel.name}**: ${capital} | Grid: ${channel.config.gridPercentage}%\n`;
+        channelStatus += `${tradingStatus} **${channel.name}**: ${capital} | Grid: ${channel.paperTradingService.gridPercentage}%\n`;
       });
     }
 
