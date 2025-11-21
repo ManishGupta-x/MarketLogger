@@ -226,7 +226,16 @@ class GridStrategyService {
 
       logger.info(`✅ BUY executed for ${symbol} | Grid level ${gridData.buyCount} | Ref updated to ₹${currentPrice}`);
     } else {
-      logger.warn(`⚠️ BUY failed for ${symbol}: ${result.message}`);
+      // Update reference price even on failure to prevent stale buy triggers
+      // This ensures future buy decisions are based on current market conditions
+      // rather than executing immediately when cash becomes available
+      if (result.message === 'Insufficient balance') {
+        gridData.referencePrice = currentPrice;
+        this.grids.set(token, gridData);
+        logger.warn(`⚠️ BUY failed for ${symbol}: ${result.message} | Ref updated to ₹${currentPrice} to reset grid`);
+      } else {
+        logger.warn(`⚠️ BUY failed for ${symbol}: ${result.message}`);
+      }
     }
   }
 
