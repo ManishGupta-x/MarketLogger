@@ -2,6 +2,7 @@ const Database = require('better-sqlite3');
 const { createClient } = require('@supabase/supabase-js');
 const path = require('path');
 const logger = require('../utils/logger');
+const discordService = require('./discord.service');
 
 class DatabaseService {
   constructor() {
@@ -275,6 +276,16 @@ class DatabaseService {
       logger.info(`   Holdings: Local=${localHoldings}, Supabase=${remoteHoldings || 0}`);
       logger.info(`   Portfolio: Local=${localPortfolio}, Supabase=${remotePortfolio || 0}`);
       logger.info(`   Channels: Local=${localChannels}, Supabase=${remoteChannels || 0}`);
+
+      // Log to Discord
+      await discordService.log(
+        `📊 **Database Sync Comparison**\n` +
+        `Orders: Local=${localOrders}, Supabase=${remoteOrders || 0}\n` +
+        `Holdings: Local=${localHoldings}, Supabase=${remoteHoldings || 0}\n` +
+        `Portfolio: Local=${localPortfolio}, Supabase=${remotePortfolio || 0}\n` +
+        `Channels: Local=${localChannels}, Supabase=${remoteChannels || 0}`,
+        'info'
+      );
 
       // Perform bidirectional sync
       await this.syncToSupabase();
