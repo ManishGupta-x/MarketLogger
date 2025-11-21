@@ -168,7 +168,6 @@ class GridStrategyService {
     const dropPercent = refPrice.minus(price).div(refPrice).mul(100);
 
     if (price.lte(buyThreshold)) {
-      console.log(`  🟢 [BUY TRIGGER] ${symbol} hit buy threshold!`);
       this.triggerBuy(token, symbol, price.toNumber(), gridData);
       return;
     }
@@ -177,12 +176,8 @@ class GridStrategyService {
     if (gridData.lastBuyPrice && this.paperTradingService && this.paperTradingService.hasHolding(token)) {
       const lastBuyPrice = new Decimal(gridData.lastBuyPrice);
       const sellThreshold = lastBuyPrice.mul(new Decimal(1).plus(gridPercent));
-      const risePercent = price.minus(lastBuyPrice).div(lastBuyPrice).mul(100);
-
-      console.log(`  🎯 [GRID] ${symbol} | LastBuy: ₹${gridData.lastBuyPrice.toFixed(2)} | Sell@: ₹${sellThreshold.toFixed(2)} | Rise: ${risePercent.toFixed(2)}%`);
 
       if (price.gte(sellThreshold)) {
-        console.log(`  🔴 [SELL TRIGGER] ${symbol} hit sell threshold!`);
         this.triggerSell(token, symbol, price.toNumber(), gridData);
         return;
       }
@@ -363,12 +358,6 @@ class GridStrategyService {
     }
 
     this.isActive = true;
-    console.log(`\n🎯 ============================================`);
-    console.log(`🎯 GRID TRADING STRATEGY STARTED`);
-    console.log(`🎯 Grid Percentage: ${this.gridPercentage}%`);
-    console.log(`🎯 Active Grids: ${this.getActiveGridsCount()}`);
-    console.log(`🎯 Monitoring ${this.tokenToSymbolMap.size} stocks`);
-    console.log(`🎯 ============================================\n`);
 
     await discordService.log('🎯 **Grid Trading Strategy Started**\n' +
       `Grid Percentage: ${this.gridPercentage}%\n` +
@@ -477,7 +466,7 @@ class GridStrategyService {
       // Write to file
       fs.writeFileSync(this.statsFilePath, JSON.stringify(stats, null, 2), 'utf8');
 
-      console.log(`\n📊 [STATS SAVED] Total reads: ${this.totalReadsProcessed} | Active tokens: ${this.priceReadCounts.size} | File: grid-stats.json\n`);
+      logger.info(`Stats saved: Total reads: ${this.totalReadsProcessed} | Active tokens: ${this.priceReadCounts.size}`);
 
       this.lastStatsSaveTime = Date.now();
     } catch (error) {

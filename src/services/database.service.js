@@ -33,6 +33,9 @@ class DatabaseService {
         this.supabase = createClient(supabaseUrl, supabaseKey);
         logger.info('✅ Supabase connection established');
 
+        // Initial sync comparison on startup
+        await this.initialSyncComparison();
+
         // Start sync interval (every 5 minutes)
         this.startSyncInterval();
       } else {
@@ -236,6 +239,50 @@ class DatabaseService {
     }, 5 * 60 * 1000);
 
     logger.info('🔄 Supabase sync interval started (every 5 minutes)');
+  }
+
+  async initialSyncComparison() {
+    if (!this.supabase) return;
+
+    logger.info('🔄 Running initial database sync comparison...');
+
+    try {
+      // Get local counts
+      const localOrders = this.db.prepare('SELECT COUNT(*) as count FROM virtual_orders').get().count;
+      const localHoldings = this.db.prepare('SELECT COUNT(*) as count FROM virtual_holdings').get().count;
+      const localPortfolio = this.db.prepare('SELECT COUNT(*) as count FROM virtual_portfolio').get().count;
+      const localChannels = this.db.prepare('SELECT COUNT(*) as count FROM channels').get().count;
+
+      // Get Supabase counts
+      const { count: remoteOrders } = await this.supabase
+        .from('virtual_orders')
+        .select('*', { count: 'exact', head: true });
+
+      const { count: remoteHoldings } = await this.supabase
+        .from('virtual_holdings')
+        .select('*', { count: 'exact', head: true });
+
+      const { count: remotePortfolio } = await this.supabase
+        .from('virtual_portfolio')
+        .select('*', { count: 'exact', head: true });
+
+      const { count: remoteChannels } = await this.supabase
+        .from('channels')
+        .select('*', { count: 'exact', head: true });
+
+      logger.info(`📊 Database comparison:`);
+      logger.info(`   Orders: Local=${localOrders}, Supabase=${remoteOrders || 0}`);
+      logger.info(`   Holdings: Local=${localHoldings}, Supabase=${remoteHoldings || 0}`);
+      logger.info(`   Portfolio: Local=${localPortfolio}, Supabase=${remotePortfolio || 0}`);
+      logger.info(`   Channels: Local=${localChannels}, Supabase=${remoteChannels || 0}`);
+
+      // Perform bidirectional sync
+      await this.syncToSupabase();
+
+      logger.info('✅ Initial sync comparison complete');
+    } catch (error) {
+      logger.error('❌ Initial sync comparison failed:', error);
+    }
   }
 
   async syncToSupabase() {
