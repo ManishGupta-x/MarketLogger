@@ -507,11 +507,13 @@ class DatabaseService {
 
           if (!exists) {
             this.db.prepare(`
-              INSERT INTO virtual_holdings (channel_id, token, symbol, qty, avg_buy_price, total_invested, last_updated)
-              VALUES (?, ?, ?, ?, ?, ?, ?)
+              INSERT INTO virtual_holdings (channel_id, token, symbol, qty, avg_price, invested_value, current_price, current_value, unrealized_pnl, unrealized_pnl_percent, last_updated)
+              VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             `).run(
               holding.channel_id, holding.token, holding.symbol, holding.qty,
-              holding.avg_buy_price, holding.total_invested, holding.last_updated
+              holding.avg_price, holding.invested_value, holding.current_price,
+              holding.current_value, holding.unrealized_pnl, holding.unrealized_pnl_percent,
+              holding.last_updated
             );
           }
         }
@@ -540,11 +542,13 @@ class DatabaseService {
             if (!exists) {
               this.db.prepare(`
                 INSERT INTO virtual_portfolio
-                (channel_id, timestamp, cash_balance, holdings_value, total_value, total_realized_pnl, synced)
-                VALUES (?, ?, ?, ?, ?, ?, 1)
+                (channel_id, timestamp, cash_balance, holdings_value, total_value, total_pnl, total_pnl_percent, realized_pnl, unrealized_pnl, holdings_count, synced)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1)
               `).run(
                 portfolio.channel_id, portfolio.timestamp, portfolio.cash_balance,
-                portfolio.holdings_value, portfolio.total_value, portfolio.total_realized_pnl
+                portfolio.holdings_value, portfolio.total_value, portfolio.total_pnl,
+                portfolio.total_pnl_percent, portfolio.realized_pnl || 0,
+                portfolio.unrealized_pnl || 0, portfolio.holdings_count || 0
               );
             }
           }
