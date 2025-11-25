@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useEffect } from 'react'
-import { getStrategyComparison, getAllChannelsPortfolioHistory, getAllChannelsDailyPnl } from '@/lib/supabase'
+import { getStrategyComparison, getAllChannelsPortfolioHistory, getAllChannelsDailyPnl, getChannelPnlBreakdown } from '@/lib/supabase'
 import {
   LineChart,
   Line,
@@ -39,6 +39,8 @@ export default function AnalyticsPage() {
   const [loading, setLoading] = useState(true)
   const [days, setDays] = useState(30)
   const [viewMode, setViewMode] = useState('absolute') // 'absolute' or 'percentage'
+  const [selectedChannelPnl, setSelectedChannelPnl] = useState(null)
+  const [pnlDetailsLoading, setPnlDetailsLoading] = useState(false)
 
   useEffect(() => {
     async function loadData() {
@@ -262,6 +264,19 @@ export default function AnalyticsPage() {
   const orderFrequencyData = formatOrderFrequencyData()
   const profitableTrendData = formatProfitableTrendData()
 
+  // Handle clicking on P&L to show breakdown
+  const handlePnlClick = async (channelId) => {
+    setPnlDetailsLoading(true)
+    try {
+      const breakdown = await getChannelPnlBreakdown(channelId)
+      setSelectedChannelPnl(breakdown)
+    } catch (error) {
+      console.error('Error fetching P&L breakdown:', error)
+    } finally {
+      setPnlDetailsLoading(false)
+    }
+  }
+
   // Calculate Y-axis domain for better scaling
   const calculateYAxisDomain = () => {
     if (!portfolioChartData.length || viewMode === 'percentage') return ['auto', 'auto']
@@ -354,8 +369,12 @@ export default function AnalyticsPage() {
                     <td className="py-4 text-right text-white font-semibold tabular-nums">
                       ₹{strategy.current_value?.toLocaleString('en-IN', { maximumFractionDigits: 0 })}
                     </td>
-                    <td className={`py-4 text-right font-bold tabular-nums ${pnl >= 0 ? 'text-[#00ff88]' : 'text-[#ff4444]'}`}>
-                      {pnl >= 0 ? '+' : ''}₹{pnl?.toLocaleString('en-IN', { maximumFractionDigits: 2 })}
+                    <td
+                      className={`py-4 text-right font-bold tabular-nums cursor-pointer hover:underline ${pnl >= 0 ? 'text-[#00ff88]' : 'text-[#ff4444]'}`}
+                      onClick={() => handlePnlClick(strategy.channel_id)}
+                      title="Click to see P&L breakdown"
+                    >
+                      {pnl >= 0 ? '+' : ''}₹{pnl?.toLocaleString('en-IN', { maximumFractionDigits: 2 })} 📊
                     </td>
                     <td className={`py-4 text-right font-semibold tabular-nums ${strategy.roi_percent >= 0 ? 'text-[#00ff88]' : 'text-[#ff4444]'}`}>
                       {strategy.roi_percent >= 0 ? '+' : ''}{strategy.roi_percent?.toFixed(2)}%
@@ -550,6 +569,175 @@ export default function AnalyticsPage() {
           </div>
         )}
       </div>
+
+      {/* P&L Breakdown Modal */}
+      {selectedChannelPnl && (
+        <div className="fixed inset-0 bg-black/80 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+          <div className="bg-[#0a0a0a] border border-[#1a1a1a] rounded-xl max-w-6xl w-full max-h-[90vh] overflow-hidden flex flex-col">
+            {/* Modal Header */}
+            <div className="p-6 border-b border-[#1a1a1a] flex items-center justify-between">
+              <div>
+                <h2 className="text-2xl font-bold text-white">{selectedChannelPnl.channel.name} - P&L Breakdown</h2>
+                <p className="text-gray-500 text-sm mt-1">Detailed view of profit & loss calculation</p>
+              </div>
+              <button
+                onClick={() => setSelectedChannelPnl(null)}
+                className="text-gray-400 hover:text-white transition-colors"
+              >
+                <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                </svg>
+              </button>
+            </div>
+
+            {/* Modal Content */}
+            <div className="p-6 overflow-y-auto">
+              {/* Summary Cards */}
+              <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
+                <div className="bg-[#1a1a1a]/50 rounded-lg p-4">
+                  <p className="text-gray-500 text-xs uppercase tracking-wider mb-1">Initial Capital</p>
+                  <p className="text-white text-xl font-bold">₹{selectedChannelPnl.initialCapital?.toLocaleString('en-IN')}</p>
+                </div>
+                <div className="bg-[#1a1a1a]/50 rounded-lg p-4">
+                  <p className="text-gray-500 text-xs uppercase tracking-wider mb-1">Current Value</p>
+                  <p className="text-white text-xl font-bold">₹{selectedChannelPnl.currentValue?.toLocaleString('en-IN')}</p>
+                </div>
+                <div className="bg-[#1a1a1a]/50 rounded-lg p-4">
+                  <p className="text-gray-500 text-xs uppercase tracking-wider mb-1">Realized P&L</p>
+                  <p className={`text-xl font-bold ${selectedChannelPnl.realizedPnl >= 0 ? 'text-[#00ff88]' : 'text-[#ff4444]'}`}>
+                    {selectedChannelPnl.realizedPnl >= 0 ? '+' : ''}₹{selectedChannelPnl.realizedPnl?.toLocaleString('en-IN', { maximumFractionDigits: 2 })}
+                  </p>
+                </div>
+                <div className="bg-[#1a1a1a]/50 rounded-lg p-4">
+                  <p className="text-gray-500 text-xs uppercase tracking-wider mb-1">Unrealized P&L</p>
+                  <p className={`text-xl font-bold ${selectedChannelPnl.unrealizedPnl >= 0 ? 'text-[#00ff88]' : 'text-[#ff4444]'}`}>
+                    {selectedChannelPnl.unrealizedPnl >= 0 ? '+' : ''}₹{selectedChannelPnl.unrealizedPnl?.toLocaleString('en-IN', { maximumFractionDigits: 2 })}
+                  </p>
+                </div>
+              </div>
+
+              {/* Total P&L Calculation */}
+              <div className="bg-gradient-to-r from-[#1a1a1a]/30 to-[#1a1a1a]/10 rounded-lg p-6 mb-6 border border-[#1a1a1a]">
+                <h3 className="text-lg font-semibold text-white mb-4">Total P&L Calculation</h3>
+                <div className="space-y-2 text-sm">
+                  <div className="flex justify-between items-center">
+                    <span className="text-gray-400">Current Portfolio Value:</span>
+                    <span className="text-white font-semibold">₹{selectedChannelPnl.currentValue?.toLocaleString('en-IN')}</span>
+                  </div>
+                  <div className="flex justify-between items-center">
+                    <span className="text-gray-400">Initial Capital:</span>
+                    <span className="text-white font-semibold">- ₹{selectedChannelPnl.initialCapital?.toLocaleString('en-IN')}</span>
+                  </div>
+                  <div className="border-t border-[#1a1a1a] my-2"></div>
+                  <div className="flex justify-between items-center">
+                    <span className="text-white font-bold">Total P&L:</span>
+                    <span className={`font-bold text-lg ${selectedChannelPnl.totalPnl >= 0 ? 'text-[#00ff88]' : 'text-[#ff4444]'}`}>
+                      {selectedChannelPnl.totalPnl >= 0 ? '+' : ''}₹{selectedChannelPnl.totalPnl?.toLocaleString('en-IN', { maximumFractionDigits: 2 })}
+                    </span>
+                  </div>
+                  <div className="text-xs text-gray-500 mt-2">
+                    = Realized P&L (₹{selectedChannelPnl.realizedPnl?.toLocaleString('en-IN', { maximumFractionDigits: 2 })}) +
+                    Unrealized P&L (₹{selectedChannelPnl.unrealizedPnl?.toLocaleString('en-IN', { maximumFractionDigits: 2 })})
+                  </div>
+                </div>
+              </div>
+
+              {/* Current Holdings */}
+              {selectedChannelPnl.holdings.length > 0 && (
+                <div className="mb-6">
+                  <h3 className="text-lg font-semibold text-white mb-3">Current Holdings (Unrealized P&L)</h3>
+                  <div className="overflow-x-auto">
+                    <table className="w-full text-sm">
+                      <thead>
+                        <tr className="text-left text-gray-500 border-b border-[#1a1a1a]">
+                          <th className="pb-3 font-medium">Symbol</th>
+                          <th className="pb-3 font-medium text-right">Qty</th>
+                          <th className="pb-3 font-medium text-right">Avg Price</th>
+                          <th className="pb-3 font-medium text-right">Current Price</th>
+                          <th className="pb-3 font-medium text-right">Cost</th>
+                          <th className="pb-3 font-medium text-right">Value</th>
+                          <th className="pb-3 font-medium text-right">P&L</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {selectedChannelPnl.holdings.map((holding) => {
+                          const cost = holding.quantity * holding.avg_price
+                          const value = holding.quantity * holding.current_price
+                          const pnl = value - cost
+                          return (
+                            <tr key={holding.symbol} className="border-b border-[#1a1a1a]/30">
+                              <td className="py-3 text-white font-medium">{holding.symbol}</td>
+                              <td className="py-3 text-right text-gray-300">{holding.quantity}</td>
+                              <td className="py-3 text-right text-gray-300">₹{holding.avg_price?.toFixed(2)}</td>
+                              <td className="py-3 text-right text-gray-300">₹{holding.current_price?.toFixed(2)}</td>
+                              <td className="py-3 text-right text-gray-300">₹{cost?.toLocaleString('en-IN', { maximumFractionDigits: 2 })}</td>
+                              <td className="py-3 text-right text-white font-semibold">₹{value?.toLocaleString('en-IN', { maximumFractionDigits: 2 })}</td>
+                              <td className={`py-3 text-right font-semibold ${pnl >= 0 ? 'text-[#00ff88]' : 'text-[#ff4444]'}`}>
+                                {pnl >= 0 ? '+' : ''}₹{pnl?.toLocaleString('en-IN', { maximumFractionDigits: 2 })}
+                              </td>
+                            </tr>
+                          )
+                        })}
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
+              )}
+
+              {/* Sell Orders (Realized P&L) */}
+              <div>
+                <h3 className="text-lg font-semibold text-white mb-3">
+                  Completed Trades (Realized P&L) - {selectedChannelPnl.sellOrders.length} trades
+                </h3>
+                <div className="overflow-x-auto max-h-96 overflow-y-auto">
+                  <table className="w-full text-sm">
+                    <thead className="sticky top-0 bg-[#0a0a0a] z-10">
+                      <tr className="text-left text-gray-500 border-b border-[#1a1a1a]">
+                        <th className="pb-3 font-medium">Date</th>
+                        <th className="pb-3 font-medium">Symbol</th>
+                        <th className="pb-3 font-medium text-right">Qty</th>
+                        <th className="pb-3 font-medium text-right">Buy Price</th>
+                        <th className="pb-3 font-medium text-right">Sell Price</th>
+                        <th className="pb-3 font-medium text-right">P&L</th>
+                        <th className="pb-3 font-medium text-right">P&L %</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {selectedChannelPnl.sellOrders.map((order, idx) => {
+                        const pnlPercent = order.buy_price > 0 ? ((order.price - order.buy_price) / order.buy_price * 100) : 0
+                        return (
+                          <tr key={idx} className="border-b border-[#1a1a1a]/30 hover:bg-[#1a1a1a]/20">
+                            <td className="py-3 text-gray-400">
+                              {format(new Date(order.timestamp), 'MMM dd, HH:mm')}
+                            </td>
+                            <td className="py-3 text-white font-medium">{order.symbol}</td>
+                            <td className="py-3 text-right text-gray-300">{order.quantity}</td>
+                            <td className="py-3 text-right text-gray-300">₹{order.buy_price?.toFixed(2)}</td>
+                            <td className="py-3 text-right text-gray-300">₹{order.price?.toFixed(2)}</td>
+                            <td className={`py-3 text-right font-semibold ${order.pnl >= 0 ? 'text-[#00ff88]' : 'text-[#ff4444]'}`}>
+                              {order.pnl >= 0 ? '+' : ''}₹{order.pnl?.toLocaleString('en-IN', { maximumFractionDigits: 2 })}
+                            </td>
+                            <td className={`py-3 text-right font-semibold ${pnlPercent >= 0 ? 'text-[#00ff88]' : 'text-[#ff4444]'}`}>
+                              {pnlPercent >= 0 ? '+' : ''}{pnlPercent?.toFixed(2)}%
+                            </td>
+                          </tr>
+                        )
+                      })}
+                      {selectedChannelPnl.sellOrders.length === 0 && (
+                        <tr>
+                          <td colSpan="7" className="py-8 text-center text-gray-500">
+                            No completed trades yet
+                          </td>
+                        </tr>
+                      )}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   )
 }
