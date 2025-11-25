@@ -1,5 +1,13 @@
 import "./globals.css";
 import Sidebar from "@/components/Sidebar";
+import { Signika } from 'next/font/google';
+
+const signika = Signika({
+  subsets: ['latin'],
+  weight: ['300', '400', '500', '600', '700'],
+  display: 'swap',
+  variable: '--font-signika',
+});
 
 export const metadata = {
   title: "MarketLogger Dashboard",
@@ -8,8 +16,8 @@ export const metadata = {
 
 export default function RootLayout({ children }) {
   return (
-    <html lang="en">
-      <body className="bg-black text-white min-h-screen">
+    <html lang="en" className={signika.variable}>
+      <body className="bg-black text-white min-h-screen font-sans">
         <Sidebar />
         <main className="ml-64 min-h-screen p-8">
           {children}
