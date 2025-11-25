@@ -182,3 +182,71 @@ export async function getPortfolioHistory(channelId, days = 30) {
   if (error) throw error
   return data || []
 }
+
+export async function getAllChannelsPortfolioHistory(days = 30) {
+  checkCredentials()
+  const fromDate = new Date()
+  fromDate.setDate(fromDate.getDate() - days)
+
+  // Get all channels first
+  const { data: channels, error: channelsError } = await supabase
+    .from('channels')
+    .select('*')
+    .order('name')
+
+  if (channelsError) throw channelsError
+
+  // Get portfolio history for all channels
+  const channelsHistory = await Promise.all((channels || []).map(async (channel) => {
+    const { data: history } = await supabase
+      .from('virtual_portfolio')
+      .select('*')
+      .eq('channel_id', channel.channel_id)
+      .gte('timestamp', fromDate.toISOString())
+      .order('timestamp', { ascending: true })
+
+    return {
+      channel_id: channel.channel_id,
+      name: channel.name,
+      grid_percentage: channel.grid_percentage,
+      amount_per_trade: channel.amount_per_trade,
+      history: history || []
+    }
+  }))
+
+  return channelsHistory
+}
+
+export async function getAllChannelsDailyPnl(days = 30) {
+  checkCredentials()
+  const fromDate = new Date()
+  fromDate.setDate(fromDate.getDate() - days)
+
+  // Get all channels first
+  const { data: channels, error: channelsError } = await supabase
+    .from('channels')
+    .select('*')
+    .order('name')
+
+  if (channelsError) throw channelsError
+
+  // Get orders for all channels
+  const channelsOrders = await Promise.all((channels || []).map(async (channel) => {
+    const { data: orders } = await supabase
+      .from('virtual_orders')
+      .select('*')
+      .eq('channel_id', channel.channel_id)
+      .gte('timestamp', fromDate.toISOString())
+      .order('timestamp', { ascending: true })
+
+    return {
+      channel_id: channel.channel_id,
+      name: channel.name,
+      grid_percentage: channel.grid_percentage,
+      amount_per_trade: channel.amount_per_trade,
+      orders: orders || []
+    }
+  }))
+
+  return channelsOrders
+}
