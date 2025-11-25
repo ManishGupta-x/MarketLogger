@@ -41,13 +41,33 @@ export default function Dashboard() {
   const channelConfig = CHANNEL_CONFIG[channelId]
   const channelName = channelConfig?.name || 'Select Channel'
 
-  const totalValue = portfolio?.total_value || 0
+  // Calculate real-time values from holdings and cash
   const cashBalance = portfolio?.cash_balance || 0
-  const holdingsValue = portfolio?.holdings_value || 0
   const initialCapital = config?.capital || 0
-  // Use stored total_pnl from database (already calculated correctly as realized_pnl + unrealized_pnl)
-  const totalPnl = portfolio?.total_pnl || 0
-  const pnlPercent = portfolio?.total_pnl_percent?.toFixed(2) || 0
+  const realizedPnl = portfolio?.realized_pnl || 0
+
+  // Calculate real-time holdings value and unrealized P&L
+  let holdingsValue = 0
+  let unrealizedPnl = 0
+
+  holdings.forEach(h => {
+    const qty = h.qty || 0
+    const avgPrice = h.avg_price || 0
+    const currentPrice = h.current_price || 0
+
+    const invested = qty * avgPrice
+    const current = qty * currentPrice
+
+    holdingsValue += current
+    unrealizedPnl += (current - invested)
+  })
+
+  // Calculate real-time current value = cash + holdings
+  const totalValue = cashBalance + holdingsValue
+
+  // Calculate real-time total P&L = realized + unrealized
+  const totalPnl = realizedPnl + unrealizedPnl
+  const pnlPercent = initialCapital > 0 ? ((totalPnl / initialCapital) * 100).toFixed(2) : 0
 
   return (
     <div className="space-y-8 animate-fade-in">

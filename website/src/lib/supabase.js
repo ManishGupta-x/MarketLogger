@@ -137,6 +137,12 @@ export async function getStrategyComparison() {
       .order('timestamp', { ascending: false })
       .limit(1)
 
+    // Get current holdings for real-time calculation
+    const { data: holdings } = await supabase
+      .from('virtual_holdings')
+      .select('*')
+      .eq('channel_id', channel.channel_id)
+
     // Get order stats
     const { data: orders } = await supabase
       .from('virtual_orders')
@@ -161,10 +167,32 @@ export async function getStrategyComparison() {
       return isNaN(num) ? 0 : num
     }
 
-    // Use stored values from portfolio (already correctly calculated)
+    // Get values from portfolio
     const initialCapital = parseNum(channel.initial_capital)
-    const currentValue = parseNum(latestPortfolio?.total_value ?? initialCapital)
-    const totalPnl = parseNum(latestPortfolio?.total_pnl ?? 0)
+    const cashBalance = parseNum(latestPortfolio?.cash_balance ?? initialCapital)
+    const realizedPnl = parseNum(latestPortfolio?.realized_pnl ?? 0)
+
+    // Calculate REAL-TIME holdings value and unrealized P&L from current holdings
+    let holdingsValue = 0
+    let unrealizedPnl = 0
+
+    ;(holdings || []).forEach(h => {
+      const qty = parseNum(h.qty)
+      const avgPrice = parseNum(h.avg_price)
+      const currentPrice = parseNum(h.current_price)
+
+      const invested = qty * avgPrice
+      const current = qty * currentPrice
+
+      holdingsValue += current
+      unrealizedPnl += (current - invested)
+    })
+
+    // Calculate real-time current value = cash + holdings
+    const currentValue = cashBalance + holdingsValue
+
+    // Calculate real-time total P&L = realized + unrealized
+    const totalPnl = realizedPnl + unrealizedPnl
     const roiPercent = initialCapital > 0 ? (totalPnl / initialCapital * 100) : 0
 
     return {
@@ -318,15 +346,32 @@ export async function getChannelPnlBreakdown(channelId) {
     return isNaN(num) ? 0 : num
   }
 
-  // Get values from portfolio (already calculated and stored)
+  // Get values from portfolio
   const initialCapital = parseNum(channel?.initial_capital)
-  // Use ?? instead of || to properly handle 0 and negative values
-  const currentValue = parseNum(latestPortfolio?.total_value ?? initialCapital)
-  const realizedPnl = parseNum(latestPortfolio?.realized_pnl ?? 0)
-  const unrealizedPnl = parseNum(latestPortfolio?.unrealized_pnl ?? 0)
   const cashBalance = parseNum(latestPortfolio?.cash_balance ?? initialCapital)
-  // Use stored total_pnl (already calculated as realized_pnl + unrealized_pnl)
-  const totalPnl = parseNum(latestPortfolio?.total_pnl ?? 0)
+  const realizedPnl = parseNum(latestPortfolio?.realized_pnl ?? 0)
+
+  // Calculate REAL-TIME holdings value and unrealized P&L from current holdings
+  let holdingsValue = 0
+  let unrealizedPnl = 0
+
+  holdings.forEach(h => {
+    const qty = parseNum(h.qty)
+    const avgPrice = parseNum(h.avg_price)
+    const currentPrice = parseNum(h.current_price)
+
+    const invested = qty * avgPrice
+    const current = qty * currentPrice
+
+    holdingsValue += current
+    unrealizedPnl += (current - invested)
+  })
+
+  // Calculate real-time current value = cash + holdings
+  const currentValue = cashBalance + holdingsValue
+
+  // Calculate real-time total P&L = realized + unrealized
+  const totalPnl = realizedPnl + unrealizedPnl
 
   // Get SELL orders for detailed breakdown
   const sellOrders = (orders || []).filter(o => o.type === 'SELL')
