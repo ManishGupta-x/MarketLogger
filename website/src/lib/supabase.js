@@ -261,3 +261,66 @@ export async function getAllChannelsDailyPnl(days = 30) {
 
   return channelsOrders
 }
+
+export async function getChannelPnlBreakdown(channelId) {
+  checkCredentials()
+
+  // Get channel info
+  const { data: channel, error: channelError } = await supabase
+    .from('channels')
+    .select('*')
+    .eq('channel_id', channelId)
+    .single()
+
+  if (channelError) throw channelError
+
+  // Get all orders for this channel
+  const { data: orders, error: ordersError } = await supabase
+    .from('virtual_orders')
+    .select('*')
+    .eq('channel_id', channelId)
+    .order('timestamp', { ascending: false })
+
+  if (ordersError) throw ordersError
+
+  // Get latest portfolio value
+  const { data: portfolio, error: portfolioError } = await supabase
+    .from('virtual_portfolio')
+    .select('*')
+    .eq('channel_id', channelId)
+    .order('timestamp', { ascending: false })
+    .limit(1)
+
+  if (portfolioError) throw portfolioError
+
+  // Get current holdings
+  const { data: holdings, error: holdingsError } = await supabase
+    .from('virtual_holdings')
+    .select('*')
+    .eq('channel_id', channelId)
+
+  if (holdingsError) throw holdingsError
+
+  const latestPortfolio = portfolio?.[0]
+
+  // Calculate totals
+  const sellOrders = (orders || []).filter(o => o.type === 'SELL')
+  const realizedPnl = sellOrders.reduce((sum, o) => sum + (o.pnl || 0), 0)
+
+  const totalHoldingsValue = (holdings || []).reduce((sum, h) => sum + ((h.quantity || 0) * (h.current_price || 0)), 0)
+  const totalHoldingsCost = (holdings || []).reduce((sum, h) => sum + ((h.quantity || 0) * (h.avg_price || 0)), 0)
+  const unrealizedPnl = totalHoldingsValue - totalHoldingsCost
+
+  return {
+    channel,
+    orders: orders || [],
+    sellOrders,
+    holdings: holdings || [],
+    initialCapital: channel.initial_capital || 0,
+    currentValue: latestPortfolio?.total_value || channel.initial_capital,
+    totalPnl: (latestPortfolio?.total_value || channel.initial_capital) - (channel.initial_capital || 0),
+    realizedPnl,
+    unrealizedPnl,
+    cashAvailable: latestPortfolio?.cash_available || 0
+  }
+}
