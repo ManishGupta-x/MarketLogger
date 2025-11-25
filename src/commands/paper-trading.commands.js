@@ -239,7 +239,8 @@ class PaperTradingCommands {
         reply += `   ${pnlEmoji} P&L: ₹${(holding.unrealized_pnl || 0).toFixed(2)} (${(holding.unrealized_pnl_percent || 0).toFixed(2)}%)\n\n`;
       });
 
-      reply += `💡 Use \`!sell holding <number>\` to sell a specific holding`;
+      reply += `💡 Use \`!sell holding <number>\` to sell a specific holding\n`;
+      reply += `💡 Use \`!sell-all\` to sell all holdings at once`;
 
       await message.reply(reply);
     } catch (error) {
@@ -299,6 +300,105 @@ class PaperTradingCommands {
       }
     } catch (error) {
       logger.error('Sell holding command error:', error);
+      await message.reply(`❌ Error: ${error.message}`);
+    }
+  }
+
+  async sellAllHoldingsCommand(message) {
+    try {
+      const channel = this.getChannelInstance(message);
+      const holdings = channel.paperTradingService.getHoldings();
+
+      if (holdings.length === 0) {
+        await message.reply('📭 No holdings to sell');
+        return;
+      }
+
+      // Send initial confirmation message
+      await message.reply(`⚠️ **WARNING**: This will sell all ${holdings.length} holdings across the channel!\n\nType \`!confirm-sell-all\` within 30 seconds to proceed.`);
+
+      const filter = m => m.author.id === message.author.id && m.content === '!confirm-sell-all';
+      const collector = message.channel.createMessageCollector({ filter, time: 30000, max: 1 });
+
+      collector.on('collect', async () => {
+        // Get fresh holdings list before selling
+        const currentHoldings = channel.paperTradingService.getHoldings();
+
+        if (currentHoldings.length === 0) {
+          await message.reply('📭 No holdings to sell');
+          return;
+        }
+
+        let successCount = 0;
+        let failCount = 0;
+        let totalPnL = 0;
+        let totalValue = 0;
+        const results = [];
+
+        // Sell each holding
+        for (const holding of currentHoldings) {
+          try {
+            const currentPrice = holding.current_price || holding.avg_price;
+            const result = await channel.paperTradingService.executeManualSell(
+              holding.token,
+              holding.symbol,
+              currentPrice
+            );
+
+            if (result.success) {
+              successCount++;
+              totalPnL += result.pnl;
+              totalValue += result.value;
+              results.push({
+                symbol: holding.symbol,
+                pnl: result.pnl,
+                pnlPercent: result.pnlPercent,
+                value: result.value
+              });
+            } else {
+              failCount++;
+            }
+          } catch (error) {
+            logger.error(`Failed to sell ${holding.symbol}:`, error);
+            failCount++;
+          }
+        }
+
+        // Build summary message
+        const pnlEmoji = totalPnL >= 0 ? '📈' : '📉';
+        let reply = `✅ **Sold All Holdings Complete**\n\n`;
+        reply += `**Summary:**\n`;
+        reply += `✅ Success: ${successCount}\n`;
+        if (failCount > 0) {
+          reply += `❌ Failed: ${failCount}\n`;
+        }
+        reply += `${pnlEmoji} **Total P&L:** ₹${totalPnL.toFixed(2)}\n`;
+        reply += `💰 **Total Value:** ₹${totalValue.toFixed(2)}\n`;
+        reply += `💵 **New Balance:** ₹${channel.paperTradingService.getPortfolio().cash.toLocaleString('en-IN', { minimumFractionDigits: 2 })}\n\n`;
+
+        // Show individual results (up to 10)
+        if (results.length > 0) {
+          reply += `**Details:**\n`;
+          results.slice(0, 10).forEach((result, index) => {
+            const emoji = result.pnl >= 0 ? '🟢' : '🔴';
+            reply += `${emoji} ${result.symbol}: ₹${result.pnl.toFixed(2)} (${result.pnlPercent.toFixed(2)}%)\n`;
+          });
+
+          if (results.length > 10) {
+            reply += `\n_...and ${results.length - 10} more stocks_`;
+          }
+        }
+
+        await message.reply(reply);
+      });
+
+      collector.on('end', collected => {
+        if (collected.size === 0) {
+          message.reply('❌ Sell all cancelled (timeout)');
+        }
+      });
+    } catch (error) {
+      logger.error('Sell all holdings command error:', error);
       await message.reply(`❌ Error: ${error.message}`);
     }
   }

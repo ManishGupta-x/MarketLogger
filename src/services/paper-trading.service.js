@@ -459,10 +459,15 @@ class PaperTradingService {
     let holdingsValue = new Decimal(0);
     let unrealizedPnl = new Decimal(0);
 
-    // Calculate holdings value and unrealized P&L
+    // Calculate holdings value and unrealized P&L in real-time
     this.holdings.forEach(holding => {
-      holdingsValue = holdingsValue.plus(holding.currentValue || holding.investedValue);
-      unrealizedPnl = unrealizedPnl.plus(holding.unrealizedPnl || 0);
+      // Always recalculate current value from qty and current price for accuracy
+      const currentPrice = holding.currentPrice || holding.avgPrice;
+      const currentValue = new Decimal(holding.qty).mul(currentPrice);
+      const pnl = currentValue.minus(holding.investedValue);
+
+      holdingsValue = holdingsValue.plus(currentValue);
+      unrealizedPnl = unrealizedPnl.plus(pnl);
     });
 
     // Total value = cash + holdings
@@ -486,10 +491,15 @@ class PaperTradingService {
     let holdingsValue = new Decimal(0);
     let unrealizedPnl = new Decimal(0);
 
-    // Calculate holdings value and unrealized P&L
+    // Calculate holdings value and unrealized P&L in real-time
     this.holdings.forEach(holding => {
-      holdingsValue = holdingsValue.plus(holding.currentValue || holding.investedValue);
-      unrealizedPnl = unrealizedPnl.plus(holding.unrealizedPnl || 0);
+      // Always recalculate current value from qty and current price for accuracy
+      const currentPrice = holding.currentPrice || holding.avgPrice;
+      const currentValue = new Decimal(holding.qty).mul(currentPrice);
+      const pnl = currentValue.minus(holding.investedValue);
+
+      holdingsValue = holdingsValue.plus(currentValue);
+      unrealizedPnl = unrealizedPnl.plus(pnl);
     });
 
     // Total value = cash + holdings
@@ -517,17 +527,25 @@ class PaperTradingService {
   }
 
   getHoldings() {
-    return Array.from(this.holdings.entries()).map(([token, holding]) => ({
-      token: token,
-      symbol: holding.symbol,
-      qty: holding.qty,
-      avg_price: holding.avgPrice,
-      current_price: holding.currentPrice,
-      invested_value: holding.investedValue,
-      current_value: holding.currentValue,
-      unrealized_pnl: holding.unrealizedPnl,
-      unrealized_pnl_percent: holding.unrealizedPnlPercent
-    }));
+    return Array.from(this.holdings.entries()).map(([token, holding]) => {
+      // Always recalculate current value and P&L in real-time for accuracy
+      const currentPrice = holding.currentPrice || holding.avgPrice;
+      const currentValue = holding.qty * currentPrice;
+      const unrealizedPnl = currentValue - holding.investedValue;
+      const unrealizedPnlPercent = holding.investedValue > 0 ? (unrealizedPnl / holding.investedValue) * 100 : 0;
+
+      return {
+        token: token,
+        symbol: holding.symbol,
+        qty: holding.qty,
+        avg_price: holding.avgPrice,
+        current_price: currentPrice,
+        invested_value: holding.investedValue,
+        current_value: currentValue,
+        unrealized_pnl: unrealizedPnl,
+        unrealized_pnl_percent: unrealizedPnlPercent
+      };
+    });
   }
 
   getHolding(token) {
