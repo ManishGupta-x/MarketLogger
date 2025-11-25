@@ -636,8 +636,9 @@ export default function AnalyticsPage() {
                     </span>
                   </div>
                   <div className="text-xs text-gray-500 mt-2">
-                    = Realized P&L (₹{selectedChannelPnl.realizedPnl?.toLocaleString('en-IN', { maximumFractionDigits: 2 })}) +
-                    Unrealized P&L (₹{selectedChannelPnl.unrealizedPnl?.toLocaleString('en-IN', { maximumFractionDigits: 2 })})
+                    Verified: Realized P&L (₹{selectedChannelPnl.realizedPnl?.toLocaleString('en-IN', { maximumFractionDigits: 2 })}) +
+                    Unrealized P&L (₹{selectedChannelPnl.unrealizedPnl?.toLocaleString('en-IN', { maximumFractionDigits: 2 })}) =
+                    ₹{((selectedChannelPnl.realizedPnl || 0) + (selectedChannelPnl.unrealizedPnl || 0))?.toLocaleString('en-IN', { maximumFractionDigits: 2 })}
                   </div>
                 </div>
               </div>

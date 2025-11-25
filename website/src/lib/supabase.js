@@ -303,24 +303,41 @@ export async function getChannelPnlBreakdown(channelId) {
 
   const latestPortfolio = portfolio?.[0]
 
-  // Calculate totals
-  const sellOrders = (orders || []).filter(o => o.type === 'SELL')
-  const realizedPnl = sellOrders.reduce((sum, o) => sum + (o.pnl || 0), 0)
+  // Parse numeric values safely
+  const parseNum = (val) => {
+    const num = parseFloat(val)
+    return isNaN(num) ? 0 : num
+  }
 
-  const totalHoldingsValue = (holdings || []).reduce((sum, h) => sum + ((h.quantity || 0) * (h.current_price || 0)), 0)
-  const totalHoldingsCost = (holdings || []).reduce((sum, h) => sum + ((h.quantity || 0) * (h.avg_price || 0)), 0)
-  const unrealizedPnl = totalHoldingsValue - totalHoldingsCost
+  // Get values from portfolio (already calculated and stored)
+  const initialCapital = parseNum(channel?.initial_capital)
+  const currentValue = parseNum(latestPortfolio?.total_value || initialCapital)
+  const realizedPnl = parseNum(latestPortfolio?.realized_pnl)
+  const unrealizedPnl = parseNum(latestPortfolio?.unrealized_pnl)
+  const cashBalance = parseNum(latestPortfolio?.cash_balance)
+  const totalPnl = currentValue - initialCapital
+
+  // Get SELL orders for detailed breakdown
+  const sellOrders = (orders || []).filter(o => o.type === 'SELL')
+
+  // Add current_price and quantity fields to holdings with proper parsing
+  const holdingsWithPrices = (holdings || []).map(h => ({
+    ...h,
+    quantity: parseNum(h.qty),
+    avg_price: parseNum(h.avg_price),
+    current_price: parseNum(h.current_price)
+  }))
 
   return {
     channel,
     orders: orders || [],
     sellOrders,
-    holdings: holdings || [],
-    initialCapital: channel.initial_capital || 0,
-    currentValue: latestPortfolio?.total_value || channel.initial_capital,
-    totalPnl: (latestPortfolio?.total_value || channel.initial_capital) - (channel.initial_capital || 0),
+    holdings: holdingsWithPrices,
+    initialCapital,
+    currentValue,
+    totalPnl,
     realizedPnl,
     unrealizedPnl,
-    cashAvailable: latestPortfolio?.cash_available || 0
+    cashAvailable: cashBalance
   }
 }
