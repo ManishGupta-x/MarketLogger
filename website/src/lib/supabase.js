@@ -311,10 +311,11 @@ export async function getChannelPnlBreakdown(channelId) {
 
   // Get values from portfolio (already calculated and stored)
   const initialCapital = parseNum(channel?.initial_capital)
-  const currentValue = parseNum(latestPortfolio?.total_value || initialCapital)
-  const realizedPnl = parseNum(latestPortfolio?.realized_pnl)
-  const unrealizedPnl = parseNum(latestPortfolio?.unrealized_pnl)
-  const cashBalance = parseNum(latestPortfolio?.cash_balance)
+  // Use ?? instead of || to properly handle 0 and negative values
+  const currentValue = parseNum(latestPortfolio?.total_value ?? initialCapital)
+  const realizedPnl = parseNum(latestPortfolio?.realized_pnl ?? 0)
+  const unrealizedPnl = parseNum(latestPortfolio?.unrealized_pnl ?? 0)
+  const cashBalance = parseNum(latestPortfolio?.cash_balance ?? 0)
   const totalPnl = currentValue - initialCapital
 
   // Get SELL orders for detailed breakdown
