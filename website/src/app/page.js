@@ -62,6 +62,31 @@ export default function Dashboard() {
         />
       </div>
 
+      {/* Channel Configuration */}
+      {config && (
+        <div className="dashboard-card p-6">
+          <h2 className="text-lg font-semibold text-white mb-4">Strategy Configuration</h2>
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-6">
+            <div>
+              <p className="text-gray-500 text-xs font-medium uppercase tracking-wider">Initial Capital</p>
+              <p className="text-lg font-bold text-white mt-1 tabular-nums">₹{config.capital?.toLocaleString()}</p>
+            </div>
+            <div>
+              <p className="text-gray-500 text-xs font-medium uppercase tracking-wider">Per Order Amount</p>
+              <p className="text-lg font-bold text-blue-400 mt-1 tabular-nums">₹{config.amount_per_trade?.toLocaleString()}</p>
+            </div>
+            <div>
+              <p className="text-gray-500 text-xs font-medium uppercase tracking-wider">Grid Percentage</p>
+              <p className="text-lg font-bold text-purple-400 mt-1 tabular-nums">{config.grid_percentage}%</p>
+            </div>
+            <div>
+              <p className="text-gray-500 text-xs font-medium uppercase tracking-wider">Max Positions</p>
+              <p className="text-lg font-bold text-cyan-400 mt-1 tabular-nums">~{Math.floor(config.capital / config.amount_per_trade)}</p>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Stats Grid */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
         <StatCard
@@ -74,6 +99,7 @@ export default function Dashboard() {
         <StatCard
           title="Cash Balance"
           value={`₹${cashBalance.toLocaleString('en-IN', { maximumFractionDigits: 0 })}`}
+          subtitle={totalValue > 0 ? `${((cashBalance / totalValue) * 100).toFixed(1)}% of portfolio` : ''}
           icon="💵"
         />
         <StatCard
