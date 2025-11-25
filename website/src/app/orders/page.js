@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useEffect } from 'react'
-import { getOrders, getConfig } from '@/lib/supabase'
+import { getOrders, getOrdersCount, getConfig } from '@/lib/supabase'
 import { CHANNEL_CONFIG } from '@/lib/channels'
 import ChannelSelector from '@/components/ChannelSelector'
 import OrdersTable from '@/components/OrdersTable'
@@ -9,6 +9,7 @@ import OrdersTable from '@/components/OrdersTable'
 export default function OrdersPage() {
   const [channelId, setChannelId] = useState('')
   const [orders, setOrders] = useState([])
+  const [totalOrdersCount, setTotalOrdersCount] = useState(0)
   const [channelConfig, setChannelConfig] = useState(null)
   const [loading, setLoading] = useState(true)
   const [limit, setLimit] = useState(50)
@@ -19,11 +20,13 @@ export default function OrdersPage() {
     async function fetchData() {
       setLoading(true)
       try {
-        const [ordersData, configData] = await Promise.all([
+        const [ordersData, totalCount, configData] = await Promise.all([
           getOrders(channelId, limit),
+          getOrdersCount(channelId),
           getConfig(channelId)
         ])
         setOrders(ordersData)
+        setTotalOrdersCount(totalCount)
         setChannelConfig(configData)
       } catch (error) {
         console.error('Error fetching data:', error)
@@ -87,7 +90,7 @@ export default function OrdersPage() {
       <div>
         <div className="flex items-center justify-between mb-4">
           <h2 className="text-lg font-semibold text-white">
-            Statistics <span className="text-gray-500 text-sm font-normal">(Last {orders.length} Orders)</span>
+            Statistics <span className="text-gray-500 text-sm font-normal">(Showing {orders.length} of {totalOrdersCount} Orders)</span>
           </h2>
           <div className="flex items-center gap-4">
             <label className="text-sm text-gray-500">Show:</label>
@@ -107,7 +110,8 @@ export default function OrdersPage() {
         <div className="grid grid-cols-1 md:grid-cols-5 gap-6">
           <div className="dashboard-card p-6">
             <p className="text-gray-500 text-sm font-medium uppercase tracking-wider">Total Orders</p>
-            <p className="text-2xl font-bold text-white mt-2 tabular-nums">{orders.length}</p>
+            <p className="text-2xl font-bold text-white mt-2 tabular-nums">{totalOrdersCount}</p>
+            <p className="text-xs text-gray-500 mt-1">All time</p>
           </div>
           <div className="dashboard-card p-6">
             <p className="text-gray-500 text-sm font-medium uppercase tracking-wider">Buy Orders</p>

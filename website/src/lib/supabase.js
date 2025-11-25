@@ -60,6 +60,17 @@ export async function getOrders(channelId, limit = 50) {
   return data || []
 }
 
+export async function getOrdersCount(channelId) {
+  checkCredentials()
+  const { count, error } = await supabase
+    .from('virtual_orders')
+    .select('*', { count: 'exact', head: true })
+    .eq('channel_id', channelId)
+
+  if (error) throw error
+  return count || 0
+}
+
 export async function getGridLevels(channelId) {
   // Grid levels table removed - return empty array
   // Grid stats can be calculated from virtual_orders if needed
