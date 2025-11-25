@@ -1,5 +1,4 @@
 @import "tailwindcss";
-@import url('https://fonts.googleapis.com/css2?family=Signika:wght@300;400;500;600;700&display=swap');
 
 :root {
   --background: #000000;
@@ -15,14 +14,12 @@
 @theme inline {
   --color-background: var(--background);
   --color-foreground: var(--foreground);
-  --font-sans: 'Signika', sans-serif;
-  --font-mono: var(--font-geist-mono);
+  --font-sans: var(--font-signika);
 }
 
 body {
   background: var(--background);
   color: var(--foreground);
-  font-family: 'Signika', sans-serif;
 }
 
 /* Custom scrollbar */

@@ -1,9 +1,7 @@
 'use client'
 
 import { useState, useEffect } from 'react'
-import { getPortfolioHistory, getOrders, getStrategyComparison } from '@/lib/supabase'
-import { CHANNEL_CONFIG } from '@/lib/channels'
-import ChannelSelector from '@/components/ChannelSelector'
+import { getStrategyComparison, getAllChannelsPortfolioHistory, getAllChannelsDailyPnl } from '@/lib/supabase'
 import {
   LineChart,
   Line,
@@ -13,92 +11,194 @@ import {
   Tooltip,
   ResponsiveContainer,
   BarChart,
-  Bar
+  Bar,
+  Legend
 } from 'recharts'
 import { format } from 'date-fns'
 
+// Color palette for different channels
+const CHANNEL_COLORS = [
+  '#3b82f6', // blue
+  '#00ff88', // green
+  '#ff4444', // red
+  '#f59e0b', // amber
+  '#8b5cf6', // purple
+  '#ec4899', // pink
+  '#06b6d4', // cyan
+  '#84cc16', // lime
+  '#f97316', // orange
+  '#6366f1', // indigo
+]
+
 export default function AnalyticsPage() {
-  const [channelId, setChannelId] = useState('')
-  const [portfolioHistory, setPortfolioHistory] = useState([])
-  const [orders, setOrders] = useState([])
   const [strategyComparison, setStrategyComparison] = useState([])
+  const [channelsHistory, setChannelsHistory] = useState([])
+  const [channelsPnl, setChannelsPnl] = useState([])
   const [loading, setLoading] = useState(true)
   const [days, setDays] = useState(30)
 
   useEffect(() => {
-    // Load strategy comparison on mount
-    async function loadComparison() {
-      try {
-        const comparison = await getStrategyComparison()
-        setStrategyComparison(comparison)
-      } catch (error) {
-        console.error('Error fetching strategy comparison:', error)
-      }
-    }
-    loadComparison()
-  }, [])
-
-  useEffect(() => {
-    if (!channelId) return
-
-    async function fetchData() {
+    async function loadData() {
       setLoading(true)
       try {
-        const [historyData, ordersData] = await Promise.all([
-          getPortfolioHistory(channelId, days),
-          getOrders(channelId, 500)
+        const [comparison, history, pnl] = await Promise.all([
+          getStrategyComparison(),
+          getAllChannelsPortfolioHistory(days),
+          getAllChannelsDailyPnl(days)
         ])
-        setPortfolioHistory(historyData)
-        setOrders(ordersData)
+        setStrategyComparison(comparison)
+        setChannelsHistory(history)
+        setChannelsPnl(pnl)
       } catch (error) {
         console.error('Error fetching analytics:', error)
       } finally {
         setLoading(false)
       }
     }
+    loadData()
+  }, [days])
 
-    fetchData()
-  }, [channelId, days])
+  // Custom tooltip for portfolio chart
+  const PortfolioTooltip = ({ active, payload, label }) => {
+    if (!active || !payload || !payload.length) return null
 
-  const channelConfig = CHANNEL_CONFIG[channelId]
-  const channelName = channelConfig?.name || 'Select Channel'
+    return (
+      <div className="bg-[#0a0a0a] border border-[#1a1a1a] rounded-lg p-3">
+        <p className="text-gray-400 text-xs mb-2">{label}</p>
+        {payload.map((entry, index) => {
+          const channel = channelsHistory.find(ch => ch.name === entry.dataKey)
+          return (
+            <div key={index} className="mb-1">
+              <p style={{ color: entry.color }} className="text-sm font-semibold">
+                {entry.dataKey}
+              </p>
+              <p className="text-white text-xs">
+                Value: ₹{entry.value?.toLocaleString('en-IN', { maximumFractionDigits: 0 })}
+              </p>
+              {channel && (
+                <p className="text-gray-500 text-xs">
+                  Grid: {channel.grid_percentage}% | Per Order: ₹{channel.amount_per_trade?.toLocaleString('en-IN')}
+                </p>
+              )}
+            </div>
+          )
+        })}
+      </div>
+    )
+  }
 
-  // Format portfolio history for chart
-  const chartData = portfolioHistory.map(p => ({
-    date: format(new Date(p.timestamp), 'MMM dd'),
-    value: p.total_value,
-    pnl: p.total_value - (portfolioHistory[0]?.total_value || 0)
-  }))
+  // Custom tooltip for P&L chart
+  const PnlTooltip = ({ active, payload, label }) => {
+    if (!active || !payload || !payload.length) return null
 
-  // Calculate top/worst performers from orders
-  const stockPnl = {}
-  orders.filter(o => o.type === 'SELL').forEach(o => {
-    stockPnl[o.symbol] = (stockPnl[o.symbol] || 0) + (o.pnl || 0)
-  })
+    return (
+      <div className="bg-[#0a0a0a] border border-[#1a1a1a] rounded-lg p-3">
+        <p className="text-gray-400 text-xs mb-2">{label}</p>
+        {payload.map((entry, index) => {
+          const channel = channelsPnl.find(ch => ch.name === entry.dataKey)
+          const pnl = entry.value || 0
+          return (
+            <div key={index} className="mb-1">
+              <p style={{ color: entry.fill }} className="text-sm font-semibold">
+                {entry.dataKey}
+              </p>
+              <p className={`text-xs font-semibold ${pnl >= 0 ? 'text-[#00ff88]' : 'text-[#ff4444]'}`}>
+                P&L: {pnl >= 0 ? '+' : ''}₹{pnl.toFixed(2)}
+              </p>
+              {channel && (
+                <p className="text-gray-500 text-xs">
+                  Grid: {channel.grid_percentage}% | Per Order: ₹{channel.amount_per_trade?.toLocaleString('en-IN')}
+                </p>
+              )}
+            </div>
+          )
+        })}
+      </div>
+    )
+  }
 
-  const sortedStocks = Object.entries(stockPnl)
-    .map(([symbol, pnl]) => ({ symbol, total_pnl: pnl }))
-    .sort((a, b) => b.total_pnl - a.total_pnl)
+  // Format portfolio history for multi-channel chart
+  const formatPortfolioChartData = () => {
+    if (!channelsHistory.length) return []
 
-  const topPerformers = sortedStocks.filter(s => s.total_pnl > 0).slice(0, 10)
-  const worstPerformers = sortedStocks.filter(s => s.total_pnl < 0).slice(-10).reverse()
+    // Get all unique dates across all channels
+    const allDates = new Set()
+    channelsHistory.forEach(channel => {
+      channel.history.forEach(point => {
+        allDates.add(format(new Date(point.timestamp), 'MMM dd'))
+      })
+    })
 
-  // Daily P&L
-  const dailyPnl = orders.reduce((acc, order) => {
-    if (!order.pnl) return acc
-    const date = format(new Date(order.timestamp), 'MMM dd')
-    acc[date] = (acc[date] || 0) + order.pnl
-    return acc
-  }, {})
+    const dates = Array.from(allDates).sort()
 
-  const dailyPnlData = Object.entries(dailyPnl)
-    .map(([date, pnl]) => ({ date, pnl }))
-    .reverse()
-    .slice(-30)
+    // Create data points with all channels
+    return dates.map(date => {
+      const dataPoint = { date }
+
+      channelsHistory.forEach(channel => {
+        const point = channel.history.find(p => format(new Date(p.timestamp), 'MMM dd') === date)
+        dataPoint[channel.name] = point?.total_value || null
+      })
+
+      return dataPoint
+    })
+  }
+
+  // Format daily P&L for multi-channel chart
+  const formatDailyPnlChartData = () => {
+    if (!channelsPnl.length) return []
+
+    // Get all unique dates
+    const allDates = new Set()
+    channelsPnl.forEach(channel => {
+      channel.orders.forEach(order => {
+        if (order.pnl) {
+          allDates.add(format(new Date(order.timestamp), 'MMM dd'))
+        }
+      })
+    })
+
+    const dates = Array.from(allDates).sort()
+
+    // Create data points with aggregated P&L per channel
+    return dates.map(date => {
+      const dataPoint = { date }
+
+      channelsPnl.forEach(channel => {
+        const dayPnl = channel.orders
+          .filter(o => o.pnl && format(new Date(o.timestamp), 'MMM dd') === date)
+          .reduce((sum, o) => sum + (o.pnl || 0), 0)
+
+        dataPoint[channel.name] = dayPnl
+      })
+
+      return dataPoint
+    }).slice(-30) // Last 30 days
+  }
+
+  const portfolioChartData = formatPortfolioChartData()
+  const dailyPnlChartData = formatDailyPnlChartData()
 
   return (
     <div className="space-y-8 animate-fade-in">
-      {/* Strategy Comparison */}
+      {/* Header */}
+      <div className="flex items-center justify-between">
+        <div>
+          <h1 className="text-3xl font-bold text-white">Analytics Dashboard</h1>
+          <p className="text-gray-500 mt-1">Cross-Channel Performance Analysis</p>
+        </div>
+        <select
+          value={days}
+          onChange={(e) => setDays(Number(e.target.value))}
+          className="bg-[#0a0a0a] border border-[#1a1a1a] text-white rounded-lg px-3 py-2 text-sm font-medium focus:outline-none focus:ring-2 focus:ring-blue-500"
+        >
+          <option value={7}>Last 7 days</option>
+          <option value={30}>Last 30 days</option>
+          <option value={90}>Last 90 days</option>
+        </select>
+      </div>
+
+      {/* Strategy Comparison Table */}
       <div className="dashboard-card p-6">
         <h2 className="text-xl font-semibold text-white mb-6">All Channels Comparison</h2>
         <div className="overflow-x-auto">
@@ -113,7 +213,7 @@ export default function AnalyticsPage() {
                 <th className="pb-4 font-medium text-right uppercase tracking-wider text-xs">Current</th>
                 <th className="pb-4 font-medium text-right uppercase tracking-wider text-xs">P&L</th>
                 <th className="pb-4 font-medium text-right uppercase tracking-wider text-xs">ROI %</th>
-                <th className="pb-4 font-medium text-right uppercase tracking-wider text-xs">Win Rate</th>
+                <th className="pb-4 font-medium text-right uppercase tracking-wider text-xs">Profitable %</th>
                 <th className="pb-4 font-medium text-right uppercase tracking-wider text-xs">Trades</th>
                 <th className="pb-4 font-medium text-right uppercase tracking-wider text-xs">Best Stock</th>
               </tr>
@@ -124,7 +224,15 @@ export default function AnalyticsPage() {
                 return (
                   <tr key={strategy.channel_id} className="border-b border-[#1a1a1a]/50 table-row-hover">
                     <td className="py-4 text-gray-400">{i + 1}</td>
-                    <td className="py-4 font-semibold text-white">{strategy.name}</td>
+                    <td className="py-4 font-semibold text-white">
+                      <div className="flex items-center gap-2">
+                        <div
+                          className="w-3 h-3 rounded-full"
+                          style={{ backgroundColor: CHANNEL_COLORS[i % CHANNEL_COLORS.length] }}
+                        />
+                        {strategy.name}
+                      </div>
+                    </td>
                     <td className="py-4 text-right text-purple-400 font-semibold tabular-nums">
                       {strategy.grid_percentage?.toFixed(1)}%
                     </td>
@@ -165,121 +273,71 @@ export default function AnalyticsPage() {
         </div>
       </div>
 
-      {/* Header for channel-specific analytics */}
-      <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-3xl font-bold text-white">Channel Analytics</h1>
-          <p className="text-gray-500 mt-1">{channelName}</p>
-        </div>
-        <div className="flex items-center gap-4">
-          <select
-            value={days}
-            onChange={(e) => setDays(Number(e.target.value))}
-            className="bg-[#0a0a0a] border border-[#1a1a1a] text-white rounded-lg px-3 py-2 text-sm font-medium focus:outline-none focus:ring-2 focus:ring-blue-500"
-          >
-            <option value={7}>Last 7 days</option>
-            <option value={30}>Last 30 days</option>
-            <option value={90}>Last 90 days</option>
-          </select>
-          <ChannelSelector
-            selectedChannel={channelId}
-            onChannelChange={setChannelId}
-          />
-        </div>
-      </div>
-
-      {/* Portfolio Value Chart */}
+      {/* Cross-Channel Portfolio Value Chart */}
       <div className="dashboard-card p-6">
-        <h2 className="text-xl font-semibold text-white mb-6">Portfolio Value Over Time</h2>
+        <h2 className="text-xl font-semibold text-white mb-6">Portfolio Value Comparison</h2>
         {loading ? (
-          <div className="h-64 flex items-center justify-center">
+          <div className="h-96 flex items-center justify-center">
             <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-white"></div>
           </div>
-        ) : chartData.length > 0 ? (
-          <ResponsiveContainer width="100%" height={300}>
-            <LineChart data={chartData}>
+        ) : portfolioChartData.length > 0 ? (
+          <ResponsiveContainer width="100%" height={400}>
+            <LineChart data={portfolioChartData}>
               <CartesianGrid strokeDasharray="3 3" stroke="#1a1a1a" />
               <XAxis dataKey="date" stroke="#666" fontSize={12} />
               <YAxis stroke="#666" fontSize={12} tickFormatter={(v) => `₹${(v/1000).toFixed(0)}k`} />
-              <Tooltip
-                contentStyle={{ backgroundColor: '#0a0a0a', border: '1px solid #1a1a1a', borderRadius: '8px' }}
-                labelStyle={{ color: '#888' }}
-                formatter={(value) => [`₹${value.toLocaleString()}`, 'Value']}
-              />
-              <Line type="monotone" dataKey="value" stroke="#3b82f6" strokeWidth={2} dot={false} />
+              <Tooltip content={<PortfolioTooltip />} />
+              <Legend />
+              {channelsHistory.map((channel, idx) => (
+                <Line
+                  key={channel.channel_id}
+                  type="monotone"
+                  dataKey={channel.name}
+                  stroke={CHANNEL_COLORS[idx % CHANNEL_COLORS.length]}
+                  strokeWidth={2}
+                  dot={false}
+                  connectNulls
+                />
+              ))}
             </LineChart>
           </ResponsiveContainer>
         ) : (
-          <div className="h-64 flex items-center justify-center text-gray-500">
-            No data available
+          <div className="h-96 flex items-center justify-center text-gray-500">
+            No portfolio data available
           </div>
         )}
       </div>
 
-      {/* Daily P&L Chart */}
+      {/* Cross-Channel Daily P&L Chart */}
       <div className="dashboard-card p-6">
-        <h2 className="text-xl font-semibold text-white mb-6">Daily Realized P&L</h2>
-        {dailyPnlData.length > 0 ? (
-          <ResponsiveContainer width="100%" height={300}>
-            <BarChart data={dailyPnlData}>
+        <h2 className="text-xl font-semibold text-white mb-6">Daily P&L Comparison (Last 30 Days)</h2>
+        {loading ? (
+          <div className="h-96 flex items-center justify-center">
+            <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-white"></div>
+          </div>
+        ) : dailyPnlChartData.length > 0 ? (
+          <ResponsiveContainer width="100%" height={400}>
+            <BarChart data={dailyPnlChartData}>
               <CartesianGrid strokeDasharray="3 3" stroke="#1a1a1a" />
               <XAxis dataKey="date" stroke="#666" fontSize={12} />
               <YAxis stroke="#666" fontSize={12} tickFormatter={(v) => `₹${v.toFixed(0)}`} />
-              <Tooltip
-                contentStyle={{ backgroundColor: '#0a0a0a', border: '1px solid #1a1a1a', borderRadius: '8px' }}
-                formatter={(value) => [`₹${value.toFixed(2)}`, 'P&L']}
-              />
-              <Bar dataKey="pnl" fill="#3b82f6" radius={[4, 4, 0, 0]} />
+              <Tooltip content={<PnlTooltip />} />
+              <Legend />
+              {channelsPnl.map((channel, idx) => (
+                <Bar
+                  key={channel.channel_id}
+                  dataKey={channel.name}
+                  fill={CHANNEL_COLORS[idx % CHANNEL_COLORS.length]}
+                  radius={[4, 4, 0, 0]}
+                />
+              ))}
             </BarChart>
           </ResponsiveContainer>
         ) : (
-          <div className="h-64 flex items-center justify-center text-gray-500">
+          <div className="h-96 flex items-center justify-center text-gray-500">
             No P&L data available
           </div>
         )}
-      </div>
-
-      {/* Top/Worst Performers */}
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-        <div className="dashboard-card p-6">
-          <h2 className="text-xl font-semibold text-[#00ff88] mb-6">Top Performers</h2>
-          <div className="space-y-3">
-            {topPerformers.map((stock, i) => (
-              <div key={stock.symbol} className="flex items-center justify-between py-2 border-b border-[#1a1a1a]/50">
-                <div className="flex items-center gap-3">
-                  <span className="text-gray-600 text-sm w-6">{i + 1}.</span>
-                  <span className="font-semibold text-white">{stock.symbol}</span>
-                </div>
-                <span className="text-[#00ff88] font-semibold tabular-nums">
-                  +₹{Number(stock.total_pnl || 0).toFixed(2)}
-                </span>
-              </div>
-            ))}
-            {topPerformers.length === 0 && (
-              <p className="text-gray-500 text-center py-4">No winning trades</p>
-            )}
-          </div>
-        </div>
-
-        <div className="dashboard-card p-6">
-          <h2 className="text-xl font-semibold text-[#ff4444] mb-6">Worst Performers</h2>
-          <div className="space-y-3">
-            {worstPerformers.map((stock, i) => (
-              <div key={stock.symbol} className="flex items-center justify-between py-2 border-b border-[#1a1a1a]/50">
-                <div className="flex items-center gap-3">
-                  <span className="text-gray-600 text-sm w-6">{i + 1}.</span>
-                  <span className="font-semibold text-white">{stock.symbol}</span>
-                </div>
-                <span className="text-[#ff4444] font-semibold tabular-nums">
-                  ₹{Number(stock.total_pnl || 0).toFixed(2)}
-                </span>
-              </div>
-            ))}
-            {worstPerformers.length === 0 && (
-              <p className="text-gray-500 text-center py-4">No losing trades</p>
-            )}
-          </div>
-        </div>
       </div>
     </div>
   )
