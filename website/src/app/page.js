@@ -45,8 +45,9 @@ export default function Dashboard() {
   const cashBalance = portfolio?.cash_balance || 0
   const holdingsValue = portfolio?.holdings_value || 0
   const initialCapital = config?.capital || 0
-  const totalPnl = totalValue - initialCapital
-  const pnlPercent = initialCapital > 0 ? ((totalPnl / initialCapital) * 100).toFixed(2) : 0
+  // Use stored total_pnl from database (already calculated correctly as realized_pnl + unrealized_pnl)
+  const totalPnl = portfolio?.total_pnl || 0
+  const pnlPercent = portfolio?.total_pnl_percent?.toFixed(2) || 0
 
   return (
     <div className="space-y-8 animate-fade-in">
