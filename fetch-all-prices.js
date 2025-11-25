@@ -3,11 +3,11 @@ const KiteConnect = require('kiteconnect').KiteConnect;
 require('dotenv').config();
 
 // Configuration
-const DISCORD_TOKEN = "MTQyNDM1NzQxNDQ1MDIzNzQ0Mw.Gv5juC.Do2cnwKdWmyoAGkVFkplksyN6CMMZL2fYOKxWA"
-const DISCORD_CHANNEL_ID = '1425771179175706685';
-const ZERODHA_API_KEY = "5jv2nj6si7d2tvjt";
-const ZERODHA_ACCESS_TOKEN = "0fg1RHOZ2OMnU0iAowM2x9gmQdoHly2o";
-const EXCHANGE = 'NSE'; // 30 Lakh (30L) minimum volume3
+const DISCORD_TOKEN = ""
+const DISCORD_CHANNEL_ID = '';
+const ZERODHA_API_KEY = "";
+const ZERODHA_ACCESS_TOKEN = "";
+const EXCHANGE = ''; // 30 Lakh (30L) minimum volume3
 
 
 // Initialize services
