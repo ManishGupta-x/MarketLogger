@@ -344,7 +344,8 @@ export default function AnalyticsPage() {
             </thead>
             <tbody>
               {strategyComparison.map((strategy, i) => {
-                const pnl = (strategy.current_value || 0) - (strategy.initial_capital || 0)
+                // Use stored total_pnl from database (already calculated correctly)
+                const pnl = strategy.total_pnl || 0
                 return (
                   <tr key={strategy.channel_id} className="border-b border-[#1a1a1a]/50 table-row-hover">
                     <td className="py-4 text-gray-400">{i + 1}</td>
