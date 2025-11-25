@@ -100,15 +100,18 @@ export default function AnalyticsPage() {
     <div className="space-y-8 animate-fade-in">
       {/* Strategy Comparison */}
       <div className="dashboard-card p-6">
-        <h2 className="text-xl font-semibold text-white mb-6">Strategy Comparison</h2>
+        <h2 className="text-xl font-semibold text-white mb-6">All Channels Comparison</h2>
         <div className="overflow-x-auto">
           <table className="w-full text-sm">
             <thead>
               <tr className="text-left text-gray-500 border-b border-[#1a1a1a]">
                 <th className="pb-4 font-medium uppercase tracking-wider text-xs">Rank</th>
-                <th className="pb-4 font-medium uppercase tracking-wider text-xs">Strategy</th>
+                <th className="pb-4 font-medium uppercase tracking-wider text-xs">Channel</th>
+                <th className="pb-4 font-medium text-right uppercase tracking-wider text-xs">Grid %</th>
+                <th className="pb-4 font-medium text-right uppercase tracking-wider text-xs">Per Order</th>
                 <th className="pb-4 font-medium text-right uppercase tracking-wider text-xs">Initial</th>
                 <th className="pb-4 font-medium text-right uppercase tracking-wider text-xs">Current</th>
+                <th className="pb-4 font-medium text-right uppercase tracking-wider text-xs">P&L</th>
                 <th className="pb-4 font-medium text-right uppercase tracking-wider text-xs">ROI %</th>
                 <th className="pb-4 font-medium text-right uppercase tracking-wider text-xs">Win Rate</th>
                 <th className="pb-4 font-medium text-right uppercase tracking-wider text-xs">Trades</th>
@@ -116,31 +119,43 @@ export default function AnalyticsPage() {
               </tr>
             </thead>
             <tbody>
-              {strategyComparison.map((strategy, i) => (
-                <tr key={strategy.channel_id} className="border-b border-[#1a1a1a]/50 table-row-hover">
-                  <td className="py-4 text-gray-400">{i + 1}</td>
-                  <td className="py-4 font-semibold text-white">{strategy.name}</td>
-                  <td className="py-4 text-right text-gray-300 tabular-nums">
-                    ₹{strategy.initial_capital?.toLocaleString('en-IN', { maximumFractionDigits: 0 })}
-                  </td>
-                  <td className="py-4 text-right text-white tabular-nums">
-                    ₹{strategy.current_value?.toLocaleString('en-IN', { maximumFractionDigits: 0 })}
-                  </td>
-                  <td className={`py-4 text-right font-semibold tabular-nums ${strategy.roi_percent >= 0 ? 'text-[#00ff88]' : 'text-[#ff4444]'}`}>
-                    {strategy.roi_percent >= 0 ? '+' : ''}{strategy.roi_percent?.toFixed(2)}%
-                  </td>
-                  <td className="py-4 text-right text-gray-300 tabular-nums">{strategy.win_rate?.toFixed(1)}%</td>
-                  <td className="py-4 text-right text-gray-300 tabular-nums">{strategy.total_trades}</td>
-                  <td className="py-4 text-right text-gray-300">
-                    {strategy.best_stock && (
-                      <span className="text-[#00ff88]">{strategy.best_stock}</span>
-                    )}
-                  </td>
-                </tr>
-              ))}
+              {strategyComparison.map((strategy, i) => {
+                const pnl = (strategy.current_value || 0) - (strategy.initial_capital || 0)
+                return (
+                  <tr key={strategy.channel_id} className="border-b border-[#1a1a1a]/50 table-row-hover">
+                    <td className="py-4 text-gray-400">{i + 1}</td>
+                    <td className="py-4 font-semibold text-white">{strategy.name}</td>
+                    <td className="py-4 text-right text-purple-400 font-semibold tabular-nums">
+                      {strategy.grid_percentage?.toFixed(1)}%
+                    </td>
+                    <td className="py-4 text-right text-blue-400 font-semibold tabular-nums">
+                      ₹{strategy.amount_per_trade?.toLocaleString('en-IN', { maximumFractionDigits: 0 })}
+                    </td>
+                    <td className="py-4 text-right text-gray-300 tabular-nums">
+                      ₹{strategy.initial_capital?.toLocaleString('en-IN', { maximumFractionDigits: 0 })}
+                    </td>
+                    <td className="py-4 text-right text-white font-semibold tabular-nums">
+                      ₹{strategy.current_value?.toLocaleString('en-IN', { maximumFractionDigits: 0 })}
+                    </td>
+                    <td className={`py-4 text-right font-bold tabular-nums ${pnl >= 0 ? 'text-[#00ff88]' : 'text-[#ff4444]'}`}>
+                      {pnl >= 0 ? '+' : ''}₹{pnl?.toLocaleString('en-IN', { maximumFractionDigits: 2 })}
+                    </td>
+                    <td className={`py-4 text-right font-semibold tabular-nums ${strategy.roi_percent >= 0 ? 'text-[#00ff88]' : 'text-[#ff4444]'}`}>
+                      {strategy.roi_percent >= 0 ? '+' : ''}{strategy.roi_percent?.toFixed(2)}%
+                    </td>
+                    <td className="py-4 text-right text-gray-300 tabular-nums">{strategy.win_rate?.toFixed(1)}%</td>
+                    <td className="py-4 text-right text-gray-300 tabular-nums">{strategy.total_trades}</td>
+                    <td className="py-4 text-right text-gray-300">
+                      {strategy.best_stock && (
+                        <span className="text-[#00ff88]">{strategy.best_stock}</span>
+                      )}
+                    </td>
+                  </tr>
+                )
+              })}
               {strategyComparison.length === 0 && (
                 <tr>
-                  <td colSpan="8" className="py-8 text-center text-gray-500">
+                  <td colSpan="11" className="py-8 text-center text-gray-500">
                     No strategy data available
                   </td>
                 </tr>
