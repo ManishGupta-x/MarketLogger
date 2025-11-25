@@ -1,8 +1,8 @@
-const DISCORD_TOKEN = "MTQyNDM1NzQxNDQ1MDIzNzQ0Mw.Gv5juC.Do2cnwKdWmyoAGkVFkplksyN6CMMZL2fYOKxWA"
-const DISCORD_CHANNEL_ID = '1425771179175706685';
-const ZERODHA_API_KEY = "5jv2nj6si7d2tvjt";
-const ZERODHA_ACCESS_TOKEN = "hDwCCgK3QzdHgGbddg7WG9AzK2Ltje2m";
-const EXCHANGE = 'NSE';
+// const DISCORD_TOKEN = ""
+// const DISCORD_CHANNEL_ID = '';
+// const ZERODHA_API_KEY = "";
+// const ZERODHA_ACCESS_TOKEN = "";
+// const EXCHANGE = 'NSE';
 
 const { Client, GatewayIntentBits } = require('discord.js');
 const { KiteConnect } = require('kiteconnect');

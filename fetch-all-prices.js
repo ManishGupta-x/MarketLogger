@@ -2,12 +2,12 @@ const { Client, GatewayIntentBits } = require('discord.js');
 const KiteConnect = require('kiteconnect').KiteConnect;
 require('dotenv').config();
 
-// Configuration
-const DISCORD_TOKEN = ""
-const DISCORD_CHANNEL_ID = '';
-const ZERODHA_API_KEY = "";
-const ZERODHA_ACCESS_TOKEN = "";
-const EXCHANGE = ''; // 30 Lakh (30L) minimum volume3
+// // Configuration
+// const DISCORD_TOKEN = ""
+// const DISCORD_CHANNEL_ID = '';
+// const ZERODHA_API_KEY = "";
+// const ZERODHA_ACCESS_TOKEN = "";
+// const EXCHANGE = ''; // 30 Lakh (30L) minimum volume3
 
 
 // Initialize services
