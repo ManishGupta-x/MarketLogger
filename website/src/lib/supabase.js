@@ -171,8 +171,7 @@ export async function getStrategyComparison() {
     const initialCapital = parseNum(channel.initial_capital)
     const cashBalance = parseNum(latestPortfolio?.cash_balance ?? initialCapital)
 
-    // Calculate realized P&L from SELL orders (source of truth)
-    const sellOrders = (orders || []).filter(o => o.type === 'SELL')
+    // Calculate realized P&L from SELL orders (already filtered above)
     const realizedPnl = sellOrders.reduce((sum, o) => sum + parseNum(o.pnl), 0)
 
     // Calculate REAL-TIME holdings value and unrealized P&L from current holdings
