@@ -55,12 +55,12 @@ class PaperTradingService {
     };
   }
 
-  async initialize(initialCapital = null, amountPerTrade = null) {
+  async initialize(initialCapital = null, amountPerTrade = null, gridPercentage = null) {
     try {
       logger.info(`💼 Initializing Paper Trading Service for channel ${this.channelId}...`);
 
       // Load configuration
-      await this.loadConfig(initialCapital, amountPerTrade);
+      await this.loadConfig(initialCapital, amountPerTrade, gridPercentage);
 
       // Load existing portfolio state
       await this.loadPortfolio();
@@ -75,7 +75,7 @@ class PaperTradingService {
     }
   }
 
-  async loadConfig(initialCapital = null, amountPerTrade = null) {
+  async loadConfig(initialCapital = null, amountPerTrade = null, gridPercentage = null) {
     // Priority: Parameter -> ENV -> Default (config comes from env vars now)
     // Load initial capital
     if (initialCapital !== null) {
@@ -102,11 +102,14 @@ class PaperTradingService {
     }
 
     // Load grid percentage
-    if (process.env.GRID_PERCENTAGE) {
+    if (gridPercentage !== null) {
+      this.gridPercentage = gridPercentage;
+      logger.info(`📈 Grid Percentage from PARAM: ${this.gridPercentage}%`);
+    } else if (process.env.GRID_PERCENTAGE) {
       this.gridPercentage = parseFloat(process.env.GRID_PERCENTAGE);
       logger.info(`📈 Grid Percentage from ENV: ${this.gridPercentage}%`);
     } else {
-      this.gridPercentage = 5.0;
+      this.gridPercentage = 0.25;
       logger.info(`📈 Grid Percentage from DEFAULT: ${this.gridPercentage}%`);
     }
 
