@@ -40,42 +40,25 @@ class ChannelManager {
     try {
       logger.info('🎛️  Initializing Channel Manager...');
 
-      // Define channel configurations from environment variables
-      // Support both new combined format and legacy separate variables
-      const channelConfigs = [];
-
-      // Try to load up to 10 channels
-      for (let i = 1; i <= 10; i++) {
-        let config = null;
-
-        // First try new combined format: CHANNEL_X_CONFIG
-        const combinedConfig = process.env[`CHANNEL_${i}_CONFIG`];
-        if (combinedConfig) {
-          config = this.parseChannelConfig(combinedConfig, i);
-          if (config) {
-            logger.info(`📡 Loaded channel ${i} from combined config`);
-          }
+      // Hardcoded channel configurations - no environment variables needed
+      const channelConfigs = [
+        {
+          id: '1443823756823891979',
+          name: 'smallamount',
+          initialCapital: 100000,
+          amountPerTrade: 3000,
+          gridPercentage: 0.25,
+        },
+        {
+          id: '1443823807155409009',
+          name: 'largeamount',
+          initialCapital: 100000,
+          amountPerTrade: 10000,
+          gridPercentage: 0.25,
         }
+      ];
 
-        // Fall back to legacy separate variables
-        if (!config) {
-          const legacyId = process.env[`DISCORD_CHANNEL_${i}_ID`];
-          if (legacyId) {
-            config = {
-              id: legacyId,
-              name: process.env[`CHANNEL_${i}_NAME`] || `Channel-${i}`,
-              initialCapital: parseFloat(process.env[`CHANNEL_${i}_INITIAL_CAPITAL`] || '100000'),
-              amountPerTrade: parseFloat(process.env[`CHANNEL_${i}_AMOUNT_PER_TRADE`] || '5000'),
-              gridPercentage: parseFloat(process.env[`CHANNEL_${i}_GRID_PERCENTAGE`] || '5.0'),
-            };
-            logger.info(`📡 Loaded channel ${i} from legacy config`);
-          }
-        }
-
-        if (config) {
-          channelConfigs.push(config);
-        }
-      }
+      logger.info(`📡 Using 2 hardcoded channel configurations`);
 
       // Initialize each channel
       for (const config of channelConfigs) {

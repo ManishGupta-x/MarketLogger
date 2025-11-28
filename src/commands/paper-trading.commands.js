@@ -291,7 +291,13 @@ class PaperTradingCommands {
         let reply = `✅ **Sold ${holding.symbol}**\n\n`;
         reply += `**Qty:** ${result.qty} @ ₹${result.price.toFixed(2)}\n`;
         reply += `**Value:** ₹${result.value.toFixed(2)}\n`;
-        reply += `${pnlEmoji} **P&L:** ₹${result.pnl.toFixed(2)} (${result.pnlPercent.toFixed(2)}%)\n`;
+        if (result.grossPnl !== undefined && result.brokerage !== undefined) {
+          reply += `${pnlEmoji} **Gross P&L:** ₹${result.grossPnl.toFixed(2)}\n`;
+          reply += `💸 **Brokerage:** ₹${result.brokerage.toFixed(2)}\n`;
+          reply += `${pnlEmoji} **Net P&L:** ₹${result.pnl.toFixed(2)} (${result.pnlPercent.toFixed(2)}%)\n`;
+        } else {
+          reply += `${pnlEmoji} **P&L:** ₹${result.pnl.toFixed(2)} (${result.pnlPercent.toFixed(2)}%)\n`;
+        }
         reply += `**Balance:** ₹${result.balance.toLocaleString('en-IN', { minimumFractionDigits: 2 })}`;
 
         await message.reply(reply);
@@ -332,6 +338,8 @@ class PaperTradingCommands {
         let successCount = 0;
         let failCount = 0;
         let totalPnL = 0;
+        let totalGrossPnL = 0;
+        let totalBrokerage = 0;
         let totalValue = 0;
         const results = [];
 
@@ -348,12 +356,15 @@ class PaperTradingCommands {
             if (result.success) {
               successCount++;
               totalPnL += result.pnl;
+              totalGrossPnL += result.grossPnl || result.pnl;
+              totalBrokerage += result.brokerage || 0;
               totalValue += result.value;
               results.push({
                 symbol: holding.symbol,
                 pnl: result.pnl,
                 pnlPercent: result.pnlPercent,
-                value: result.value
+                value: result.value,
+                brokerage: result.brokerage || 0
               });
             } else {
               failCount++;
@@ -372,7 +383,11 @@ class PaperTradingCommands {
         if (failCount > 0) {
           reply += `❌ Failed: ${failCount}\n`;
         }
-        reply += `${pnlEmoji} **Total P&L:** ₹${totalPnL.toFixed(2)}\n`;
+        reply += `${pnlEmoji} **Gross P&L:** ₹${totalGrossPnL.toFixed(2)}\n`;
+        if (totalBrokerage > 0) {
+          reply += `💸 **Total Brokerage:** ₹${totalBrokerage.toFixed(2)}\n`;
+        }
+        reply += `${pnlEmoji} **Net P&L:** ₹${totalPnL.toFixed(2)}\n`;
         reply += `💰 **Total Value:** ₹${totalValue.toFixed(2)}\n`;
         reply += `💵 **New Balance:** ₹${channel.paperTradingService.getPortfolio().cash.toLocaleString('en-IN', { minimumFractionDigits: 2 })}\n\n`;
 
@@ -469,57 +484,84 @@ class PaperTradingCommands {
       const stats = await db.getTotalPnLAsync(channel.id);
       const todayStats = await db.getTodayStatsAsync(channel.id);
       const portfolio = channel.paperTradingService.getPortfolio();
+      const brokerageStats = await db.getTotalBrokerageAsync(channel.id);
+
+      const fields = [
+        {
+          name: '💰 Total P&L (Net)',
+          value: `₹${portfolio.total_pnl.toFixed(2)} (${portfolio.pnl_percent.toFixed(2)}%)`,
+          inline: false
+        },
+        {
+          name: '💹 Realized P&L',
+          value: `₹${portfolio.realized_pnl.toFixed(2)}`,
+          inline: true
+        },
+        {
+          name: '📊 Unrealized P&L',
+          value: `₹${portfolio.unrealized_pnl.toFixed(2)}`,
+          inline: true
+        },
+        {
+          name: '📅 Today\'s P&L',
+          value: `₹${(todayStats.today_pnl || 0).toFixed(2)}`,
+          inline: true
+        }
+      ];
+
+      // Add brokerage information if available
+      if (brokerageStats && brokerageStats.total_transactions > 0) {
+        fields.push(
+          {
+            name: '💸 Total Brokerage',
+            value: `₹${(brokerageStats.total_brokerage || 0).toFixed(2)}`,
+            inline: true
+          },
+          {
+            name: '📈 Gross P&L',
+            value: `₹${(brokerageStats.total_gross_pnl || 0).toFixed(2)}`,
+            inline: true
+          },
+          {
+            name: '💼 Brokerage Txns',
+            value: `${brokerageStats.total_transactions}`,
+            inline: true
+          }
+        );
+      }
+
+      fields.push(
+        {
+          name: '📈 Total Orders',
+          value: `${stats.total_orders || 0}`,
+          inline: true
+        },
+        {
+          name: '🟢 Buy Orders',
+          value: `${stats.buy_orders || 0}`,
+          inline: true
+        },
+        {
+          name: '🔴 Sell Orders',
+          value: `${stats.sell_orders || 0}`,
+          inline: true
+        },
+        {
+          name: '🎯 Stocks Traded',
+          value: `${stats.traded_symbols || 0}`,
+          inline: true
+        },
+        {
+          name: '💼 Current Holdings',
+          value: `${portfolio.holdings_count}`,
+          inline: true
+        }
+      );
 
       const embed = {
         title: '📊 Profit & Loss Summary',
         color: portfolio.total_pnl >= 0 ? 0x00ff00 : 0xff0000,
-        fields: [
-          {
-            name: '💰 Total P&L',
-            value: `₹${portfolio.total_pnl.toFixed(2)} (${portfolio.pnl_percent.toFixed(2)}%)`,
-            inline: false
-          },
-          {
-            name: '💹 Realized P&L',
-            value: `₹${portfolio.realized_pnl.toFixed(2)}`,
-            inline: true
-          },
-          {
-            name: '📊 Unrealized P&L',
-            value: `₹${portfolio.unrealized_pnl.toFixed(2)}`,
-            inline: true
-          },
-          {
-            name: '📅 Today\'s P&L',
-            value: `₹${(todayStats.today_pnl || 0).toFixed(2)}`,
-            inline: true
-          },
-          {
-            name: '📈 Total Orders',
-            value: `${stats.total_orders || 0}`,
-            inline: true
-          },
-          {
-            name: '🟢 Buy Orders',
-            value: `${stats.buy_orders || 0}`,
-            inline: true
-          },
-          {
-            name: '🔴 Sell Orders',
-            value: `${stats.sell_orders || 0}`,
-            inline: true
-          },
-          {
-            name: '🎯 Stocks Traded',
-            value: `${stats.traded_symbols || 0}`,
-            inline: true
-          },
-          {
-            name: '💼 Current Holdings',
-            value: `${portfolio.holdings_count}`,
-            inline: true
-          }
-        ],
+        fields: fields,
         timestamp: new Date()
       };
 

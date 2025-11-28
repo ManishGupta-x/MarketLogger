@@ -17,6 +17,44 @@ class PaperTradingService {
     this.orderChannelId = process.env.DISCORD_ORDER_CHANNEL_ID || '1424357736820379668';
   }
 
+  // Calculate Zerodha Intraday brokerage charges
+  calculateZerodhaIntraday(buy, sell, qty) {
+    const turnover = (buy * qty) + (sell * qty);
+
+    // Brokerage (0.03% or max 20)
+    let brokerage = turnover * 0.0003;
+    if (brokerage > 20) brokerage = 20;
+
+    // Charges
+    const exchangeTxn = turnover * 0.0000345;   // NSE equity intraday
+    const sebiCharges = turnover * 0.0000001;   // 10 per crore
+    const stt = 0;                               // intraday
+    const stampDuty = 0;
+
+    // GST (18% on brokerage + exchange)
+    const gst = 0.18 * (brokerage + exchangeTxn);
+
+    // Total costs
+    const totalCharges = brokerage + exchangeTxn + sebiCharges + gst + stt + stampDuty;
+
+    // P&L before charges
+    const grossPL = (sell - buy) * qty;
+
+    // Final net P&L
+    const netPL = grossPL - totalCharges;
+
+    return {
+      turnover: parseFloat(turnover.toFixed(2)),
+      brokerage: parseFloat(brokerage.toFixed(2)),
+      exchangeTxn: parseFloat(exchangeTxn.toFixed(2)),
+      sebiCharges: parseFloat(sebiCharges.toFixed(2)),
+      gst: parseFloat(gst.toFixed(2)),
+      totalCharges: parseFloat(totalCharges.toFixed(2)),
+      grossPL: parseFloat(grossPL.toFixed(2)),
+      netPL: parseFloat(netPL.toFixed(2))
+    };
+  }
+
   async initialize(initialCapital = null, amountPerTrade = null) {
     try {
       logger.info(`💼 Initializing Paper Trading Service for channel ${this.channelId}...`);
@@ -264,16 +302,25 @@ class PaperTradingService {
     const qty = holding.qty;
     const orderValue = new Decimal(qty).mul(price);
 
-    // Calculate P&L
+    // Calculate brokerage charges
+    const brokerageCalc = this.calculateZerodhaIntraday(
+      holding.avgPrice,
+      price.toNumber(),
+      qty
+    );
+
+    // Calculate P&L (using net P&L after brokerage)
     const investedValue = new Decimal(holding.investedValue);
-    const pnl = orderValue.minus(investedValue);
-    const pnlPercent = pnl.div(investedValue).mul(100);
+    const grossPnl = orderValue.minus(investedValue);
+    const netPnl = new Decimal(brokerageCalc.netPL);
+    const netPnlPercent = netPnl.div(investedValue).mul(100);
 
-    // Update cash balance
-    this.cashBalance = new Decimal(this.cashBalance).plus(orderValue).toNumber();
+    // Update cash balance (subtract brokerage from order value)
+    const netOrderValue = orderValue.minus(brokerageCalc.totalCharges);
+    this.cashBalance = new Decimal(this.cashBalance).plus(netOrderValue).toNumber();
 
-    // Update realized P&L
-    this.totalRealizedPnL = new Decimal(this.totalRealizedPnL).plus(pnl).toNumber();
+    // Update realized P&L (using net P&L)
+    this.totalRealizedPnL = new Decimal(this.totalRealizedPnL).plus(netPnl).toNumber();
 
     // Remove holding
     this.holdings.delete(token);
@@ -288,20 +335,37 @@ class PaperTradingService {
       price: price.toNumber(),
       value: orderValue.toNumber(),
       balance: this.cashBalance,
-      pnl: pnl.toNumber(),
-      pnl_percent: pnlPercent.toNumber(),
+      pnl: netPnl.toNumber(),
+      pnl_percent: netPnlPercent.toNumber(),
       grid_level: gridLevel,
       reference_price: referencePrice,
-      notes: `Grid level ${gridLevel} | P&L: ₹${pnl.toNumber().toFixed(2)}`
+      notes: `Grid level ${gridLevel} | Gross P&L: ₹${grossPnl.toNumber().toFixed(2)} | Net P&L: ₹${netPnl.toNumber().toFixed(2)} | Brokerage: ₹${brokerageCalc.totalCharges.toFixed(2)}`
+    }, this.channelId);
+
+    // Insert brokerage record
+    db.insertBrokerage({
+      order_id: orderId,
+      symbol: symbol,
+      buy_price: holding.avgPrice,
+      sell_price: price.toNumber(),
+      qty: qty,
+      turnover: brokerageCalc.turnover,
+      brokerage: brokerageCalc.brokerage,
+      exchange_txn: brokerageCalc.exchangeTxn,
+      sebi_charges: brokerageCalc.sebiCharges,
+      gst: brokerageCalc.gst,
+      total_charges: brokerageCalc.totalCharges,
+      gross_pnl: brokerageCalc.grossPL,
+      net_pnl: brokerageCalc.netPL
     }, this.channelId);
 
     // Save portfolio snapshot
     this.savePortfolioSnapshot();
 
     // Log to Discord with special emoji for significant gains/losses
-    await this.logOrderToDiscord('SELL', symbol, qty, price.toNumber(), pnl.toNumber(), pnlPercent.toNumber(), this.cashBalance, executionReason);
+    await this.logOrderToDiscord('SELL', symbol, qty, price.toNumber(), netPnl.toNumber(), netPnlPercent.toNumber(), this.cashBalance, executionReason, brokerageCalc);
 
-    logger.info(`🔴 SELL ${symbol} | Qty: ${qty} | Price: ₹${price.toNumber()} | P&L: ₹${pnl.toNumber().toFixed(2)} (${pnlPercent.toNumber().toFixed(2)}%) | Balance: ₹${this.cashBalance.toFixed(2)}`);
+    logger.info(`🔴 SELL ${symbol} | Qty: ${qty} | Price: ₹${price.toNumber()} | Gross P&L: ₹${grossPnl.toNumber().toFixed(2)} | Brokerage: ₹${brokerageCalc.totalCharges.toFixed(2)} | Net P&L: ₹${netPnl.toNumber().toFixed(2)} (${netPnlPercent.toNumber().toFixed(2)}%) | Balance: ₹${this.cashBalance.toFixed(2)}`);
 
     return {
       success: true,
@@ -309,8 +373,10 @@ class PaperTradingService {
       qty: qty,
       price: price.toNumber(),
       value: orderValue.toNumber(),
-      pnl: pnl.toNumber(),
-      pnlPercent: pnlPercent.toNumber(),
+      grossPnl: grossPnl.toNumber(),
+      brokerage: brokerageCalc.totalCharges,
+      pnl: netPnl.toNumber(),
+      pnlPercent: netPnlPercent.toNumber(),
       balance: this.cashBalance
     };
   }
@@ -337,16 +403,25 @@ class PaperTradingService {
       const qty = holding.qty;
       const orderValue = new Decimal(qty).mul(priceDecimal);
 
-      // Calculate P&L
+      // Calculate brokerage charges
+      const brokerageCalc = this.calculateZerodhaIntraday(
+        holding.avgPrice,
+        priceDecimal.toNumber(),
+        qty
+      );
+
+      // Calculate P&L (using net P&L after brokerage)
       const investedValue = new Decimal(holding.investedValue);
-      const pnl = orderValue.minus(investedValue);
-      const pnlPercent = pnl.div(investedValue).mul(100);
+      const grossPnl = orderValue.minus(investedValue);
+      const netPnl = new Decimal(brokerageCalc.netPL);
+      const netPnlPercent = netPnl.div(investedValue).mul(100);
 
-      // Update cash balance
-      this.cashBalance = new Decimal(this.cashBalance).plus(orderValue).toNumber();
+      // Update cash balance (subtract brokerage from order value)
+      const netOrderValue = orderValue.minus(brokerageCalc.totalCharges);
+      this.cashBalance = new Decimal(this.cashBalance).plus(netOrderValue).toNumber();
 
-      // Update realized P&L
-      this.totalRealizedPnL = new Decimal(this.totalRealizedPnL).plus(pnl).toNumber();
+      // Update realized P&L (using net P&L)
+      this.totalRealizedPnL = new Decimal(this.totalRealizedPnL).plus(netPnl).toNumber();
 
       // Remove holding
       this.holdings.delete(token);
@@ -361,17 +436,34 @@ class PaperTradingService {
         price: priceDecimal.toNumber(),
         value: orderValue.toNumber(),
         balance: this.cashBalance,
-        pnl: pnl.toNumber(),
-        pnl_percent: pnlPercent.toNumber(),
+        pnl: netPnl.toNumber(),
+        pnl_percent: netPnlPercent.toNumber(),
         grid_level: 0,
         reference_price: null,
-        notes: `Manual sell | P&L: ₹${pnl.toNumber().toFixed(2)}`
+        notes: `Manual sell | Gross P&L: ₹${grossPnl.toNumber().toFixed(2)} | Net P&L: ₹${netPnl.toNumber().toFixed(2)} | Brokerage: ₹${brokerageCalc.totalCharges.toFixed(2)}`
+      }, this.channelId);
+
+      // Insert brokerage record
+      db.insertBrokerage({
+        order_id: orderId,
+        symbol: symbol,
+        buy_price: holding.avgPrice,
+        sell_price: priceDecimal.toNumber(),
+        qty: qty,
+        turnover: brokerageCalc.turnover,
+        brokerage: brokerageCalc.brokerage,
+        exchange_txn: brokerageCalc.exchangeTxn,
+        sebi_charges: brokerageCalc.sebiCharges,
+        gst: brokerageCalc.gst,
+        total_charges: brokerageCalc.totalCharges,
+        gross_pnl: brokerageCalc.grossPL,
+        net_pnl: brokerageCalc.netPL
       }, this.channelId);
 
       // Save portfolio snapshot
       this.savePortfolioSnapshot();
 
-      logger.info(`🔴 MANUAL SELL ${symbol} | Qty: ${qty} | Price: ₹${priceDecimal.toNumber()} | P&L: ₹${pnl.toNumber().toFixed(2)} (${pnlPercent.toNumber().toFixed(2)}%) | Balance: ₹${this.cashBalance.toFixed(2)}`);
+      logger.info(`🔴 MANUAL SELL ${symbol} | Qty: ${qty} | Price: ₹${priceDecimal.toNumber()} | Gross P&L: ₹${grossPnl.toNumber().toFixed(2)} | Brokerage: ₹${brokerageCalc.totalCharges.toFixed(2)} | Net P&L: ₹${netPnl.toNumber().toFixed(2)} (${netPnlPercent.toNumber().toFixed(2)}%) | Balance: ₹${this.cashBalance.toFixed(2)}`);
 
       return {
         success: true,
@@ -379,8 +471,10 @@ class PaperTradingService {
         qty: qty,
         price: priceDecimal.toNumber(),
         value: orderValue.toNumber(),
-        pnl: pnl.toNumber(),
-        pnlPercent: pnlPercent.toNumber(),
+        grossPnl: grossPnl.toNumber(),
+        brokerage: brokerageCalc.totalCharges,
+        pnl: netPnl.toNumber(),
+        pnlPercent: netPnlPercent.toNumber(),
         balance: this.cashBalance
       };
     } catch (error) {
@@ -389,7 +483,7 @@ class PaperTradingService {
     }
   }
 
-  async logOrderToDiscord(type, symbol, qty, price, pnl, pnlPercent, balance, executionReason = null) {
+  async logOrderToDiscord(type, symbol, qty, price, pnl, pnlPercent, balance, executionReason = null, brokerageCalc = null) {
     if (!discordService.isReady) return;
 
     // Log to the trading channel (channelId) instead of a dedicated order channel
@@ -422,7 +516,13 @@ class PaperTradingService {
     message += `**Qty:** ${qty} @ ₹${price.toFixed(2)}\n`;
     message += `**Value:** ₹${value.toFixed(2)}\n`;
 
-    if (type === 'SELL') {
+    if (type === 'SELL' && brokerageCalc) {
+      const pnlEmoji = pnl >= 0 ? '📈' : '📉';
+      const alertEmoji = Math.abs(pnlPercent) > 2 ? '🎉' : '';
+      message += `${pnlEmoji} **Gross P&L:** ₹${brokerageCalc.grossPL.toFixed(2)}\n`;
+      message += `💸 **Brokerage:** ₹${brokerageCalc.totalCharges.toFixed(2)} (₹${brokerageCalc.brokerage.toFixed(2)} + ₹${brokerageCalc.gst.toFixed(2)} GST)\n`;
+      message += `${pnlEmoji} **Net P&L:** ₹${pnl.toFixed(2)} (${pnlPercent.toFixed(2)}%) ${alertEmoji}\n`;
+    } else if (type === 'SELL') {
       const pnlEmoji = pnl >= 0 ? '📈' : '📉';
       const alertEmoji = Math.abs(pnlPercent) > 2 ? '🎉' : '';
       message += `${pnlEmoji} **P&L:** ₹${pnl.toFixed(2)} (${pnlPercent.toFixed(2)}%) ${alertEmoji}\n`;

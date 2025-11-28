@@ -1,34 +1,16 @@
-// Channel configuration - only names, other params fetched from database
+// Channel configuration - hardcoded 2 channels only
 export const CHANNEL_CONFIG = {
-  '1440645863729791006': {
-    name: 'Shashank 1'
+  '1443823756823891979': {
+    name: 'Small Amount',
+    initialCapital: 100000,
+    amountPerTrade: 3000,
+    gridPercentage: 0.25
   },
-  '1440646657258684416': {
-    name: 'Shashank 2'
-  },
-  '1440646699235282985': {
-    name: 'Manish 1'
-  },
-  '1441032604013826101': {
-    name: 'Manish 2'
-  },
-  '1441032659106267187': {
-    name: 'Ronak 1'
-  },
-  '1441032734666526771': {
-    name: 'Ronak 2'
-  },
-  '1441032799846142037': {
-    name: 'Anshit 1'
-  },
-  '1441032873124565052': {
-    name: 'Anshit 2'
-  },
-  '1441032833698238465': {
-    name: 'Commons 1'
-  },
-  '1441032735090282557': {
-    name: 'Common 2'
+  '1443823807155409009': {
+    name: 'Large Amount',
+    initialCapital: 100000,
+    amountPerTrade: 10000,
+    gridPercentage: 0.25
   }
 }
 
