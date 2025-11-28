@@ -9,6 +9,7 @@ import OrdersTable from '@/components/OrdersTable'
 export default function OrdersPage() {
   const [channelId, setChannelId] = useState('')
   const [orders, setOrders] = useState([])
+  const [allOrders, setAllOrders] = useState([]) // All orders for stats
   const [totalOrdersCount, setTotalOrdersCount] = useState(0)
   const [channelConfig, setChannelConfig] = useState(null)
   const [loading, setLoading] = useState(true)
@@ -20,12 +21,14 @@ export default function OrdersPage() {
     async function fetchData() {
       setLoading(true)
       try {
-        const [ordersData, totalCount, configData] = await Promise.all([
-          getOrders(channelId, limit),
+        const [ordersData, allOrdersData, totalCount, configData] = await Promise.all([
+          getOrders(channelId, limit), // Limited for display
+          getOrders(channelId, 10000), // All orders for stats
           getOrdersCount(channelId),
           getConfig(channelId)
         ])
         setOrders(ordersData)
+        setAllOrders(allOrdersData)
         setTotalOrdersCount(totalCount)
         setChannelConfig(configData)
       } catch (error) {
@@ -41,11 +44,11 @@ export default function OrdersPage() {
   const channelInfo = CHANNEL_CONFIG[channelId]
   const channelName = channelInfo?.name || 'Select Channel'
 
-  // Calculate stats from FILTERED orders only
-  const buyOrders = orders.filter(o => (o.order_type || o.type)?.toUpperCase() === 'BUY')
-  const sellOrders = orders.filter(o => (o.order_type || o.type)?.toUpperCase() === 'SELL')
-  const totalPnl = orders.reduce((sum, o) => sum + (o.pnl || 0), 0)
-  const totalValue = orders.reduce((sum, o) => sum + (o.qty * o.price), 0)
+  // Calculate stats from ALL orders (not just displayed ones)
+  const buyOrders = allOrders.filter(o => (o.order_type || o.type)?.toUpperCase() === 'BUY')
+  const sellOrders = allOrders.filter(o => (o.order_type || o.type)?.toUpperCase() === 'SELL')
+  const totalPnl = sellOrders.reduce((sum, o) => sum + (parseFloat(o.pnl) || 0), 0) // Only SELL orders have P&L
+  const totalValue = allOrders.reduce((sum, o) => sum + (o.qty * o.price), 0)
 
   return (
     <div className="space-y-8 animate-fade-in">

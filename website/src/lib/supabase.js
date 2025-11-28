@@ -205,6 +205,8 @@ export async function getStrategyComparison() {
       grid_percentage: channel.grid_percentage,
       current_value: currentValue,
       total_pnl: totalPnl,
+      realized_pnl: realizedPnl,
+      unrealized_pnl: unrealizedPnl,
       roi_percent: roiPercent,
       total_trades: (orders || []).length,
       win_rate: winRate,

@@ -335,7 +335,8 @@ export default function AnalyticsPage() {
                 <th className="pb-4 font-medium text-right uppercase tracking-wider text-xs">Per Order</th>
                 <th className="pb-4 font-medium text-right uppercase tracking-wider text-xs">Initial</th>
                 <th className="pb-4 font-medium text-right uppercase tracking-wider text-xs">Current</th>
-                <th className="pb-4 font-medium text-right uppercase tracking-wider text-xs">P&L</th>
+                <th className="pb-4 font-medium text-right uppercase tracking-wider text-xs">Realized P&L</th>
+                <th className="pb-4 font-medium text-right uppercase tracking-wider text-xs">Total P&L</th>
                 <th className="pb-4 font-medium text-right uppercase tracking-wider text-xs">ROI %</th>
                 <th className="pb-4 font-medium text-right uppercase tracking-wider text-xs">Profitable %</th>
                 <th className="pb-4 font-medium text-right uppercase tracking-wider text-xs">Trades</th>
@@ -370,6 +371,9 @@ export default function AnalyticsPage() {
                     <td className="py-4 text-right text-white font-semibold tabular-nums">
                       ₹{strategy.current_value?.toLocaleString('en-IN', { maximumFractionDigits: 0 })}
                     </td>
+                    <td className={`py-4 text-right font-semibold tabular-nums ${strategy.realized_pnl >= 0 ? 'text-[#00ff88]' : 'text-[#ff4444]'}`}>
+                      {strategy.realized_pnl >= 0 ? '+' : ''}₹{strategy.realized_pnl?.toLocaleString('en-IN', { maximumFractionDigits: 2 })}
+                    </td>
                     <td
                       className={`py-4 text-right font-bold tabular-nums cursor-pointer hover:underline ${pnl >= 0 ? 'text-[#00ff88]' : 'text-[#ff4444]'}`}
                       onClick={() => handlePnlClick(strategy.channel_id)}
@@ -392,7 +396,7 @@ export default function AnalyticsPage() {
               })}
               {strategyComparison.length === 0 && (
                 <tr>
-                  <td colSpan="11" className="py-8 text-center text-gray-500">
+                  <td colSpan="12" className="py-8 text-center text-gray-500">
                     No strategy data available
                   </td>
                 </tr>
