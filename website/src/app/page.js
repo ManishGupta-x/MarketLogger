@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useEffect } from 'react'
-import { getPortfolio, getHoldings, getConfig } from '@/lib/supabase'
+import { getPortfolio, getHoldings, getConfig, getOrders } from '@/lib/supabase'
 import { CHANNEL_CONFIG } from '@/lib/channels'
 import ChannelSelector from '@/components/ChannelSelector'
 import StatCard from '@/components/StatCard'
@@ -12,6 +12,7 @@ export default function Dashboard() {
   const [portfolio, setPortfolio] = useState(null)
   const [holdings, setHoldings] = useState([])
   const [config, setConfig] = useState(null)
+  const [orders, setOrders] = useState([])
   const [loading, setLoading] = useState(true)
 
   useEffect(() => {
@@ -20,14 +21,16 @@ export default function Dashboard() {
     async function fetchData() {
       setLoading(true)
       try {
-        const [portfolioData, holdingsData, configData] = await Promise.all([
+        const [portfolioData, holdingsData, configData, ordersData] = await Promise.all([
           getPortfolio(channelId),
           getHoldings(channelId),
-          getConfig(channelId)
+          getConfig(channelId),
+          getOrders(channelId)
         ])
         setPortfolio(portfolioData)
         setHoldings(holdingsData)
         setConfig(configData)
+        setOrders(ordersData)
       } catch (error) {
         console.error('Error fetching data:', error)
       } finally {
@@ -44,7 +47,10 @@ export default function Dashboard() {
   // Calculate real-time values from holdings and cash
   const cashBalance = portfolio?.cash_balance || 0
   const initialCapital = config?.capital || 0
-  const realizedPnl = portfolio?.realized_pnl || 0
+
+  // Calculate realized P&L from SELL orders (source of truth)
+  const sellOrders = orders.filter(o => o.type === 'SELL')
+  const realizedPnl = sellOrders.reduce((sum, o) => sum + (parseFloat(o.pnl) || 0), 0)
 
   // Calculate real-time holdings value and unrealized P&L
   let holdingsValue = 0

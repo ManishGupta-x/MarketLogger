@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useEffect } from 'react'
-import { getHoldings, getPortfolio, getConfig } from '@/lib/supabase'
+import { getHoldings, getPortfolio, getConfig, getOrders } from '@/lib/supabase'
 import { CHANNEL_CONFIG } from '@/lib/channels'
 import ChannelSelector from '@/components/ChannelSelector'
 import HoldingsTable from '@/components/HoldingsTable'
@@ -11,6 +11,7 @@ export default function HoldingsPage() {
   const [holdings, setHoldings] = useState([])
   const [portfolio, setPortfolio] = useState(null)
   const [channelConfig, setChannelConfig] = useState(null)
+  const [orders, setOrders] = useState([])
   const [loading, setLoading] = useState(true)
 
   useEffect(() => {
@@ -19,14 +20,16 @@ export default function HoldingsPage() {
     async function fetchData() {
       setLoading(true)
       try {
-        const [holdingsData, portfolioData, configData] = await Promise.all([
+        const [holdingsData, portfolioData, configData, ordersData] = await Promise.all([
           getHoldings(channelId),
           getPortfolio(channelId),
-          getConfig(channelId)
+          getConfig(channelId),
+          getOrders(channelId)
         ])
         setHoldings(holdingsData)
         setPortfolio(portfolioData)
         setChannelConfig(configData)
+        setOrders(ordersData)
       } catch (error) {
         console.error('Error fetching data:', error)
       } finally {
@@ -48,8 +51,12 @@ export default function HoldingsPage() {
 
   // Portfolio metrics
   const cashBalance = portfolio?.cash_balance || 0
-  const totalValue = cashBalance + totalCurrent
-  const realizedPnl = portfolio?.realized_pnl || 0
+
+  // Calculate realized P&L from SELL orders (source of truth)
+  const sellOrders = orders.filter(o => o.type === 'SELL')
+  const realizedPnl = sellOrders.reduce((sum, o) => sum + (parseFloat(o.pnl) || 0), 0)
+
+  const totalValue = cashBalance + totalCurrent + realizedPnl
   const unrealizedPnl = totalPnl
   const overallPnl = realizedPnl + unrealizedPnl
   const overallPnlPercent = channelConfig?.capital > 0 ? (overallPnl / channelConfig.capital) * 100 : 0
