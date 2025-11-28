@@ -170,7 +170,10 @@ export async function getStrategyComparison() {
     // Get values from portfolio
     const initialCapital = parseNum(channel.initial_capital)
     const cashBalance = parseNum(latestPortfolio?.cash_balance ?? initialCapital)
-    const realizedPnl = parseNum(latestPortfolio?.realized_pnl ?? 0)
+
+    // Calculate realized P&L from SELL orders (source of truth)
+    const sellOrders = (orders || []).filter(o => o.type === 'SELL')
+    const realizedPnl = sellOrders.reduce((sum, o) => sum + parseNum(o.pnl), 0)
 
     // Calculate REAL-TIME holdings value and unrealized P&L from current holdings
     let holdingsValue = 0
@@ -349,7 +352,10 @@ export async function getChannelPnlBreakdown(channelId) {
   // Get values from portfolio
   const initialCapital = parseNum(channel?.initial_capital)
   const cashBalance = parseNum(latestPortfolio?.cash_balance ?? initialCapital)
-  const realizedPnl = parseNum(latestPortfolio?.realized_pnl ?? 0)
+
+  // Calculate realized P&L from SELL orders (source of truth)
+  const sellOrders = (orders || []).filter(o => o.type === 'SELL')
+  const realizedPnl = sellOrders.reduce((sum, o) => sum + parseNum(o.pnl), 0)
 
   // Calculate REAL-TIME holdings value and unrealized P&L from current holdings
   let holdingsValue = 0
@@ -367,14 +373,11 @@ export async function getChannelPnlBreakdown(channelId) {
     unrealizedPnl += (current - invested)
   })
 
-  // Calculate real-time current value = cash + holdings
-  const currentValue = cashBalance + holdingsValue
+  // Calculate real-time current value = cash + holdings + realized profit (now separate)
+  const currentValue = cashBalance + holdingsValue + realizedPnl
 
   // Calculate real-time total P&L = realized + unrealized
   const totalPnl = realizedPnl + unrealizedPnl
-
-  // Get SELL orders for detailed breakdown
-  const sellOrders = (orders || []).filter(o => o.type === 'SELL')
 
   // Add current_price and quantity fields to holdings with proper parsing
   const holdingsWithPrices = (holdings || []).map(h => ({
