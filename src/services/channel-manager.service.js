@@ -73,7 +73,8 @@ class ChannelManager {
         const paperTradingService = new PaperTradingService(config.id);
         await paperTradingService.initialize(
           config.initialCapital,
-          config.amountPerTrade
+          config.amountPerTrade,
+          config.gridPercentage
         );
 
         // Create grid strategy service instance for this channel
