@@ -205,6 +205,29 @@ class DatabaseService {
       )
     `);
 
+    // Brokerage table for tracking transaction costs
+    this.db.exec(`
+      CREATE TABLE IF NOT EXISTS brokerage (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        channel_id TEXT NOT NULL,
+        order_id INTEGER,
+        timestamp DATETIME DEFAULT CURRENT_TIMESTAMP,
+        symbol TEXT NOT NULL,
+        buy_price REAL NOT NULL,
+        sell_price REAL NOT NULL,
+        qty INTEGER NOT NULL,
+        turnover REAL NOT NULL,
+        brokerage REAL NOT NULL,
+        exchange_txn REAL NOT NULL,
+        sebi_charges REAL NOT NULL,
+        gst REAL NOT NULL,
+        total_charges REAL NOT NULL,
+        gross_pnl REAL NOT NULL,
+        net_pnl REAL NOT NULL,
+        synced INTEGER DEFAULT 0
+      )
+    `);
+
     // Create indexes for better performance
     try {
       this.db.exec(`
@@ -215,6 +238,9 @@ class DatabaseService {
         CREATE INDEX IF NOT EXISTS idx_holdings_channel ON virtual_holdings(channel_id);
         CREATE INDEX IF NOT EXISTS idx_portfolio_channel ON virtual_portfolio(channel_id);
         CREATE INDEX IF NOT EXISTS idx_portfolio_synced ON virtual_portfolio(synced);
+        CREATE INDEX IF NOT EXISTS idx_brokerage_channel ON brokerage(channel_id);
+        CREATE INDEX IF NOT EXISTS idx_brokerage_order ON brokerage(order_id);
+        CREATE INDEX IF NOT EXISTS idx_brokerage_synced ON brokerage(synced);
       `);
     } catch (e) {
       logger.warn('⚠️ Some indexes could not be created:', e.message);
@@ -330,6 +356,9 @@ class DatabaseService {
 
       // Sync channel configurations
       await this.syncChannels();
+
+      // Sync brokerage data
+      await this.syncBrokerage();
 
       // Bidirectional: pull missing data from Supabase
       await this.syncFromSupabase();
@@ -514,6 +543,42 @@ class DatabaseService {
       console.log(`   → Synced ${channels.length - upsertErrors}/${channels.length} channels (${upsertErrors} errors)`);
     } else {
       console.log(`   → Synced ${channels.length} channels`);
+    }
+  }
+
+  async syncBrokerage() {
+    const unsyncedBrokerage = this.db.prepare(`
+      SELECT * FROM brokerage WHERE synced = 0 ORDER BY id LIMIT ?
+    `).all(this.batchSize);
+
+    if (unsyncedBrokerage.length === 0) return;
+
+    const brokerageToSync = unsyncedBrokerage.map(br => ({
+      channel_id: br.channel_id,
+      order_id: br.order_id,
+      timestamp: br.timestamp,
+      symbol: br.symbol,
+      buy_price: br.buy_price,
+      sell_price: br.sell_price,
+      qty: br.qty,
+      turnover: br.turnover,
+      brokerage: br.brokerage,
+      exchange_txn: br.exchange_txn,
+      sebi_charges: br.sebi_charges,
+      gst: br.gst,
+      total_charges: br.total_charges,
+      gross_pnl: br.gross_pnl,
+      net_pnl: br.net_pnl
+    }));
+
+    const { error } = await this.supabase.from('brokerage').insert(brokerageToSync);
+
+    if (!error) {
+      const ids = unsyncedBrokerage.map(b => b.id);
+      this.db.prepare(`UPDATE brokerage SET synced = 1 WHERE id IN (${ids.join(',')})`).run();
+      console.log(`   → Synced ${unsyncedBrokerage.length} brokerage records`);
+    } else {
+      logger.error('❌ Failed to sync brokerage:', error);
     }
   }
 
@@ -922,11 +987,74 @@ class DatabaseService {
     return this.getWorstPerformers(limit, channelId);
   }
 
+  // Brokerage methods
+  insertBrokerage(brokerage, channelId = 'default') {
+    const stmt = this.db.prepare(`
+      INSERT INTO brokerage
+      (channel_id, order_id, symbol, buy_price, sell_price, qty, turnover, brokerage,
+       exchange_txn, sebi_charges, gst, total_charges, gross_pnl, net_pnl, synced)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 0)
+    `);
+
+    const result = stmt.run(
+      channelId,
+      brokerage.order_id || null,
+      brokerage.symbol,
+      brokerage.buy_price,
+      brokerage.sell_price,
+      brokerage.qty,
+      brokerage.turnover,
+      brokerage.brokerage,
+      brokerage.exchange_txn,
+      brokerage.sebi_charges,
+      brokerage.gst,
+      brokerage.total_charges,
+      brokerage.gross_pnl,
+      brokerage.net_pnl
+    );
+
+    return result.lastInsertRowid;
+  }
+
+  getBrokerageByOrderId(orderId, channelId = 'default') {
+    const stmt = this.db.prepare('SELECT * FROM brokerage WHERE channel_id = ? AND order_id = ?');
+    return stmt.get(channelId, orderId);
+  }
+
+  getAllBrokerage(channelId = 'default', limit = 100, offset = 0) {
+    const stmt = this.db.prepare(`
+      SELECT * FROM brokerage
+      WHERE channel_id = ?
+      ORDER BY timestamp DESC
+      LIMIT ? OFFSET ?
+    `);
+    return stmt.all(channelId, limit, offset);
+  }
+
+  getTotalBrokerage(channelId = 'default') {
+    const stmt = this.db.prepare(`
+      SELECT
+        SUM(total_charges) as total_brokerage,
+        SUM(gross_pnl) as total_gross_pnl,
+        SUM(net_pnl) as total_net_pnl,
+        COUNT(*) as total_transactions
+      FROM brokerage
+      WHERE channel_id = ?
+    `);
+    return stmt.get(channelId);
+  }
+
+  // Async wrapper for compatibility
+  async getTotalBrokerageAsync(channelId = 'default') {
+    return this.getTotalBrokerage(channelId);
+  }
+
   // Reset methods
   resetPortfolio(channelId = 'default') {
     this.db.exec(`DELETE FROM virtual_orders WHERE channel_id = '${channelId}'`);
     this.db.exec(`DELETE FROM virtual_holdings WHERE channel_id = '${channelId}'`);
     this.db.exec(`DELETE FROM virtual_portfolio WHERE channel_id = '${channelId}'`);
+    this.db.exec(`DELETE FROM brokerage WHERE channel_id = '${channelId}'`);
 
     logger.info(`🔄 Portfolio reset complete for channel ${channelId}`);
   }
