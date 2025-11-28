@@ -45,6 +45,17 @@ async function start() {
         // Auto-start trading if configured
         await channelManager.autoStartTrading();
 
+        // Start periodic Supabase sync every 10 seconds
+        setInterval(async () => {
+          try {
+            await db.syncToSupabase();
+            logger.info('🔄 Periodic sync to Supabase completed');
+          } catch (error) {
+            logger.error('❌ Periodic sync failed:', error);
+          }
+        }, 10000); // 10 seconds
+        logger.info('✅ Periodic Supabase sync started (every 10 seconds)');
+
       } catch (error) {
         logger.error('❌ Failed to initialize trading:', error);
       }

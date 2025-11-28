@@ -318,11 +318,10 @@ class PaperTradingService {
     const netPnl = new Decimal(brokerageCalc.netPL);
     const netPnlPercent = netPnl.div(investedValue).mul(100);
 
-    // Update cash balance (subtract brokerage from order value)
-    const netOrderValue = orderValue.minus(brokerageCalc.totalCharges);
-    this.cashBalance = new Decimal(this.cashBalance).plus(netOrderValue).toNumber();
+    // Update cash balance - add back ONLY the invested amount (profits stay separate)
+    this.cashBalance = new Decimal(this.cashBalance).plus(investedValue).toNumber();
 
-    // Update realized P&L (using net P&L)
+    // Update realized P&L - profit after brokerage goes here (not to balance)
     this.totalRealizedPnL = new Decimal(this.totalRealizedPnL).plus(netPnl).toNumber();
 
     // Remove holding
@@ -419,11 +418,10 @@ class PaperTradingService {
       const netPnl = new Decimal(brokerageCalc.netPL);
       const netPnlPercent = netPnl.div(investedValue).mul(100);
 
-      // Update cash balance (subtract brokerage from order value)
-      const netOrderValue = orderValue.minus(brokerageCalc.totalCharges);
-      this.cashBalance = new Decimal(this.cashBalance).plus(netOrderValue).toNumber();
+      // Update cash balance - add back ONLY the invested amount (profits stay separate)
+      this.cashBalance = new Decimal(this.cashBalance).plus(investedValue).toNumber();
 
-      // Update realized P&L (using net P&L)
+      // Update realized P&L - profit after brokerage goes here (not to balance)
       this.totalRealizedPnL = new Decimal(this.totalRealizedPnL).plus(netPnl).toNumber();
 
       // Remove holding
@@ -573,8 +571,8 @@ class PaperTradingService {
       unrealizedPnl = unrealizedPnl.plus(pnl);
     });
 
-    // Total value = cash + holdings
-    const totalValue = new Decimal(this.cashBalance).plus(holdingsValue);
+    // Total value = cash + holdings + realized profit (now separate)
+    const totalValue = new Decimal(this.cashBalance).plus(holdingsValue).plus(this.totalRealizedPnL);
     const totalPnl = new Decimal(this.totalRealizedPnL).plus(unrealizedPnl);
     const totalPnlPercent = totalPnl.div(this.initialCapital).mul(100);
 
@@ -605,8 +603,8 @@ class PaperTradingService {
       unrealizedPnl = unrealizedPnl.plus(pnl);
     });
 
-    // Total value = cash + holdings
-    const totalValue = new Decimal(this.cashBalance).plus(holdingsValue);
+    // Total value = cash + holdings + realized profit (now separate)
+    const totalValue = new Decimal(this.cashBalance).plus(holdingsValue).plus(this.totalRealizedPnL);
     const totalPnl = new Decimal(this.totalRealizedPnL).plus(unrealizedPnl);
     const totalPnlPercent = totalPnl.div(this.initialCapital).mul(100);
 
