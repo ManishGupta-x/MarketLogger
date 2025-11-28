@@ -188,8 +188,8 @@ export async function getStrategyComparison() {
       unrealizedPnl += (current - invested)
     })
 
-    // Calculate real-time current value = cash + holdings
-    const currentValue = cashBalance + holdingsValue
+    // Calculate real-time current value = cash + holdings + realized profit (now separate)
+    const currentValue = cashBalance + holdingsValue + realizedPnl
 
     // Calculate real-time total P&L = realized + unrealized
     const totalPnl = realizedPnl + unrealizedPnl
