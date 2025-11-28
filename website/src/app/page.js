@@ -62,8 +62,8 @@ export default function Dashboard() {
     unrealizedPnl += (current - invested)
   })
 
-  // Calculate real-time current value = cash + holdings
-  const totalValue = cashBalance + holdingsValue
+  // Calculate real-time current value = cash + holdings + realized profit (now separate)
+  const totalValue = cashBalance + holdingsValue + realizedPnl
 
   // Calculate real-time total P&L = realized + unrealized
   const totalPnl = realizedPnl + unrealizedPnl
@@ -109,7 +109,7 @@ export default function Dashboard() {
       )}
 
       {/* Stats Grid */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-6">
         <StatCard
           title="Total Value"
           value={`₹${totalValue.toLocaleString('en-IN', { maximumFractionDigits: 0 })}`}
@@ -120,8 +120,15 @@ export default function Dashboard() {
         <StatCard
           title="Cash Balance"
           value={`₹${cashBalance.toLocaleString('en-IN', { maximumFractionDigits: 0 })}`}
-          subtitle={totalValue > 0 ? `${((cashBalance / totalValue) * 100).toFixed(1)}% of portfolio` : ''}
+          subtitle="Fixed capital"
           icon="💵"
+        />
+        <StatCard
+          title="Realized P&L"
+          value={`${realizedPnl >= 0 ? '+' : ''}₹${realizedPnl.toLocaleString('en-IN', { maximumFractionDigits: 0 })}`}
+          subtitle="Profits (separate)"
+          trend={realizedPnl}
+          icon="💹"
         />
         <StatCard
           title="Holdings Value"

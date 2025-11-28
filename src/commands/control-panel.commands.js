@@ -85,13 +85,15 @@ class ControlPanelCommands {
       const pnlColor = portfolio.total_pnl >= 0 ? '' : '';
 
       const pts = ch.paperTradingService;
+      const realizedPnlSign = portfolio.realized_pnl >= 0 ? '+' : '';
       return {
         name: `${ch.name} ${status}`,
         value: [
           `**Capital:** ₹${pts.initialCapital.toLocaleString('en-IN')}`,
           `**Trade Size:** ₹${pts.amountPerTrade.toLocaleString('en-IN')}`,
           `**Grid:** ${pts.gridPercentage}%`,
-          `**P&L:** ₹${pnl} (${portfolio.pnl_percent.toFixed(2)}%)`,
+          `**Cash:** ₹${portfolio.cash.toLocaleString('en-IN')}`,
+          `**Realized P&L:** ${realizedPnlSign}₹${Math.abs(portfolio.realized_pnl).toFixed(2)}`,
           `**Holdings:** ${portfolio.holdings_count}`
         ].join('\n'),
         inline: true
