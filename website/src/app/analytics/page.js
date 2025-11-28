@@ -306,9 +306,9 @@ export default function AnalyticsPage() {
   return (
     <div className="space-y-8 animate-fade-in">
       {/* Header */}
-      <div className="flex items-center justify-between">
+      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
         <div>
-          <h1 className="text-3xl font-bold text-white">Analytics Dashboard</h1>
+          <h1 className="text-2xl sm:text-3xl font-bold text-white">Analytics Dashboard</h1>
           <p className="text-gray-500 mt-1">Cross-Channel Performance Analysis</p>
         </div>
         <select
@@ -323,8 +323,8 @@ export default function AnalyticsPage() {
       </div>
 
       {/* Strategy Comparison Table */}
-      <div className="dashboard-card p-6">
-        <h2 className="text-xl font-semibold text-white mb-6">All Channels Comparison</h2>
+      <div className="dashboard-card p-4 sm:p-6">
+        <h2 className="text-lg sm:text-xl font-semibold text-white mb-6">All Channels Comparison</h2>
         <div className="overflow-x-auto">
           <table className="w-full text-sm">
             <thead>
@@ -407,9 +407,9 @@ export default function AnalyticsPage() {
       </div>
 
       {/* Cross-Channel Portfolio Value Chart */}
-      <div className="dashboard-card p-6">
-        <div className="flex items-center justify-between mb-6">
-          <h2 className="text-xl font-semibold text-white">Portfolio Value Comparison</h2>
+      <div className="dashboard-card p-4 sm:p-6">
+        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 mb-6">
+          <h2 className="text-lg sm:text-xl font-semibold text-white">Portfolio Value Comparison</h2>
           <div className="flex gap-2">
             <button
               onClick={() => setViewMode('absolute')}
@@ -438,7 +438,7 @@ export default function AnalyticsPage() {
             <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-white"></div>
           </div>
         ) : portfolioChartData.length > 0 ? (
-          <ResponsiveContainer width="100%" height={400}>
+          <ResponsiveContainer width="100%" height={300} className="sm:h-[400px]">
             <LineChart data={portfolioChartData}>
               <CartesianGrid strokeDasharray="3 3" stroke="#1a1a1a" />
               <XAxis dataKey="date" stroke="#666" fontSize={12} />
@@ -472,8 +472,8 @@ export default function AnalyticsPage() {
       </div>
 
       {/* Order Frequency Chart */}
-      <div className="dashboard-card p-6">
-        <h2 className="text-xl font-semibold text-white mb-6">Order Frequency (Last 30 Days)</h2>
+      <div className="dashboard-card p-4 sm:p-6">
+        <h2 className="text-lg sm:text-xl font-semibold text-white mb-6">Order Frequency (Last 30 Days)</h2>
         {loading ? (
           <div className="h-80 flex items-center justify-center">
             <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-white"></div>
@@ -506,8 +506,8 @@ export default function AnalyticsPage() {
       </div>
 
       {/* Profitable % Trend */}
-      <div className="dashboard-card p-6">
-        <h2 className="text-xl font-semibold text-white mb-6">Profitable % Trend (Last 30 Days)</h2>
+      <div className="dashboard-card p-4 sm:p-6">
+        <h2 className="text-lg sm:text-xl font-semibold text-white mb-6">Profitable % Trend (Last 30 Days)</h2>
         {loading ? (
           <div className="h-80 flex items-center justify-center">
             <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-white"></div>
@@ -544,8 +544,8 @@ export default function AnalyticsPage() {
       </div>
 
       {/* Cross-Channel Daily P&L Chart */}
-      <div className="dashboard-card p-6">
-        <h2 className="text-xl font-semibold text-white mb-6">Daily P&L Comparison (Last 30 Days)</h2>
+      <div className="dashboard-card p-4 sm:p-6">
+        <h2 className="text-lg sm:text-xl font-semibold text-white mb-6">Daily P&L Comparison (Last 30 Days)</h2>
         {loading ? (
           <div className="h-96 flex items-center justify-center">
             <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-white"></div>
@@ -577,13 +577,13 @@ export default function AnalyticsPage() {
 
       {/* P&L Breakdown Modal */}
       {selectedChannelPnl && (
-        <div className="fixed inset-0 bg-black/80 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+        <div className="fixed inset-0 bg-black/80 backdrop-blur-sm z-50 flex items-center justify-center p-2 sm:p-4">
           <div className="bg-[#0a0a0a] border border-[#1a1a1a] rounded-xl max-w-6xl w-full max-h-[90vh] overflow-hidden flex flex-col">
             {/* Modal Header */}
-            <div className="p-6 border-b border-[#1a1a1a] flex items-center justify-between">
-              <div>
-                <h2 className="text-2xl font-bold text-white">{selectedChannelPnl.channel.name} - P&L Breakdown</h2>
-                <p className="text-gray-500 text-sm mt-1">Detailed view of profit & loss calculation</p>
+            <div className="p-4 sm:p-6 border-b border-[#1a1a1a] flex items-center justify-between gap-4">
+              <div className="flex-1 min-w-0">
+                <h2 className="text-lg sm:text-2xl font-bold text-white truncate">{selectedChannelPnl.channel.name} - P&L Breakdown</h2>
+                <p className="text-gray-500 text-xs sm:text-sm mt-1">Detailed view of profit & loss calculation</p>
               </div>
               <button
                 onClick={() => setSelectedChannelPnl(null)}
@@ -596,7 +596,7 @@ export default function AnalyticsPage() {
             </div>
 
             {/* Modal Content */}
-            <div className="p-6 overflow-y-auto">
+            <div className="p-4 sm:p-6 overflow-y-auto">
               {/* Summary Cards */}
               <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
                 <div className="bg-[#1a1a1a]/50 rounded-lg p-4">

@@ -91,3 +91,55 @@ body {
 .tabular-nums {
   font-variant-numeric: tabular-nums;
 }
+
+/* Responsive utilities */
+.mobile-card-view {
+  @media (max-width: 768px) {
+    display: block;
+  }
+}
+
+.mobile-hide-table {
+  @media (max-width: 768px) {
+    display: none;
+  }
+}
+
+.mobile-show {
+  display: none;
+  @media (max-width: 768px) {
+    display: block;
+  }
+}
+
+/* Mobile card styles for tables */
+.mobile-card {
+  background: var(--card-bg);
+  border: 1px solid var(--card-border);
+  border-radius: 8px;
+  padding: 1rem;
+  margin-bottom: 0.75rem;
+}
+
+.mobile-card-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 0.5rem 0;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+}
+
+.mobile-card-row:last-child {
+  border-bottom: none;
+}
+
+.mobile-card-label {
+  color: var(--text-muted);
+  font-size: 0.875rem;
+  font-weight: 500;
+}
+
+.mobile-card-value {
+  font-weight: 600;
+  text-align: right;
+}

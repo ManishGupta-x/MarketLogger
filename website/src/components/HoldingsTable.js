@@ -152,8 +152,8 @@ export default function HoldingsTable({ holdings, loading }) {
         Showing {filteredAndSortedHoldings.length} of {holdings.length} holdings
       </div>
 
-      {/* Table */}
-      <div className="overflow-x-auto">
+      {/* Desktop Table View */}
+      <div className="hidden md:block overflow-x-auto">
         <table className="w-full text-sm">
           <thead>
             <tr className="text-left text-gray-500 border-b border-[#1a1a1a]">
@@ -227,6 +227,51 @@ export default function HoldingsTable({ holdings, loading }) {
             })}
           </tbody>
         </table>
+      </div>
+
+      {/* Mobile Card View */}
+      <div className="md:hidden space-y-3">
+        {filteredAndSortedHoldings.map((holding) => {
+          const currentValue = holding.qty * holding.current_price
+          const investedValue = holding.qty * holding.avg_price
+          const pnl = currentValue - investedValue
+          const pnlPercent = investedValue > 0 ? ((pnl / investedValue) * 100).toFixed(2) : 0
+          const pnlColor = pnl >= 0 ? 'text-[#00ff88]' : 'text-[#ff4444]'
+
+          return (
+            <div key={holding.symbol} className="mobile-card">
+              <div className="flex justify-between items-center mb-3 pb-3 border-b border-[#1a1a1a]">
+                <h3 className="text-lg font-bold text-white">{holding.symbol}</h3>
+                <div className="text-right">
+                  <div className={`text-lg font-bold ${pnlColor}`}>
+                    {pnl >= 0 ? '+' : ''}₹{pnl.toFixed(2)}
+                  </div>
+                  <div className={`text-sm ${pnlColor}`}>
+                    {pnl >= 0 ? '+' : ''}{pnlPercent}%
+                  </div>
+                </div>
+              </div>
+              <div className="space-y-2">
+                <div className="mobile-card-row">
+                  <span className="mobile-card-label">Quantity</span>
+                  <span className="mobile-card-value text-white">{holding.qty}</span>
+                </div>
+                <div className="mobile-card-row">
+                  <span className="mobile-card-label">Avg Price</span>
+                  <span className="mobile-card-value text-white">₹{holding.avg_price?.toFixed(2)}</span>
+                </div>
+                <div className="mobile-card-row">
+                  <span className="mobile-card-label">Current Price</span>
+                  <span className="mobile-card-value text-white">₹{holding.current_price?.toFixed(2)}</span>
+                </div>
+                <div className="mobile-card-row">
+                  <span className="mobile-card-label">Total Value</span>
+                  <span className="mobile-card-value text-white font-semibold">₹{currentValue.toFixed(2)}</span>
+                </div>
+              </div>
+            </div>
+          )
+        })}
       </div>
 
       {filteredAndSortedHoldings.length === 0 && holdings.length > 0 && (

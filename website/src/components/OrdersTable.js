@@ -143,8 +143,8 @@ export default function OrdersTable({ orders, loading }) {
         Showing {filteredAndSortedOrders.length} of {orders.length} orders
       </div>
 
-      {/* Table */}
-      <div className="overflow-x-auto">
+      {/* Desktop Table View */}
+      <div className="hidden md:block overflow-x-auto">
         <table className="w-full text-sm">
           <thead>
             <tr className="text-left text-gray-500 border-b border-[#1a1a1a]">
@@ -225,6 +225,58 @@ export default function OrdersTable({ orders, loading }) {
             })}
           </tbody>
         </table>
+      </div>
+
+      {/* Mobile Card View */}
+      <div className="md:hidden space-y-3">
+        {filteredAndSortedOrders.map((order, index) => {
+          const orderType = order.order_type || order.type
+          const isBuy = orderType?.toUpperCase() === 'BUY'
+          const typeColor = isBuy ? 'text-[#00ff88]' : 'text-[#ff4444]'
+          const typeBg = isBuy ? 'bg-[#00ff88]/10' : 'bg-[#ff4444]/10'
+          const pnl = order.pnl || 0
+          const pnlColor = pnl >= 0 ? 'text-[#00ff88]' : 'text-[#ff4444]'
+
+          return (
+            <div key={`${order.id || index}`} className="mobile-card">
+              <div className="flex justify-between items-center mb-3 pb-3 border-b border-[#1a1a1a]">
+                <div>
+                  <h3 className="text-lg font-bold text-white mb-1">{order.symbol}</h3>
+                  <span className={`px-2 py-1 rounded text-xs font-semibold ${typeColor} ${typeBg}`}>
+                    {orderType?.toUpperCase()}
+                  </span>
+                </div>
+                {pnl !== 0 && (
+                  <div className={`text-lg font-bold ${pnlColor}`}>
+                    {pnl >= 0 ? '+' : ''}₹{pnl.toFixed(2)}
+                  </div>
+                )}
+              </div>
+              <div className="space-y-2">
+                <div className="mobile-card-row">
+                  <span className="mobile-card-label">Time</span>
+                  <span className="mobile-card-value text-gray-400">
+                    {order.timestamp ? format(new Date(order.timestamp), 'MMM dd, HH:mm') : '-'}
+                  </span>
+                </div>
+                <div className="mobile-card-row">
+                  <span className="mobile-card-label">Quantity</span>
+                  <span className="mobile-card-value text-white">{order.qty}</span>
+                </div>
+                <div className="mobile-card-row">
+                  <span className="mobile-card-label">Price</span>
+                  <span className="mobile-card-value text-white">₹{Number(order.price).toFixed(2)}</span>
+                </div>
+                <div className="mobile-card-row">
+                  <span className="mobile-card-label">Total Value</span>
+                  <span className="mobile-card-value text-white font-semibold">
+                    ₹{(order.qty * order.price).toFixed(2)}
+                  </span>
+                </div>
+              </div>
+            </div>
+          )
+        })}
       </div>
 
       {filteredAndSortedOrders.length === 0 && orders.length > 0 && (
