@@ -53,9 +53,9 @@ export default function OrdersPage() {
   return (
     <div className="space-y-8 animate-fade-in">
       {/* Header */}
-      <div className="flex items-center justify-between">
+      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
         <div>
-          <h1 className="text-3xl font-bold text-white">Order History</h1>
+          <h1 className="text-2xl sm:text-3xl font-bold text-white">Order History</h1>
           <p className="text-gray-500 mt-1">{channelName}</p>
         </div>
         <ChannelSelector
@@ -91,11 +91,11 @@ export default function OrdersPage() {
 
       {/* Stats for Filtered Orders */}
       <div>
-        <div className="flex items-center justify-between mb-4">
+        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 mb-4">
           <h2 className="text-lg font-semibold text-white">
-            Statistics <span className="text-gray-500 text-sm font-normal">(Showing {orders.length} of {totalOrdersCount} Orders)</span>
+            Statistics <span className="text-gray-500 text-sm font-normal hidden sm:inline">(Showing {orders.length} of {totalOrdersCount} Orders)</span>
           </h2>
-          <div className="flex items-center gap-4">
+          <div className="flex items-center gap-2 sm:gap-4">
             <label className="text-sm text-gray-500">Show:</label>
             <select
               value={limit}
