@@ -20,7 +20,8 @@
       "Bash(tasklist:*)",
       "WebFetch(domain:trade.manishguptaji.co.in)",
       "Bash(npm install:*)",
-      "Bash(git add:*)"
+      "Bash(git add:*)",
+      "Bash(git push)"
     ]
   }
 }
