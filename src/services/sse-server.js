@@ -16,7 +16,7 @@ class SSEServer {
     this.tokenToSymbolMap = tokenMap;
   }
 
-  async start(port = 3001) {
+  async start(port = 8080) {
     this.server = http.createServer((req, res) => {
       // CORS headers
       res.setHeader('Access-Control-Allow-Origin', '*');

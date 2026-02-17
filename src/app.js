@@ -33,9 +33,9 @@ async function start() {
     logger.info('Grid strategy initialized');
 
     // Start SSE server for website
-    await sseServer.start(3001);
+    await sseServer.start(8080);
     sseServer.setTokenMap(gridStrategy.tokenToSymbolMap);
-    logger.info('SSE server started on port 3001');
+    logger.info('SSE server started on port 8080');
 
     // Initialize WebSocket with callbacks
     await gridWebSocketService.initialize((ticks) => {

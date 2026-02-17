@@ -1,0 +1,14 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(powershell -Command \"Get-Process -Id \\(Get-NetTCPConnection -LocalPort 3001 -ErrorAction SilentlyContinue\\).OwningProcess -ErrorAction SilentlyContinue | Stop-Process -Force -ErrorAction SilentlyContinue; Write-Host ''Port 3001 cleared''\")",
+      "Bash(ngrok config add-authtoken:*)",
+      "Bash(ngrok http:*)",
+      "Bash(timeout:*)",
+      "Bash(ping:*)",
+      "Bash(curl:*)",
+      "Bash(npm start)",
+      "Bash(powershell -Command:*)"
+    ]
+  }
+}
