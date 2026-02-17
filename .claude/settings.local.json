@@ -8,7 +8,8 @@
       "Bash(ping:*)",
       "Bash(curl:*)",
       "Bash(npm start)",
-      "Bash(powershell -Command:*)"
+      "Bash(powershell -Command:*)",
+      "Bash(npm run dev:*)"
     ]
   }
 }

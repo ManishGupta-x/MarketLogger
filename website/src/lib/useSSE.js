@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useRef, useCallback } from 'react'
 
-const SSE_BASE_URL = process.env.NEXT_PUBLIC_SSE_URL || 'http://localhost:3001'
+const SSE_BASE_URL = process.env.NEXT_PUBLIC_SSE_URL || 'http://localhost:8080'
 
 export function useTicksSSE() {
   const [stocks, setStocks] = useState(new Map())
@@ -11,7 +11,9 @@ export function useTicksSSE() {
 
   useEffect(() => {
     // Fetch initial data
-    fetch(`${SSE_BASE_URL}/api/ticks/latest`)
+    fetch(`${SSE_BASE_URL}/api/ticks/latest`, {
+      headers: { 'ngrok-skip-browser-warning': 'true' }
+    })
       .then(res => res.json())
       .then(ticks => {
         const stockMap = new Map()
