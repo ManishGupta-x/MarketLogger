@@ -11,9 +11,7 @@ export function useTicksSSE() {
 
   useEffect(() => {
     // Fetch initial data
-    fetch(`${SSE_BASE_URL}/api/ticks/latest`, {
-      headers: { 'ngrok-skip-browser-warning': 'true' }
-    })
+    fetch(`${SSE_BASE_URL}/api/ticks/latest`)
       .then(res => res.json())
       .then(ticks => {
         const stockMap = new Map()
