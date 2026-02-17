@@ -1,22 +1,18 @@
 {
-  "name": "zerodhabot",
-  "version": "1.0.0",
-  "main": "index.js",
+  "name": "marketlogger",
+  "version": "2.0.0",
+  "main": "src/app.js",
   "scripts": {
-    "test": "echo \"Error: no test specified\" && exit 1",
     "start": "node src/app.js",
     "dev": "nodemon src/app.js"
   },
   "keywords": [],
   "author": "",
   "license": "ISC",
-  "description": "",
+  "description": "Grid Trading Bot with real-time WebSocket monitoring",
   "dependencies": {
-    "@supabase/supabase-js": "^2.84.0",
     "axios": "^1.12.2",
-    "better-sqlite3": "^9.6.0",
     "decimal.js": "^10.4.3",
-    "discord.js": "^14.22.1",
     "dotenv": "^17.2.3",
     "kiteconnect": "^5.1.0",
     "node-cron": "^4.2.1",
