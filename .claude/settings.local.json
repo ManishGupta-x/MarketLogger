@@ -9,7 +9,15 @@
       "Bash(curl:*)",
       "Bash(npm start)",
       "Bash(powershell -Command:*)",
-      "Bash(npm run dev:*)"
+      "Bash(npm run dev:*)",
+      "Bash(netstat:*)",
+      "Bash(findstr:*)",
+      "Bash(taskkill:*)",
+      "Bash(cmd //c \"taskkill /PID 42748 /F\")",
+      "Bash(dir:*)",
+      "Bash(git -C \"c:/Users/Admin/OneDrive/Documents/Automations/MarketLogger\" log --oneline -10)",
+      "Bash(tree:*)",
+      "Bash(tasklist:*)"
     ]
   }
 }
