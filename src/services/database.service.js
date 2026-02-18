@@ -79,6 +79,38 @@ class DatabaseService {
       )
     `);
 
+    // Daily strategies table - stores daily strategy params and performance
+    this.db.exec(`
+      CREATE TABLE IF NOT EXISTS daily_strategies (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        date TEXT UNIQUE NOT NULL,
+        grid_percentage REAL NOT NULL,
+        stop_loss_percentage REAL NOT NULL,
+        per_trade_amount REAL NOT NULL,
+        capital REAL NOT NULL,
+        total_trades INTEGER DEFAULT 0,
+        buy_count INTEGER DEFAULT 0,
+        sell_count INTEGER DEFAULT 0,
+        winning_trades INTEGER DEFAULT 0,
+        losing_trades INTEGER DEFAULT 0,
+        realized_pnl REAL DEFAULT 0,
+        total_brokerage REAL DEFAULT 0,
+        buy_value REAL DEFAULT 0,
+        sell_value REAL DEFAULT 0,
+        win_rate REAL DEFAULT 0,
+        max_single_win REAL DEFAULT 0,
+        max_single_loss REAL DEFAULT 0,
+        pnl_percent REAL DEFAULT 0,
+        ending_cash_balance REAL DEFAULT 0,
+        ending_holdings_count INTEGER DEFAULT 0,
+        ending_holdings_value REAL DEFAULT 0,
+        status TEXT DEFAULT 'active' CHECK(status IN ('active', 'completed')),
+        notes TEXT,
+        created_at TEXT DEFAULT (datetime('now', 'localtime')),
+        completed_at TEXT
+      )
+    `);
+
     // Create indexes for faster queries
     this.db.exec(`
       CREATE INDEX IF NOT EXISTS idx_transactions_symbol ON transactions(symbol);
@@ -272,6 +304,49 @@ class DatabaseService {
       lossTrades: lossTrades.count,
       winRate: totalSells.count > 0 ? ((profitableTrades.count / totalSells.count) * 100).toFixed(2) : 0
     };
+  }
+
+  // Daily Strategy Methods
+  createDailyStrategy(params) {
+    const today = new Date().toISOString().split('T')[0];
+    const stmt = this.db.prepare(`
+      INSERT INTO daily_strategies (date, grid_percentage, stop_loss_percentage, per_trade_amount, capital, status)
+      VALUES (?, ?, ?, ?, ?, 'active')
+    `);
+    return stmt.run(
+      today,
+      params.gridPercentage,
+      params.stopLossPercentage,
+      params.perTradeAmount,
+      params.capital
+    );
+  }
+
+  updateDailyStrategy(date, metrics) {
+    const fields = Object.keys(metrics).map(k => `${k} = ?`).join(', ');
+    const stmt = this.db.prepare(`
+      UPDATE daily_strategies SET ${fields} WHERE date = ?
+    `);
+    return stmt.run(...Object.values(metrics), date);
+  }
+
+  getDailyStrategy(date) {
+    const stmt = this.db.prepare('SELECT * FROM daily_strategies WHERE date = ?');
+    return stmt.get(date);
+  }
+
+  getTodayStrategy() {
+    const today = new Date().toISOString().split('T')[0];
+    return this.getDailyStrategy(today);
+  }
+
+  getAllDailyStrategies(limit = 30) {
+    const stmt = this.db.prepare(`
+      SELECT * FROM daily_strategies
+      ORDER BY date DESC
+      LIMIT ?
+    `);
+    return stmt.all(limit);
   }
 
   // Reset portfolio (for testing)

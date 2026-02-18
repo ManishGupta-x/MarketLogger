@@ -239,6 +239,30 @@ export function useStats() {
   return { stats, loading }
 }
 
+export function useStrategies() {
+  const [strategies, setStrategies] = useState([])
+  const [loading, setLoading] = useState(true)
+
+  const fetchStrategies = useCallback(async () => {
+    setLoading(true)
+    try {
+      const res = await fetch(`${SSE_BASE_URL}/api/strategies`, { headers: NGROK_HEADERS })
+      const data = await res.json()
+      setStrategies(data)
+    } catch (err) {
+      console.error('Failed to fetch strategies:', err)
+    } finally {
+      setLoading(false)
+    }
+  }, [])
+
+  useEffect(() => {
+    fetchStrategies()
+  }, [fetchStrategies])
+
+  return { strategies, loading, fetchStrategies }
+}
+
 export function useOrderNotifications() {
   const controllerRef = useRef(null)
 

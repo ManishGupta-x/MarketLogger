@@ -4,7 +4,10 @@
   "main": "src/app.js",
   "scripts": {
     "start": "node src/app.js",
-    "dev": "nodemon src/app.js"
+    "dev": "nodemon src/app.js",
+    "strategy": "node src/scripts/set-strategy.js",
+    "strategy:close": "node src/scripts/close-strategy.js",
+    "strategy:backfill": "node src/scripts/backfill-today.js"
   },
   "keywords": [],
   "author": "",
