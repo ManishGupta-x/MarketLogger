@@ -13,10 +13,15 @@ class GridStrategyService {
     this.lastProcessedTime = new Map();
     this.minIntervalMs = 5000; // Minimum 5 seconds between trades for same stock
     this.paperTradingService = null;
+    this.sseServer = null;
   }
 
   setPaperTradingService(paperTradingService) {
     this.paperTradingService = paperTradingService;
+  }
+
+  setSSEServer(sseServer) {
+    this.sseServer = sseServer;
   }
 
   restoreGridsFromHoldings() {
@@ -248,6 +253,18 @@ class GridStrategyService {
       gridData.buyCount++;
       this.grids.set(token, gridData);
       logger.info(`BUY executed: ${symbol} @ ${currentPrice} | Grid level ${gridData.buyCount}`);
+
+      // Broadcast order notification
+      if (this.sseServer) {
+        this.sseServer.broadcastOrder({
+          type: 'BUY',
+          symbol,
+          price: currentPrice,
+          qty: result.qty,
+          value: result.value,
+          timestamp: Date.now()
+        });
+      }
     } else {
       if (result.message === 'Insufficient balance') {
         gridData.referencePrice = currentPrice;
@@ -285,6 +302,21 @@ class GridStrategyService {
       this.grids.set(token, gridData);
       const pnlText = result.pnl >= 0 ? `+${result.pnl?.toFixed(2)}` : result.pnl?.toFixed(2);
       logger.info(`SELL [${reasonText}] executed: ${symbol} @ ${currentPrice} | P&L: ${pnlText}`);
+
+      // Broadcast order notification
+      if (this.sseServer) {
+        this.sseServer.broadcastOrder({
+          type: 'SELL',
+          reason: reasonText,
+          symbol,
+          price: currentPrice,
+          qty: result.qty,
+          value: result.value,
+          pnl: result.pnl,
+          pnlPercent: result.pnlPercent,
+          timestamp: Date.now()
+        });
+      }
     } else {
       logger.warn(`SELL failed for ${symbol}: ${result.message}`);
     }

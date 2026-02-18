@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useRef, useCallback } from 'react'
 import { fetchEventSource } from '@microsoft/fetch-event-source'
+import { toast } from 'react-toastify'
 
 const SSE_BASE_URL = process.env.NEXT_PUBLIC_SSE_URL || 'http://localhost:8080'
 
@@ -236,4 +237,65 @@ export function useStats() {
   }, [])
 
   return { stats, loading }
+}
+
+export function useOrderNotifications() {
+  const controllerRef = useRef(null)
+
+  useEffect(() => {
+    const controller = new AbortController()
+    controllerRef.current = controller
+
+    fetchEventSource(`${SSE_BASE_URL}/api/orders/stream`, {
+      headers: NGROK_HEADERS,
+      signal: controller.signal,
+      onmessage(event) {
+        if (event.event === 'order') {
+          const order = JSON.parse(event.data)
+
+          const formatPrice = (p) => Number(p).toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
+
+          if (order.type === 'BUY') {
+            toast.info(
+              `BUY ${order.symbol} @ ₹${formatPrice(order.price)} × ${order.qty}`,
+              {
+                icon: '📈',
+                style: { background: '#1e3a5f', color: '#60a5fa' }
+              }
+            )
+          } else if (order.type === 'SELL') {
+            const isProfit = order.pnl >= 0
+            const pnlText = isProfit ? `+₹${formatPrice(order.pnl)}` : `-₹${formatPrice(Math.abs(order.pnl))}`
+            const reason = order.reason === 'STOP LOSS' ? ' [SL]' : ''
+
+            if (isProfit) {
+              toast.success(
+                `SELL${reason} ${order.symbol} @ ₹${formatPrice(order.price)} | P&L: ${pnlText}`,
+                {
+                  icon: '💰',
+                  style: { background: '#14532d', color: '#4ade80' }
+                }
+              )
+            } else {
+              toast.error(
+                `SELL${reason} ${order.symbol} @ ₹${formatPrice(order.price)} | P&L: ${pnlText}`,
+                {
+                  icon: '📉',
+                  style: { background: '#450a0a', color: '#f87171' }
+                }
+              )
+            }
+          }
+        }
+      },
+      onerror(err) {
+        console.error('Order notifications error:', err)
+      },
+      openWhenHidden: true
+    })
+
+    return () => {
+      controller.abort()
+    }
+  }, [])
 }

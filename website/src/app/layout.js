@@ -1,5 +1,7 @@
 import "./globals.css";
 import Nav from "@/components/Nav";
+import ToastProvider from "@/components/ToastProvider";
+import OrderNotifications from "@/components/OrderNotifications";
 import { Signika } from 'next/font/google';
 
 const signika = Signika({
@@ -22,6 +24,8 @@ export default function RootLayout({ children }) {
         <main className="min-h-screen p-4 pt-16">
           {children}
         </main>
+        <ToastProvider />
+        <OrderNotifications />
       </body>
     </html>
   );

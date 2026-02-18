@@ -6,6 +6,7 @@ class SSEServer {
     this.tickClients = new Set();
     this.logClients = new Set();
     this.portfolioClients = new Set();
+    this.orderClients = new Set();
     this.server = null;
     this.latestTicks = new Map(); // token -> tick data
     this.logBuffer = []; // Recent logs for logs page
@@ -57,6 +58,8 @@ class SSEServer {
         this.handleOrders(req, res);
       } else if (req.url === '/api/orders/today') {
         this.handleTodayOrders(req, res);
+      } else if (req.url === '/api/orders/stream') {
+        this.handleOrdersSSE(req, res);
       } else if (req.url === '/api/stats') {
         this.handleStats(req, res);
       } else if (req.url === '/api/daily-pnl') {
@@ -140,6 +143,34 @@ class SSEServer {
 
     req.on('close', () => {
       this.portfolioClients.delete(res);
+    });
+  }
+
+  handleOrdersSSE(req, res) {
+    res.writeHead(200, {
+      'Content-Type': 'text/event-stream',
+      'Cache-Control': 'no-cache',
+      'Connection': 'keep-alive',
+      'Access-Control-Allow-Origin': '*'
+    });
+
+    this.orderClients.add(res);
+
+    req.on('close', () => {
+      this.orderClients.delete(res);
+    });
+  }
+
+  broadcastOrder(order) {
+    if (this.orderClients.size === 0) return;
+
+    const data = JSON.stringify(order);
+    this.orderClients.forEach(client => {
+      try {
+        client.write(`event: order\ndata: ${data}\n\n`);
+      } catch (err) {
+        this.orderClients.delete(client);
+      }
     });
   }
 

@@ -37,6 +37,7 @@ async function start() {
     await sseServer.start(SSE_PORT);
     sseServer.setTokenMap(gridStrategy.tokenToSymbolMap);
     sseServer.setPaperTradingService(paperTrading);
+    gridStrategy.setSSEServer(sseServer);
     logger.info(`SSE server started on port ${SSE_PORT}`);
 
     // Initialize WebSocket with callbacks
