@@ -146,7 +146,7 @@ export function usePortfolioSSE() {
     fetch(`${SSE_BASE_URL}/api/portfolio`, { headers: NGROK_HEADERS })
       .then(res => res.json())
       .then(data => {
-        setPortfolio(data)
+        setPortfolio(prev => ({ ...prev, ...data }))
         setConnected(true)
       })
       .catch(err => console.error('Failed to fetch portfolio:', err))
@@ -166,7 +166,7 @@ export function usePortfolioSSE() {
       onmessage(event) {
         if (event.event === 'portfolio') {
           const data = JSON.parse(event.data)
-          setPortfolio(data)
+          setPortfolio(prev => ({ ...prev, ...data }))
         }
       },
       onerror(err) {

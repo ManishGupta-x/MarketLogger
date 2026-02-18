@@ -12,6 +12,8 @@ class SSEServer {
     this.maxLogBuffer = 1000;
     this.tokenToSymbolMap = null; // Will be set by grid-strategy
     this.paperTradingService = null; // Reference to paper trading service
+    this.lastPortfolioBroadcast = 0;
+    this.portfolioBroadcastInterval = 1000; // Broadcast portfolio every 1 second max
   }
 
   setTokenMap(tokenMap) {
@@ -193,6 +195,23 @@ class SSEServer {
         this.logClients.delete(client);
       }
     });
+
+    // Update holding prices and broadcast portfolio (throttled)
+    if (this.paperTradingService && this.portfolioClients.size > 0) {
+      // Update holding prices with latest tick data
+      ticks.forEach(tick => {
+        if (tick.last_price) {
+          this.paperTradingService.updateHoldingPrice(tick.instrument_token, tick.last_price);
+        }
+      });
+
+      // Throttle portfolio broadcasts to avoid overwhelming clients
+      const now = Date.now();
+      if (now - this.lastPortfolioBroadcast >= this.portfolioBroadcastInterval) {
+        this.lastPortfolioBroadcast = now;
+        this.broadcastPortfolio();
+      }
+    }
   }
 
   broadcastPortfolio() {
