@@ -373,6 +373,11 @@ class PaperTradingService {
       const unrealizedPnlPercent = holding.investedValue > 0 ? (unrealizedPnl / holding.investedValue) * 100 : 0;
       const dayChange = ((currentPrice - holding.avgPrice) / holding.avgPrice) * 100;
 
+      // Calculate target sell price based on grid percentage
+      const targetPrice = holding.avgPrice * (1 + this.gridPercentage / 100);
+      const targetPnl = (targetPrice - holding.avgPrice) * holding.qty;
+      const distanceToTarget = ((targetPrice - currentPrice) / currentPrice) * 100;
+
       return {
         token,
         symbol: holding.symbol,
@@ -383,7 +388,10 @@ class PaperTradingService {
         currentValue,
         unrealizedPnl,
         unrealizedPnlPercent,
-        dayChange
+        dayChange,
+        targetPrice,
+        targetPnl,
+        distanceToTarget
       };
     });
   }

@@ -217,7 +217,10 @@ export default function PortfolioPage() {
                         P&L
                       </th>
                       <th className="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">
-                        Change %
+                        Target
+                      </th>
+                      <th className="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">
+                        Distance
                       </th>
                     </tr>
                   </thead>
@@ -249,8 +252,12 @@ export default function PortfolioPage() {
                           <td className={`px-4 py-4 whitespace-nowrap text-right tabular-nums font-medium ${isProfit ? 'text-green-400' : 'text-red-400'}`}>
                             {isProfit ? '+' : ''}{formatPrice(holding.unrealizedPnl)}
                           </td>
-                          <td className={`px-4 py-4 whitespace-nowrap text-right tabular-nums font-medium ${isProfit ? 'text-green-400' : 'text-red-400'}`}>
-                            {isProfit ? '+' : ''}{holding.unrealizedPnlPercent?.toFixed(2)}%
+                          <td className="px-4 py-4 whitespace-nowrap text-right">
+                            <div className="tabular-nums text-yellow-400 font-medium">{formatPrice(holding.targetPrice)}</div>
+                            <div className="text-xs text-gray-500">+₹{formatPrice(holding.targetPnl)}</div>
+                          </td>
+                          <td className={`px-4 py-4 whitespace-nowrap text-right tabular-nums text-sm ${holding.distanceToTarget <= 0 ? 'text-green-400' : 'text-gray-400'}`}>
+                            {holding.distanceToTarget <= 0 ? 'Ready!' : `${holding.distanceToTarget?.toFixed(2)}%`}
                           </td>
                         </tr>
                       )
@@ -289,12 +296,14 @@ export default function PortfolioPage() {
                           <span className="ml-2 text-white tabular-nums">{formatPrice(holding.currentPrice)}</span>
                         </div>
                         <div>
-                          <span className="text-gray-500">Invested:</span>
-                          <span className="ml-2 text-gray-300 tabular-nums">{formatPrice(holding.investedValue)}</span>
+                          <span className="text-gray-500">Target:</span>
+                          <span className="ml-2 text-yellow-400 tabular-nums">{formatPrice(holding.targetPrice)}</span>
                         </div>
                         <div>
-                          <span className="text-gray-500">Current:</span>
-                          <span className="ml-2 text-white tabular-nums">{formatPrice(holding.currentValue)}</span>
+                          <span className="text-gray-500">Distance:</span>
+                          <span className={`ml-2 tabular-nums ${holding.distanceToTarget <= 0 ? 'text-green-400' : 'text-gray-300'}`}>
+                            {holding.distanceToTarget <= 0 ? 'Ready!' : `${holding.distanceToTarget?.toFixed(2)}%`}
+                          </span>
                         </div>
                       </div>
                     </div>
