@@ -134,7 +134,9 @@ export function usePortfolioSSE() {
     initialCapital: 0,
     dayPnl: 0,
     dayTrades: 0,
-    holdings: []
+    holdings: [],
+    gridPercentage: 0.25,
+    amountPerTrade: 5000
   })
   const [connected, setConnected] = useState(false)
   const controllerRef = useRef(null)

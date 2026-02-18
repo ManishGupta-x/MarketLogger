@@ -358,7 +358,10 @@ class PaperTradingService {
       holdingsCount: this.holdings.size,
       initialCapital: this.initialCapital,
       dayPnl: dayPnl.realized_pnl || 0,
-      dayTrades: dayPnl.trades_count || 0
+      dayTrades: dayPnl.trades_count || 0,
+      // Strategy config
+      gridPercentage: this.gridPercentage,
+      amountPerTrade: this.amountPerTrade
     };
   }
 

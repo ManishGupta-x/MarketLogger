@@ -43,6 +43,35 @@ export default function PortfolioPage() {
 
   return (
     <div className="max-w-7xl mx-auto">
+      {/* Strategy Info Banner */}
+      <div className="dashboard-card p-4 mb-6 border-l-4 border-l-blue-500">
+        <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
+          <div>
+            <div className="flex items-center gap-2 mb-1">
+              <span className="text-blue-400 text-lg font-bold">Grid Trading Strategy</span>
+              <span className="px-2 py-0.5 text-xs bg-blue-900/50 text-blue-400 rounded">PAPER</span>
+            </div>
+            <p className="text-gray-400 text-sm">
+              Automated buy/sell at fixed percentage intervals from reference price
+            </p>
+          </div>
+          <div className="flex flex-wrap gap-4 text-sm">
+            <div className="flex items-center gap-2">
+              <span className="text-gray-500">Grid:</span>
+              <span className="text-white font-medium">{portfolio.gridPercentage || 0.25}%</span>
+            </div>
+            <div className="flex items-center gap-2">
+              <span className="text-gray-500">Per Trade:</span>
+              <span className="text-white font-medium">₹{formatPrice(portfolio.amountPerTrade || 5000)}</span>
+            </div>
+            <div className="flex items-center gap-2">
+              <span className="text-gray-500">Capital:</span>
+              <span className="text-white font-medium">₹{formatPrice(portfolio.initialCapital)}</span>
+            </div>
+          </div>
+        </div>
+      </div>
+
       {/* Portfolio Summary Header - Zerodha Style */}
       <div className="mb-6">
         <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 mb-4">
