@@ -361,7 +361,8 @@ class PaperTradingService {
       dayTrades: dayPnl.trades_count || 0,
       // Strategy config
       gridPercentage: this.gridPercentage,
-      amountPerTrade: this.amountPerTrade
+      amountPerTrade: this.amountPerTrade,
+      stopLossPercentage: parseFloat(process.env.STOP_LOSS_PERCENTAGE) || 1
     };
   }
 
@@ -378,6 +379,14 @@ class PaperTradingService {
       const targetPnl = (targetPrice - holding.avgPrice) * holding.qty;
       const distanceToTarget = ((targetPrice - currentPrice) / currentPrice) * 100;
 
+      // Calculate stop loss price (1% below avg price by default)
+      const stopLossPercentage = parseFloat(process.env.STOP_LOSS_PERCENTAGE) || 1;
+      const stopLossPrice = holding.avgPrice * (1 - stopLossPercentage / 100);
+      const distanceToStopLoss = ((currentPrice - stopLossPrice) / currentPrice) * 100;
+
+      // For sorting: use minimum absolute distance (closest to either target or stop loss)
+      const minDistance = Math.min(Math.abs(distanceToTarget), Math.abs(distanceToStopLoss));
+
       return {
         token,
         symbol: holding.symbol,
@@ -391,7 +400,10 @@ class PaperTradingService {
         dayChange,
         targetPrice,
         targetPnl,
-        distanceToTarget
+        distanceToTarget,
+        stopLossPrice,
+        distanceToStopLoss,
+        minDistance
       };
     });
   }

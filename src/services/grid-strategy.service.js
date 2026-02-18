@@ -8,6 +8,7 @@ class GridStrategyService {
     this.isActive = false;
     this.grids = new Map();
     this.gridPercentage = 0.25; // Default 0.25%
+    this.stopLossPercentage = 1; // Default 1% stop loss
     this.tokenToSymbolMap = new Map();
     this.lastProcessedTime = new Map();
     this.minIntervalMs = 5000; // Minimum 5 seconds between trades for same stock
@@ -87,7 +88,13 @@ class GridStrategyService {
         this.gridPercentage = parseFloat(process.env.GRID_PERCENTAGE);
       }
 
+      // Load stop loss percentage
+      if (process.env.STOP_LOSS_PERCENTAGE) {
+        this.stopLossPercentage = parseFloat(process.env.STOP_LOSS_PERCENTAGE);
+      }
+
       logger.info(`Grid percentage: ${this.gridPercentage}%`);
+      logger.info(`Stop loss percentage: ${this.stopLossPercentage}%`);
 
       this.isInitialized = true;
       this.isActive = true;
@@ -197,9 +204,18 @@ class GridStrategyService {
       if (buyPriceToUse) {
         const lastBuyPrice = new Decimal(buyPriceToUse);
         const sellThreshold = lastBuyPrice.mul(new Decimal(1).plus(gridPercent));
+        const stopLossPercent = new Decimal(this.stopLossPercentage).div(100);
+        const stopLossThreshold = lastBuyPrice.mul(new Decimal(1).minus(stopLossPercent));
 
+        // Check for profit target
         if (price.gte(sellThreshold)) {
-          this.triggerSell(token, symbol, price.toNumber(), gridData);
+          this.triggerSell(token, symbol, price.toNumber(), gridData, 'TARGET');
+          return;
+        }
+
+        // Check for stop loss
+        if (price.lte(stopLossThreshold)) {
+          this.triggerSell(token, symbol, price.toNumber(), gridData, 'STOPLOSS');
           return;
         }
       }
@@ -241,15 +257,16 @@ class GridStrategyService {
     }
   }
 
-  async triggerSell(token, symbol, currentPrice, gridData) {
+  async triggerSell(token, symbol, currentPrice, gridData, reason = 'TARGET') {
     if (!this.paperTradingService || !this.paperTradingService.hasHolding(token)) {
       return;
     }
 
     this.lastProcessedTime.set(token, Date.now());
 
-    const risePercent = ((currentPrice - gridData.lastBuyPrice) / gridData.lastBuyPrice * 100).toFixed(2);
-    logger.info(`SELL trigger: ${symbol} rose ${risePercent}% (${gridData.lastBuyPrice} -> ${currentPrice})`);
+    const changePercent = ((currentPrice - gridData.lastBuyPrice) / gridData.lastBuyPrice * 100).toFixed(2);
+    const reasonText = reason === 'STOPLOSS' ? 'STOP LOSS' : 'TARGET';
+    logger.info(`SELL [${reasonText}]: ${symbol} ${changePercent}% (${gridData.lastBuyPrice} -> ${currentPrice})`);
 
     const result = await this.paperTradingService.executeVirtualOrder(
       token,
@@ -266,7 +283,8 @@ class GridStrategyService {
       gridData.sellCount++;
       gridData.totalPnl = new Decimal(gridData.totalPnl).plus(result.pnl || 0).toNumber();
       this.grids.set(token, gridData);
-      logger.info(`SELL executed: ${symbol} @ ${currentPrice} | P&L: ${result.pnl?.toFixed(2)}`);
+      const pnlText = result.pnl >= 0 ? `+${result.pnl?.toFixed(2)}` : result.pnl?.toFixed(2);
+      logger.info(`SELL [${reasonText}] executed: ${symbol} @ ${currentPrice} | P&L: ${pnlText}`);
     } else {
       logger.warn(`SELL failed for ${symbol}: ${result.message}`);
     }

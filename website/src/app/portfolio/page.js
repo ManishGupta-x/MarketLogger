@@ -30,7 +30,9 @@ export default function PortfolioPage() {
   }
 
   const holdings = useMemo(() => {
-    return portfolio.holdings || []
+    const h = portfolio.holdings || []
+    // Sort by minimum distance (closest to target or stop loss at top)
+    return [...h].sort((a, b) => (a.minDistance || 999) - (b.minDistance || 999))
   }, [portfolio.holdings])
 
   const filteredOrders = useMemo(() => {
@@ -58,7 +60,11 @@ export default function PortfolioPage() {
           <div className="flex flex-wrap gap-4 text-sm">
             <div className="flex items-center gap-2">
               <span className="text-gray-500">Grid:</span>
-              <span className="text-white font-medium">{portfolio.gridPercentage || 0.25}%</span>
+              <span className="text-green-400 font-medium">+{portfolio.gridPercentage || 0.25}%</span>
+            </div>
+            <div className="flex items-center gap-2">
+              <span className="text-gray-500">SL:</span>
+              <span className="text-red-400 font-medium">-{portfolio.stopLossPercentage || 1}%</span>
             </div>
             <div className="flex items-center gap-2">
               <span className="text-gray-500">Per Trade:</span>
@@ -220,7 +226,10 @@ export default function PortfolioPage() {
                         Target
                       </th>
                       <th className="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">
-                        Distance
+                        Stop Loss
+                      </th>
+                      <th className="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">
+                        Status
                       </th>
                     </tr>
                   </thead>
@@ -253,11 +262,23 @@ export default function PortfolioPage() {
                             {isProfit ? '+' : ''}{formatPrice(holding.unrealizedPnl)}
                           </td>
                           <td className="px-4 py-4 whitespace-nowrap text-right">
-                            <div className="tabular-nums text-yellow-400 font-medium">{formatPrice(holding.targetPrice)}</div>
-                            <div className="text-xs text-gray-500">+₹{formatPrice(holding.targetPnl)}</div>
+                            <div className="tabular-nums text-green-400 font-medium">{formatPrice(holding.targetPrice)}</div>
+                            <div className="text-xs text-gray-500">{holding.distanceToTarget?.toFixed(2)}% away</div>
                           </td>
-                          <td className={`px-4 py-4 whitespace-nowrap text-right tabular-nums text-sm ${holding.distanceToTarget <= 0 ? 'text-green-400' : 'text-gray-400'}`}>
-                            {holding.distanceToTarget <= 0 ? 'Ready!' : `${holding.distanceToTarget?.toFixed(2)}%`}
+                          <td className="px-4 py-4 whitespace-nowrap text-right">
+                            <div className="tabular-nums text-red-400 font-medium">{formatPrice(holding.stopLossPrice)}</div>
+                            <div className="text-xs text-gray-500">{holding.distanceToStopLoss?.toFixed(2)}% away</div>
+                          </td>
+                          <td className="px-4 py-4 whitespace-nowrap text-right">
+                            {holding.distanceToTarget <= 0 ? (
+                              <span className="px-2 py-1 text-xs font-bold bg-green-900/50 text-green-400 rounded animate-pulse">TARGET!</span>
+                            ) : holding.distanceToStopLoss <= 0 ? (
+                              <span className="px-2 py-1 text-xs font-bold bg-red-900/50 text-red-400 rounded animate-pulse">STOP LOSS!</span>
+                            ) : holding.minDistance < 0.1 ? (
+                              <span className="px-2 py-1 text-xs font-bold bg-yellow-900/50 text-yellow-400 rounded animate-pulse">CLOSE!</span>
+                            ) : (
+                              <span className="text-gray-500 text-sm">{holding.minDistance?.toFixed(2)}%</span>
+                            )}
                           </td>
                         </tr>
                       )
@@ -297,14 +318,23 @@ export default function PortfolioPage() {
                         </div>
                         <div>
                           <span className="text-gray-500">Target:</span>
-                          <span className="ml-2 text-yellow-400 tabular-nums">{formatPrice(holding.targetPrice)}</span>
+                          <span className="ml-2 text-green-400 tabular-nums">{formatPrice(holding.targetPrice)}</span>
                         </div>
                         <div>
-                          <span className="text-gray-500">Distance:</span>
-                          <span className={`ml-2 tabular-nums ${holding.distanceToTarget <= 0 ? 'text-green-400' : 'text-gray-300'}`}>
-                            {holding.distanceToTarget <= 0 ? 'Ready!' : `${holding.distanceToTarget?.toFixed(2)}%`}
-                          </span>
+                          <span className="text-gray-500">SL:</span>
+                          <span className="ml-2 text-red-400 tabular-nums">{formatPrice(holding.stopLossPrice)}</span>
                         </div>
+                      </div>
+                      <div className="mt-2 text-center">
+                        {holding.distanceToTarget <= 0 ? (
+                          <span className="px-3 py-1 text-xs font-bold bg-green-900/50 text-green-400 rounded animate-pulse">TARGET REACHED!</span>
+                        ) : holding.distanceToStopLoss <= 0 ? (
+                          <span className="px-3 py-1 text-xs font-bold bg-red-900/50 text-red-400 rounded animate-pulse">STOP LOSS HIT!</span>
+                        ) : (
+                          <span className="text-gray-500 text-xs">
+                            Target: {holding.distanceToTarget?.toFixed(2)}% | SL: {holding.distanceToStopLoss?.toFixed(2)}%
+                          </span>
+                        )}
                       </div>
                     </div>
                   )
