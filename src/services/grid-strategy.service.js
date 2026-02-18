@@ -18,6 +18,40 @@ class GridStrategyService {
     this.paperTradingService = paperTradingService;
   }
 
+  restoreGridsFromHoldings() {
+    if (!this.paperTradingService) {
+      return;
+    }
+
+    const holdings = this.paperTradingService.getHoldings();
+    if (holdings.length === 0) {
+      return;
+    }
+
+    logger.info(`Restoring grids for ${holdings.length} existing holdings...`);
+
+    holdings.forEach(holding => {
+      const token = holding.token.toString();
+      const symbol = holding.symbol;
+      const avgPrice = holding.avgPrice;
+
+      // Initialize grid with the holding's avg price as both reference and lastBuyPrice
+      const gridData = {
+        symbol: symbol,
+        lastBuyPrice: avgPrice,
+        lastSellPrice: null,
+        referencePrice: avgPrice,
+        buyCount: 1,
+        sellCount: 0,
+        totalPnl: 0,
+        isActive: true
+      };
+
+      this.grids.set(token, gridData);
+      logger.info(`Restored grid for ${symbol}: lastBuyPrice=${avgPrice.toFixed(2)}`);
+    });
+  }
+
   async loadInstruments() {
     try {
       logger.info('Loading NSE instruments for grid strategy...');
@@ -57,6 +91,10 @@ class GridStrategyService {
 
       this.isInitialized = true;
       this.isActive = true;
+
+      // Restore grids for existing holdings
+      this.restoreGridsFromHoldings();
+
       logger.info('Grid Strategy Service initialized');
 
       return true;
@@ -142,14 +180,28 @@ class GridStrategyService {
       return;
     }
 
-    // Check for SELL trigger (X% rise from last buy price)
-    if (gridData.lastBuyPrice && this.paperTradingService && this.paperTradingService.hasHolding(token)) {
-      const lastBuyPrice = new Decimal(gridData.lastBuyPrice);
-      const sellThreshold = lastBuyPrice.mul(new Decimal(1).plus(gridPercent));
+    // Check for SELL trigger (X% rise from last buy price or avg price)
+    if (this.paperTradingService && this.paperTradingService.hasHolding(token)) {
+      // If we don't have lastBuyPrice (e.g., after restart), use the holding's avgPrice
+      let buyPriceToUse = gridData.lastBuyPrice;
+      if (!buyPriceToUse) {
+        const holdings = this.paperTradingService.getHoldings();
+        const holding = holdings.find(h => h.token.toString() === token.toString());
+        if (holding) {
+          buyPriceToUse = holding.avgPrice;
+          gridData.lastBuyPrice = holding.avgPrice; // Cache it for next time
+          this.grids.set(token, gridData);
+        }
+      }
 
-      if (price.gte(sellThreshold)) {
-        this.triggerSell(token, symbol, price.toNumber(), gridData);
-        return;
+      if (buyPriceToUse) {
+        const lastBuyPrice = new Decimal(buyPriceToUse);
+        const sellThreshold = lastBuyPrice.mul(new Decimal(1).plus(gridPercent));
+
+        if (price.gte(sellThreshold)) {
+          this.triggerSell(token, symbol, price.toNumber(), gridData);
+          return;
+        }
       }
     }
   }
