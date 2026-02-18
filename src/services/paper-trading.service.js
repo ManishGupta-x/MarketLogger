@@ -1,5 +1,6 @@
 const Decimal = require('decimal.js');
 const logger = require('../utils/logger');
+const database = require('./database.service');
 
 class PaperTradingService {
   constructor() {
@@ -11,7 +12,7 @@ class PaperTradingService {
     this.gridPercentage = 0.25;
     this.holdings = new Map();
     this.totalRealizedPnL = 0;
-    this.orders = []; // In-memory order history
+    this.orders = []; // In-memory order history (recent orders)
   }
 
   // Calculate Zerodha Intraday brokerage charges
@@ -40,19 +41,71 @@ class PaperTradingService {
   async initialize(initialCapital = null, amountPerTrade = null, gridPercentage = null) {
     logger.info('Initializing Paper Trading Service...');
 
+    // Initialize database
+    database.initialize();
+
     // Load configuration
     this.initialCapital = initialCapital || parseFloat(process.env.INITIAL_CAPITAL) || 100000;
     this.amountPerTrade = amountPerTrade || parseFloat(process.env.AMOUNT_PER_TRADE) || 5000;
     this.gridPercentage = gridPercentage || parseFloat(process.env.GRID_PERCENTAGE) || 0.25;
 
-    this.cashBalance = this.initialCapital;
+    // Check if we have existing portfolio state in database
+    const portfolioState = database.getPortfolioState();
+
+    if (portfolioState) {
+      // Restore from database
+      this.cashBalance = portfolioState.cash_balance;
+      this.totalRealizedPnL = portfolioState.realized_pnl;
+      this.initialCapital = portfolioState.initial_capital;
+
+      // Restore holdings from database
+      const dbHoldings = database.getAllHoldings();
+      this.holdings.clear();
+      dbHoldings.forEach(h => {
+        this.holdings.set(h.token, {
+          symbol: h.symbol,
+          qty: h.qty,
+          avgPrice: h.avg_price,
+          currentPrice: h.avg_price,
+          investedValue: h.invested_value,
+          currentValue: h.invested_value,
+          unrealizedPnl: 0,
+          unrealizedPnlPercent: 0
+        });
+      });
+
+      // Load recent orders from database
+      const recentTransactions = database.getTransactions(100, 0);
+      this.orders = recentTransactions.map(t => ({
+        id: t.id,
+        type: t.type,
+        token: t.token,
+        symbol: t.symbol,
+        qty: t.qty,
+        price: t.price,
+        value: t.value,
+        balance: t.balance_after,
+        pnl: t.pnl,
+        pnlPercent: t.pnl_percent,
+        brokerage: t.brokerage,
+        timestamp: t.created_at
+      }));
+
+      logger.info(`Restored portfolio from database: Cash=${this.cashBalance.toFixed(2)}, Holdings=${this.holdings.size}, Realized P&L=${this.totalRealizedPnL.toFixed(2)}`);
+    } else {
+      // Initialize fresh portfolio
+      this.cashBalance = this.initialCapital;
+      database.initializePortfolio(this.initialCapital);
+      logger.info(`Initialized fresh portfolio with capital: ${this.initialCapital}`);
+    }
+
     this.isEnabled = true;
     this.isInitialized = true;
 
     logger.info(`Initial Capital: ${this.initialCapital}`);
     logger.info(`Amount per Trade: ${this.amountPerTrade}`);
     logger.info(`Grid Percentage: ${this.gridPercentage}%`);
-    logger.info('Paper Trading Service initialized (in-memory)');
+    logger.info('Paper Trading Service initialized with SQLite persistence');
 
     return true;
   }
@@ -102,7 +155,7 @@ class PaperTradingService {
       const totalInvested = new Decimal(existingHolding.investedValue).plus(orderValue);
       const avgPrice = totalInvested.div(totalQty);
 
-      this.holdings.set(token, {
+      const updatedHolding = {
         symbol,
         qty: totalQty,
         avgPrice: avgPrice.toNumber(),
@@ -111,9 +164,14 @@ class PaperTradingService {
         currentValue: new Decimal(totalQty).mul(price).toNumber(),
         unrealizedPnl: 0,
         unrealizedPnlPercent: 0
-      });
+      };
+
+      this.holdings.set(token, updatedHolding);
+
+      // Update in database
+      database.upsertHolding(token, symbol, totalQty, avgPrice.toNumber(), totalInvested.toNumber());
     } else {
-      this.holdings.set(token, {
+      const newHolding = {
         symbol,
         qty,
         avgPrice: price.toNumber(),
@@ -122,12 +180,20 @@ class PaperTradingService {
         currentValue: orderValue.toNumber(),
         unrealizedPnl: 0,
         unrealizedPnlPercent: 0
-      });
+      };
+
+      this.holdings.set(token, newHolding);
+
+      // Insert into database
+      database.upsertHolding(token, symbol, qty, price.toNumber(), orderValue.toNumber());
     }
 
-    // Record order
-    this.orders.push({
-      id: this.orders.length + 1,
+    // Update cash balance in database
+    database.updateCashBalance(this.cashBalance);
+
+    // Record transaction in database
+    const order = {
+      id: Date.now(),
       type: 'BUY',
       token,
       symbol,
@@ -137,7 +203,22 @@ class PaperTradingService {
       balance: this.cashBalance,
       pnl: 0,
       timestamp: new Date().toISOString()
+    };
+
+    database.recordTransaction({
+      type: 'BUY',
+      token,
+      symbol,
+      qty,
+      price: price.toNumber(),
+      value: orderValue.toNumber(),
+      balanceAfter: this.cashBalance,
+      gridLevel
     });
+
+    // Keep recent orders in memory
+    this.orders.unshift(order);
+    if (this.orders.length > 100) this.orders.pop();
 
     logger.info(`BUY ${symbol} | Qty: ${qty} | Price: ${price.toNumber()} | Balance: ${this.cashBalance.toFixed(2)}`);
 
@@ -176,9 +257,14 @@ class PaperTradingService {
 
     this.holdings.delete(token);
 
-    // Record order
-    this.orders.push({
-      id: this.orders.length + 1,
+    // Update database
+    database.deleteHolding(token);
+    database.updateCashBalance(this.cashBalance);
+    database.addRealizedPnl(netPnl.toNumber());
+
+    // Record transaction in database
+    const order = {
+      id: Date.now(),
       type: 'SELL',
       token,
       symbol,
@@ -190,7 +276,25 @@ class PaperTradingService {
       pnlPercent: netPnlPercent.toNumber(),
       brokerage: brokerageCalc.totalCharges,
       timestamp: new Date().toISOString()
+    };
+
+    database.recordTransaction({
+      type: 'SELL',
+      token,
+      symbol,
+      qty,
+      price: price.toNumber(),
+      value: orderValue.toNumber(),
+      brokerage: brokerageCalc.totalCharges,
+      pnl: netPnl.toNumber(),
+      pnlPercent: netPnlPercent.toNumber(),
+      balanceAfter: this.cashBalance,
+      gridLevel
     });
+
+    // Keep recent orders in memory
+    this.orders.unshift(order);
+    if (this.orders.length > 100) this.orders.pop();
 
     logger.info(`SELL ${symbol} | Qty: ${qty} | Price: ${price.toNumber()} | P&L: ${netPnl.toNumber().toFixed(2)} | Balance: ${this.cashBalance.toFixed(2)}`);
 
@@ -225,6 +329,7 @@ class PaperTradingService {
   getPortfolio() {
     let holdingsValue = new Decimal(0);
     let unrealizedPnl = new Decimal(0);
+    let investedValue = new Decimal(0);
 
     this.holdings.forEach(holding => {
       const currentPrice = holding.currentPrice || holding.avgPrice;
@@ -233,22 +338,27 @@ class PaperTradingService {
 
       holdingsValue = holdingsValue.plus(currentValue);
       unrealizedPnl = unrealizedPnl.plus(pnl);
+      investedValue = investedValue.plus(holding.investedValue);
     });
 
     const totalValue = new Decimal(this.cashBalance).plus(holdingsValue).plus(this.totalRealizedPnL);
     const totalPnl = new Decimal(this.totalRealizedPnL).plus(unrealizedPnl);
     const totalPnlPercent = this.initialCapital > 0 ? totalPnl.div(this.initialCapital).mul(100) : new Decimal(0);
+    const dayPnl = database.getTodayPnl();
 
     return {
       cash: this.cashBalance,
       holdingsValue: holdingsValue.toNumber(),
+      investedValue: investedValue.toNumber(),
       totalValue: totalValue.toNumber(),
       totalPnl: totalPnl.toNumber(),
       pnlPercent: totalPnlPercent.toNumber(),
       realizedPnl: this.totalRealizedPnL,
       unrealizedPnl: unrealizedPnl.toNumber(),
       holdingsCount: this.holdings.size,
-      initialCapital: this.initialCapital
+      initialCapital: this.initialCapital,
+      dayPnl: dayPnl.realized_pnl || 0,
+      dayTrades: dayPnl.trades_count || 0
     };
   }
 
@@ -258,6 +368,7 @@ class PaperTradingService {
       const currentValue = holding.qty * currentPrice;
       const unrealizedPnl = currentValue - holding.investedValue;
       const unrealizedPnlPercent = holding.investedValue > 0 ? (unrealizedPnl / holding.investedValue) * 100 : 0;
+      const dayChange = ((currentPrice - holding.avgPrice) / holding.avgPrice) * 100;
 
       return {
         token,
@@ -268,13 +379,55 @@ class PaperTradingService {
         investedValue: holding.investedValue,
         currentValue,
         unrealizedPnl,
-        unrealizedPnlPercent
+        unrealizedPnlPercent,
+        dayChange
       };
     });
   }
 
-  getOrders() {
-    return this.orders.slice(-100); // Last 100 orders
+  getOrders(limit = 100) {
+    // Get from database for complete history
+    const transactions = database.getTransactions(limit, 0);
+    return transactions.map(t => ({
+      id: t.id,
+      type: t.type,
+      token: t.token,
+      symbol: t.symbol,
+      qty: t.qty,
+      price: t.price,
+      value: t.value,
+      balance: t.balance_after,
+      pnl: t.pnl,
+      pnlPercent: t.pnl_percent,
+      brokerage: t.brokerage,
+      timestamp: t.created_at
+    }));
+  }
+
+  getTodayOrders() {
+    const transactions = database.getTodayTransactions();
+    return transactions.map(t => ({
+      id: t.id,
+      type: t.type,
+      token: t.token,
+      symbol: t.symbol,
+      qty: t.qty,
+      price: t.price,
+      value: t.value,
+      balance: t.balance_after,
+      pnl: t.pnl,
+      pnlPercent: t.pnl_percent,
+      brokerage: t.brokerage,
+      timestamp: t.created_at
+    }));
+  }
+
+  getStats() {
+    return database.getStats();
+  }
+
+  getDailyPnl(days = 30) {
+    return database.getDailyPnl(days);
   }
 
   hasHolding(token) {
@@ -297,6 +450,7 @@ class PaperTradingService {
     this.holdings.clear();
     this.totalRealizedPnL = 0;
     this.orders = [];
+    database.resetPortfolio(this.initialCapital);
     logger.info('Portfolio reset');
   }
 }

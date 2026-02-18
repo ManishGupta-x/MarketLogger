@@ -119,3 +119,118 @@ export function useLogsSSE() {
 
   return { logs, connected, clearLogs }
 }
+
+export function usePortfolioSSE() {
+  const [portfolio, setPortfolio] = useState({
+    cash: 0,
+    holdingsValue: 0,
+    investedValue: 0,
+    totalValue: 0,
+    totalPnl: 0,
+    pnlPercent: 0,
+    realizedPnl: 0,
+    unrealizedPnl: 0,
+    holdingsCount: 0,
+    initialCapital: 0,
+    dayPnl: 0,
+    dayTrades: 0,
+    holdings: []
+  })
+  const [connected, setConnected] = useState(false)
+  const controllerRef = useRef(null)
+
+  useEffect(() => {
+    // Fetch initial portfolio data
+    fetch(`${SSE_BASE_URL}/api/portfolio`, { headers: NGROK_HEADERS })
+      .then(res => res.json())
+      .then(data => {
+        setPortfolio(data)
+        setConnected(true)
+      })
+      .catch(err => console.error('Failed to fetch portfolio:', err))
+
+    // Connect to SSE for real-time updates
+    const controller = new AbortController()
+    controllerRef.current = controller
+
+    fetchEventSource(`${SSE_BASE_URL}/api/portfolio/stream`, {
+      headers: NGROK_HEADERS,
+      signal: controller.signal,
+      onopen(response) {
+        if (response.ok) {
+          setConnected(true)
+        }
+      },
+      onmessage(event) {
+        if (event.event === 'portfolio') {
+          const data = JSON.parse(event.data)
+          setPortfolio(data)
+        }
+      },
+      onerror(err) {
+        setConnected(false)
+        console.error('Portfolio SSE error:', err)
+      },
+      openWhenHidden: true
+    })
+
+    return () => {
+      controller.abort()
+    }
+  }, [])
+
+  return { portfolio, connected }
+}
+
+export function useOrders() {
+  const [orders, setOrders] = useState([])
+  const [loading, setLoading] = useState(true)
+
+  const fetchOrders = useCallback(async (today = false) => {
+    setLoading(true)
+    try {
+      const endpoint = today ? '/api/orders/today' : '/api/orders'
+      const res = await fetch(`${SSE_BASE_URL}${endpoint}`, { headers: NGROK_HEADERS })
+      const data = await res.json()
+      setOrders(data)
+    } catch (err) {
+      console.error('Failed to fetch orders:', err)
+    } finally {
+      setLoading(false)
+    }
+  }, [])
+
+  useEffect(() => {
+    fetchOrders()
+  }, [fetchOrders])
+
+  return { orders, loading, fetchOrders }
+}
+
+export function useStats() {
+  const [stats, setStats] = useState({
+    totalTrades: 0,
+    totalBuys: 0,
+    totalSells: 0,
+    profitableTrades: 0,
+    lossTrades: 0,
+    winRate: 0,
+    totalPnl: 0
+  })
+  const [loading, setLoading] = useState(true)
+
+  useEffect(() => {
+    fetch(`${SSE_BASE_URL}/api/stats`, { headers: NGROK_HEADERS })
+      .then(res => res.json())
+      .then(data => {
+        setStats(data)
+        setLoading(false)
+      })
+      .catch(err => {
+        console.error('Failed to fetch stats:', err)
+        setLoading(false)
+      })
+  }, [])
+
+  return { stats, loading }
+}

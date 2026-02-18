@@ -36,6 +36,7 @@ async function start() {
     const SSE_PORT = process.env.SSE_PORT || 34000;
     await sseServer.start(SSE_PORT);
     sseServer.setTokenMap(gridStrategy.tokenToSymbolMap);
+    sseServer.setPaperTradingService(paperTrading);
     logger.info(`SSE server started on port ${SSE_PORT}`);
 
     // Initialize WebSocket with callbacks

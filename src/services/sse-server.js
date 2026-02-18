@@ -5,15 +5,21 @@ class SSEServer {
   constructor() {
     this.tickClients = new Set();
     this.logClients = new Set();
+    this.portfolioClients = new Set();
     this.server = null;
     this.latestTicks = new Map(); // token -> tick data
     this.logBuffer = []; // Recent logs for logs page
     this.maxLogBuffer = 1000;
     this.tokenToSymbolMap = null; // Will be set by grid-strategy
+    this.paperTradingService = null; // Reference to paper trading service
   }
 
   setTokenMap(tokenMap) {
     this.tokenToSymbolMap = tokenMap;
+  }
+
+  setPaperTradingService(service) {
+    this.paperTradingService = service;
   }
 
   async start(port = 8080) {
@@ -41,6 +47,18 @@ class SSEServer {
         this.handleTokenList(req, res);
       } else if (req.url === '/api/portfolio') {
         this.handlePortfolio(req, res);
+      } else if (req.url === '/api/portfolio/stream') {
+        this.handlePortfolioSSE(req, res);
+      } else if (req.url === '/api/holdings') {
+        this.handleHoldings(req, res);
+      } else if (req.url === '/api/orders') {
+        this.handleOrders(req, res);
+      } else if (req.url === '/api/orders/today') {
+        this.handleTodayOrders(req, res);
+      } else if (req.url === '/api/stats') {
+        this.handleStats(req, res);
+      } else if (req.url === '/api/daily-pnl') {
+        this.handleDailyPnl(req, res);
       } else if (req.url === '/health') {
         res.writeHead(200, { 'Content-Type': 'application/json' });
         res.end(JSON.stringify({ status: 'ok', clients: this.tickClients.size }));
@@ -101,6 +119,28 @@ class SSEServer {
     });
   }
 
+  handlePortfolioSSE(req, res) {
+    res.writeHead(200, {
+      'Content-Type': 'text/event-stream',
+      'Cache-Control': 'no-cache',
+      'Connection': 'keep-alive',
+      'Access-Control-Allow-Origin': '*'
+    });
+
+    this.portfolioClients.add(res);
+
+    // Send initial portfolio state
+    if (this.paperTradingService) {
+      const portfolio = this.paperTradingService.getPortfolio();
+      const holdings = this.paperTradingService.getHoldings();
+      res.write(`event: portfolio\ndata: ${JSON.stringify({ ...portfolio, holdings })}\n\n`);
+    }
+
+    req.on('close', () => {
+      this.portfolioClients.delete(res);
+    });
+  }
+
   broadcastTicks(ticks) {
     const timestamp = Date.now();
 
@@ -155,6 +195,22 @@ class SSEServer {
     });
   }
 
+  broadcastPortfolio() {
+    if (!this.paperTradingService || this.portfolioClients.size === 0) return;
+
+    const portfolio = this.paperTradingService.getPortfolio();
+    const holdings = this.paperTradingService.getHoldings();
+    const data = JSON.stringify({ ...portfolio, holdings });
+
+    this.portfolioClients.forEach(client => {
+      try {
+        client.write(`event: portfolio\ndata: ${data}\n\n`);
+      } catch (err) {
+        this.portfolioClients.delete(client);
+      }
+    });
+  }
+
   handleLatestTicks(req, res) {
     res.writeHead(200, { 'Content-Type': 'application/json' });
     res.end(JSON.stringify(Array.from(this.latestTicks.values())));
@@ -175,20 +231,79 @@ class SSEServer {
   }
 
   handlePortfolio(req, res) {
-    // This will be populated by paper trading service
-    const portfolio = this.portfolioData || {
+    let portfolio = {
       cash: 0,
       holdings: [],
       totalValue: 0,
       realizedPnl: 0,
       unrealizedPnl: 0
     };
+
+    if (this.paperTradingService) {
+      portfolio = this.paperTradingService.getPortfolio();
+      portfolio.holdings = this.paperTradingService.getHoldings();
+    } else if (this.portfolioData) {
+      portfolio = this.portfolioData;
+    }
+
     res.writeHead(200, { 'Content-Type': 'application/json' });
     res.end(JSON.stringify(portfolio));
   }
 
+  handleHoldings(req, res) {
+    let holdings = [];
+    if (this.paperTradingService) {
+      holdings = this.paperTradingService.getHoldings();
+    }
+    res.writeHead(200, { 'Content-Type': 'application/json' });
+    res.end(JSON.stringify(holdings));
+  }
+
+  handleOrders(req, res) {
+    let orders = [];
+    if (this.paperTradingService) {
+      orders = this.paperTradingService.getOrders(100);
+    }
+    res.writeHead(200, { 'Content-Type': 'application/json' });
+    res.end(JSON.stringify(orders));
+  }
+
+  handleTodayOrders(req, res) {
+    let orders = [];
+    if (this.paperTradingService) {
+      orders = this.paperTradingService.getTodayOrders();
+    }
+    res.writeHead(200, { 'Content-Type': 'application/json' });
+    res.end(JSON.stringify(orders));
+  }
+
+  handleStats(req, res) {
+    let stats = {
+      totalTrades: 0,
+      profitableTrades: 0,
+      lossTrades: 0,
+      winRate: 0
+    };
+    if (this.paperTradingService) {
+      stats = this.paperTradingService.getStats();
+    }
+    res.writeHead(200, { 'Content-Type': 'application/json' });
+    res.end(JSON.stringify(stats));
+  }
+
+  handleDailyPnl(req, res) {
+    let dailyPnl = [];
+    if (this.paperTradingService) {
+      dailyPnl = this.paperTradingService.getDailyPnl(30);
+    }
+    res.writeHead(200, { 'Content-Type': 'application/json' });
+    res.end(JSON.stringify(dailyPnl));
+  }
+
   updatePortfolio(portfolioData) {
     this.portfolioData = portfolioData;
+    // Also broadcast to portfolio SSE clients
+    this.broadcastPortfolio();
   }
 
   stop() {

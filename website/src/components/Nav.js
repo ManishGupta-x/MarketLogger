@@ -27,6 +27,16 @@ export default function Nav() {
               Stocks
             </Link>
             <Link
+              href="/portfolio"
+              className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
+                pathname === '/portfolio'
+                  ? 'bg-blue-600 text-white'
+                  : 'text-gray-400 hover:text-white hover:bg-gray-800'
+              }`}
+            >
+              Portfolio
+            </Link>
+            <Link
               href="/logs"
               className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
                 pathname === '/logs'
