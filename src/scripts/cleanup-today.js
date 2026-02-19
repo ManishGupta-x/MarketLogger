@@ -2,7 +2,7 @@ require('dotenv').config();
 const Database = require('better-sqlite3');
 const path = require('path');
 
-const dbPath = path.join(__dirname, '../../data/portfolio.db');
+const dbPath = process.env.DATABASE_PATH || path.join(__dirname, '../../data/portfolio.db');
 const db = new Database(dbPath);
 
 const today = new Date().toISOString().split('T')[0];

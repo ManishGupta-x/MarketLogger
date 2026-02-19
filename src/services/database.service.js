@@ -8,7 +8,8 @@ class DatabaseService {
   }
 
   initialize() {
-    const dbPath = path.join(__dirname, '../../data/portfolio.db');
+    // Use DATABASE_PATH env var for Railway, otherwise default to local data folder
+    const dbPath = process.env.DATABASE_PATH || path.join(__dirname, '../../data/portfolio.db');
 
     // Ensure data directory exists
     const fs = require('fs');
