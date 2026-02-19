@@ -28,8 +28,8 @@ async function start() {
     logger.info('Paper trading initialized');
 
     // Initialize grid strategy
-    await gridStrategy.initialize();
     gridStrategy.setPaperTradingService(paperTrading);
+    await gridStrategy.initialize();
     logger.info('Grid strategy initialized');
 
     // Start SSE server for website

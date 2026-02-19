@@ -28,7 +28,12 @@
       "Bash(node:*)",
       "Bash(echo:*)",
       "Bash(del:*)",
-      "Bash(railway link:*)"
+      "Bash(railway link:*)",
+      "Bash(railway whoami:*)",
+      "Bash(railway list:*)",
+      "Bash(railway status:*)",
+      "Bash(railway:*)",
+      "Bash(ls:*)"
     ]
   }
 }

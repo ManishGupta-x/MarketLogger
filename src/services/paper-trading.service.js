@@ -64,7 +64,7 @@ class PaperTradingService {
       const dbHoldings = database.getAllHoldings();
       this.holdings.clear();
       dbHoldings.forEach(h => {
-        this.holdings.set(h.token, {
+        this.holdings.set(h.token.toString(), {
           symbol: h.symbol,
           qty: h.qty,
           avgPrice: h.avg_price,
@@ -150,7 +150,7 @@ class PaperTradingService {
     const orderValue = new Decimal(qty).mul(price);
     this.cashBalance = new Decimal(this.cashBalance).minus(orderValue).toNumber();
 
-    const existingHolding = this.holdings.get(token);
+    const existingHolding = this.holdings.get(token.toString());
 
     if (existingHolding) {
       const totalQty = existingHolding.qty + qty;
@@ -168,7 +168,7 @@ class PaperTradingService {
         unrealizedPnlPercent: 0
       };
 
-      this.holdings.set(token, updatedHolding);
+      this.holdings.set(token.toString(), updatedHolding);
 
       // Update in database
       database.upsertHolding(token, symbol, totalQty, avgPrice.toNumber(), totalInvested.toNumber());
@@ -184,7 +184,7 @@ class PaperTradingService {
         unrealizedPnlPercent: 0
       };
 
-      this.holdings.set(token, newHolding);
+      this.holdings.set(token.toString(), newHolding);
 
       // Insert into database
       database.upsertHolding(token, symbol, qty, price.toNumber(), orderValue.toNumber());
@@ -234,7 +234,7 @@ class PaperTradingService {
   }
 
   executeSell(token, symbol, price, gridLevel, referencePrice) {
-    const holding = this.holdings.get(token);
+    const holding = this.holdings.get(token.toString());
 
     if (!holding || holding.qty === 0) {
       return { success: false, message: 'No holdings to sell' };
@@ -257,7 +257,7 @@ class PaperTradingService {
     this.cashBalance = new Decimal(this.cashBalance).plus(investedValue).toNumber();
     this.totalRealizedPnL = new Decimal(this.totalRealizedPnL).plus(netPnl).toNumber();
 
-    this.holdings.delete(token);
+    this.holdings.delete(token.toString());
 
     // Update database
     database.deleteHolding(token);
@@ -313,7 +313,7 @@ class PaperTradingService {
   }
 
   updateHoldingPrice(token, currentPrice) {
-    const holding = this.holdings.get(token);
+    const holding = this.holdings.get(token.toString());
     if (!holding) return;
 
     const currentValue = new Decimal(holding.qty).mul(currentPrice);
@@ -325,7 +325,7 @@ class PaperTradingService {
     holding.unrealizedPnl = unrealizedPnl.toNumber();
     holding.unrealizedPnlPercent = unrealizedPnlPercent.toNumber();
 
-    this.holdings.set(token, holding);
+    this.holdings.set(token.toString(), holding);
   }
 
   getPortfolio() {
@@ -457,7 +457,8 @@ class PaperTradingService {
   }
 
   hasHolding(token) {
-    const holding = this.holdings.get(token);
+    if (!token) return false;
+    const holding = this.holdings.get(token.toString());
     return holding && holding.qty > 0;
   }
 
