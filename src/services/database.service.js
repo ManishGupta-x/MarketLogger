@@ -206,7 +206,7 @@ class DatabaseService {
   getTodayTransactions() {
     const stmt = this.db.prepare(`
       SELECT * FROM transactions
-      WHERE date(created_at) = date('now', 'localtime')
+      WHERE date(created_at, '+5 hours', '30 minutes') = date('now', '+5 hours', '30 minutes')
       ORDER BY created_at DESC
     `);
     return stmt.all();
@@ -243,7 +243,7 @@ class DatabaseService {
 
   // Daily PnL Methods
   updateDailyPnl(pnl, value, type) {
-    const today = new Date().toISOString().split('T')[0];
+    const today = new Date(new Date().toLocaleString('en-US', { timeZone: 'Asia/Kolkata' })).toISOString().split('T')[0];
 
     const existing = this.db.prepare('SELECT * FROM daily_pnl WHERE date = ?').get(today);
 
@@ -282,7 +282,7 @@ class DatabaseService {
   }
 
   getTodayPnl() {
-    const today = new Date().toISOString().split('T')[0];
+    const today = new Date(new Date().toLocaleString('en-US', { timeZone: 'Asia/Kolkata' })).toISOString().split('T')[0];
     const stmt = this.db.prepare('SELECT * FROM daily_pnl WHERE date = ?');
     return stmt.get(today) || { date: today, realized_pnl: 0, trades_count: 0, buy_value: 0, sell_value: 0 };
   }
@@ -310,7 +310,7 @@ class DatabaseService {
 
   // Daily Strategy Methods
   createDailyStrategy(params) {
-    const today = new Date().toISOString().split('T')[0];
+    const today = new Date(new Date().toLocaleString('en-US', { timeZone: 'Asia/Kolkata' })).toISOString().split('T')[0];
     const stmt = this.db.prepare(`
       INSERT INTO daily_strategies (date, grid_percentage, target_percentage, stop_loss_percentage, per_trade_amount, capital, status)
       VALUES (?, ?, ?, ?, ?, ?, 'active')
@@ -339,7 +339,7 @@ class DatabaseService {
   }
 
   getTodayStrategy() {
-    const today = new Date().toISOString().split('T')[0];
+    const today = new Date(new Date().toLocaleString('en-US', { timeZone: 'Asia/Kolkata' })).toISOString().split('T')[0];
     return this.getDailyStrategy(today);
   }
 
