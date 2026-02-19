@@ -1,14 +1,33 @@
 'use client'
 
-import { useState, useMemo } from 'react'
-import { usePortfolioSSE, useOrders, useStats } from '@/lib/useSSE'
+import { useState, useMemo, useEffect } from 'react'
+import { usePortfolioSSE, useOrders } from '@/lib/useSSE'
 
 export default function PortfolioPage() {
   const { portfolio, connected } = usePortfolioSSE()
   const { orders, loading: ordersLoading, fetchOrders } = useOrders()
-  const { stats } = useStats()
   const [activeTab, setActiveTab] = useState('holdings')
   const [showTodayOnly, setShowTodayOnly] = useState(false)
+  const [todayOrders, setTodayOrders] = useState([])
+
+  // Fetch today's orders for win rate calculation
+  useEffect(() => {
+    fetch(`${process.env.NEXT_PUBLIC_SSE_URL || 'http://localhost:8080'}/api/orders/today`, {
+      headers: { 'ngrok-skip-browser-warning': 'true' }
+    })
+      .then(res => res.json())
+      .then(data => setTodayOrders(data))
+      .catch(err => console.error('Failed to fetch today orders:', err))
+  }, [])
+
+  // Calculate today's win rate from today's sell orders
+  const todayStats = useMemo(() => {
+    const sells = todayOrders.filter(o => o.type === 'SELL')
+    const wins = sells.filter(o => o.pnl > 0).length
+    const losses = sells.filter(o => o.pnl < 0).length
+    const winRate = sells.length > 0 ? ((wins / sells.length) * 100).toFixed(1) : 0
+    return { wins, losses, winRate, totalSells: sells.length }
+  }, [todayOrders])
 
   const formatPrice = (price) => {
     if (price === undefined || price === null) return '-'
@@ -60,7 +79,11 @@ export default function PortfolioPage() {
           <div className="flex flex-wrap gap-4 text-sm">
             <div className="flex items-center gap-2">
               <span className="text-gray-500">Grid:</span>
-              <span className="text-green-400 font-medium">+{portfolio.gridPercentage || 0.25}%</span>
+              <span className="text-blue-400 font-medium">-{portfolio.gridPercentage || 0.25}%</span>
+            </div>
+            <div className="flex items-center gap-2">
+              <span className="text-gray-500">Target:</span>
+              <span className="text-green-400 font-medium">+{portfolio.targetPercentage || portfolio.gridPercentage || 0.25}%</span>
             </div>
             <div className="flex items-center gap-2">
               <span className="text-gray-500">SL:</span>
@@ -161,8 +184,9 @@ export default function PortfolioPage() {
             </div>
           </div>
           <div className="dashboard-card p-3">
-            <div className="text-gray-500 text-xs mb-1">Win Rate</div>
-            <div className="text-lg font-semibold text-white">{stats.winRate || 0}%</div>
+            <div className="text-gray-500 text-xs mb-1">Today's Win Rate</div>
+            <div className="text-lg font-semibold text-white">{todayStats.winRate}%</div>
+            <div className="text-xs text-gray-500 mt-1">{todayStats.wins}W / {todayStats.losses}L</div>
           </div>
         </div>
       </div>

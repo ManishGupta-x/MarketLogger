@@ -127,6 +127,9 @@ export default function StrategiesPage() {
                       Grid %
                     </th>
                     <th className="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">
+                      Target %
+                    </th>
+                    <th className="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">
                       SL %
                     </th>
                     <th className="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">
@@ -160,8 +163,11 @@ export default function StrategiesPage() {
                         <td className="px-4 py-4 whitespace-nowrap">
                           <div className="font-medium text-white">{formatDate(strategy.date)}</div>
                         </td>
-                        <td className="px-4 py-4 whitespace-nowrap text-right tabular-nums text-green-400">
+                        <td className="px-4 py-4 whitespace-nowrap text-right tabular-nums text-blue-400">
                           {strategy.grid_percentage}%
+                        </td>
+                        <td className="px-4 py-4 whitespace-nowrap text-right tabular-nums text-green-400">
+                          {strategy.target_percentage}%
                         </td>
                         <td className="px-4 py-4 whitespace-nowrap text-right tabular-nums text-red-400">
                           {strategy.stop_loss_percentage}%
@@ -218,7 +224,7 @@ export default function StrategiesPage() {
                       <div>
                         <div className="font-medium text-white text-lg">{formatDate(strategy.date)}</div>
                         <div className="text-xs text-gray-500">
-                          Grid: {strategy.grid_percentage}% | SL: {strategy.stop_loss_percentage}%
+                          Grid: {strategy.grid_percentage}% | Target: {strategy.target_percentage}% | SL: {strategy.stop_loss_percentage}%
                         </div>
                       </div>
                       <div className="text-right">

@@ -14,6 +14,7 @@ async function backfillToday() {
   // Strategy params from env or defaults
   const strategyParams = {
     gridPercentage: parseFloat(process.env.GRID_PERCENTAGE) || 0.25,
+    targetPercentage: parseFloat(process.env.TARGET_PERCENTAGE) || parseFloat(process.env.GRID_PERCENTAGE) || 0.25,
     stopLossPercentage: parseFloat(process.env.STOP_LOSS_PERCENTAGE) || 1,
     perTradeAmount: parseFloat(process.env.AMOUNT_PER_TRADE) || 5000,
     capital: portfolioState?.initial_capital || parseFloat(process.env.INITIAL_CAPITAL) || 100000

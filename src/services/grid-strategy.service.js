@@ -7,7 +7,8 @@ class GridStrategyService {
     this.isInitialized = false;
     this.isActive = false;
     this.grids = new Map();
-    this.gridPercentage = 0.25; // Default 0.25%
+    this.gridPercentage = 0.25; // Default 0.25% for buying
+    this.targetPercentage = 0.25; // Default 0.25% for selling (target)
     this.stopLossPercentage = 1; // Default 1% stop loss
     this.tokenToSymbolMap = new Map();
     this.lastProcessedTime = new Map();
@@ -93,12 +94,20 @@ class GridStrategyService {
         this.gridPercentage = parseFloat(process.env.GRID_PERCENTAGE);
       }
 
+      // Load target percentage (for selling)
+      if (process.env.TARGET_PERCENTAGE) {
+        this.targetPercentage = parseFloat(process.env.TARGET_PERCENTAGE);
+      } else {
+        this.targetPercentage = this.gridPercentage; // Default to grid percentage
+      }
+
       // Load stop loss percentage
       if (process.env.STOP_LOSS_PERCENTAGE) {
         this.stopLossPercentage = parseFloat(process.env.STOP_LOSS_PERCENTAGE);
       }
 
-      logger.info(`Grid percentage: ${this.gridPercentage}%`);
+      logger.info(`Grid percentage (buy): ${this.gridPercentage}%`);
+      logger.info(`Target percentage (sell): ${this.targetPercentage}%`);
       logger.info(`Stop loss percentage: ${this.stopLossPercentage}%`);
 
       this.isInitialized = true;
@@ -208,7 +217,8 @@ class GridStrategyService {
 
       if (buyPriceToUse) {
         const lastBuyPrice = new Decimal(buyPriceToUse);
-        const sellThreshold = lastBuyPrice.mul(new Decimal(1).plus(gridPercent));
+        const targetPercent = new Decimal(this.targetPercentage).div(100);
+        const sellThreshold = lastBuyPrice.mul(new Decimal(1).plus(targetPercent));
         const stopLossPercent = new Decimal(this.stopLossPercentage).div(100);
         const stopLossThreshold = lastBuyPrice.mul(new Decimal(1).minus(stopLossPercent));
 

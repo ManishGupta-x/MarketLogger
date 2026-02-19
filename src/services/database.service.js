@@ -85,6 +85,7 @@ class DatabaseService {
         id INTEGER PRIMARY KEY AUTOINCREMENT,
         date TEXT UNIQUE NOT NULL,
         grid_percentage REAL NOT NULL,
+        target_percentage REAL NOT NULL,
         stop_loss_percentage REAL NOT NULL,
         per_trade_amount REAL NOT NULL,
         capital REAL NOT NULL,
@@ -310,12 +311,13 @@ class DatabaseService {
   createDailyStrategy(params) {
     const today = new Date().toISOString().split('T')[0];
     const stmt = this.db.prepare(`
-      INSERT INTO daily_strategies (date, grid_percentage, stop_loss_percentage, per_trade_amount, capital, status)
-      VALUES (?, ?, ?, ?, ?, 'active')
+      INSERT INTO daily_strategies (date, grid_percentage, target_percentage, stop_loss_percentage, per_trade_amount, capital, status)
+      VALUES (?, ?, ?, ?, ?, ?, 'active')
     `);
     return stmt.run(
       today,
       params.gridPercentage,
+      params.targetPercentage,
       params.stopLossPercentage,
       params.perTradeAmount,
       params.capital

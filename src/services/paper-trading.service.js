@@ -10,6 +10,7 @@ class PaperTradingService {
     this.initialCapital = 0;
     this.amountPerTrade = 0;
     this.gridPercentage = 0.25;
+    this.targetPercentage = 0.25;
     this.holdings = new Map();
     this.totalRealizedPnL = 0;
     this.orders = []; // In-memory order history (recent orders)
@@ -48,6 +49,7 @@ class PaperTradingService {
     this.initialCapital = initialCapital || parseFloat(process.env.INITIAL_CAPITAL) || 100000;
     this.amountPerTrade = amountPerTrade || parseFloat(process.env.AMOUNT_PER_TRADE) || 5000;
     this.gridPercentage = gridPercentage || parseFloat(process.env.GRID_PERCENTAGE) || 0.25;
+    this.targetPercentage = parseFloat(process.env.TARGET_PERCENTAGE) || this.gridPercentage;
 
     // Check if we have existing portfolio state in database
     const portfolioState = database.getPortfolioState();
@@ -361,6 +363,7 @@ class PaperTradingService {
       dayTrades: dayPnl.trades_count || 0,
       // Strategy config
       gridPercentage: this.gridPercentage,
+      targetPercentage: this.targetPercentage,
       amountPerTrade: this.amountPerTrade,
       stopLossPercentage: parseFloat(process.env.STOP_LOSS_PERCENTAGE) || 1
     };
@@ -374,8 +377,8 @@ class PaperTradingService {
       const unrealizedPnlPercent = holding.investedValue > 0 ? (unrealizedPnl / holding.investedValue) * 100 : 0;
       const dayChange = ((currentPrice - holding.avgPrice) / holding.avgPrice) * 100;
 
-      // Calculate target sell price based on grid percentage
-      const targetPrice = holding.avgPrice * (1 + this.gridPercentage / 100);
+      // Calculate target sell price based on target percentage
+      const targetPrice = holding.avgPrice * (1 + this.targetPercentage / 100);
       const targetPnl = (targetPrice - holding.avgPrice) * holding.qty;
       const distanceToTarget = ((targetPrice - currentPrice) / currentPrice) * 100;
 

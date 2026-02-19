@@ -71,7 +71,8 @@ async function closeStrategy() {
   console.log('\n=== Strategy Closed ===');
   console.log(`Date: ${finalRecord.date}`);
   console.log(`\nStrategy Parameters:`);
-  console.log(`  Grid: ${finalRecord.grid_percentage}%`);
+  console.log(`  Grid (Buy): ${finalRecord.grid_percentage}%`);
+  console.log(`  Target (Sell): ${finalRecord.target_percentage}%`);
   console.log(`  Stop Loss: ${finalRecord.stop_loss_percentage}%`);
   console.log(`  Per Trade: Rs.${finalRecord.per_trade_amount.toLocaleString()}`);
   console.log(`  Capital: Rs.${finalRecord.capital.toLocaleString()}`);
