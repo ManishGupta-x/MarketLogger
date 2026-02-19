@@ -28,96 +28,38 @@ async function start() {
     await paperTrading.initialize();
     logger.info('Paper trading initialized');
 
-    // Check for migration data
-    const fs = require('fs');
-    const path = require('path');
-    const migrationFile = path.join(__dirname, '../yesterday_data.json');
-    if (fs.existsSync(migrationFile)) {
-      try {
-        logger.info('Found yesterday_data.json, running migration...');
-        const migrationData = JSON.parse(fs.readFileSync(migrationFile, 'utf8'));
-        const dbService = require('./services/database.service');
+    // One-time migration: Fix timestamps that were recorded in GMT instead of IST
+    // Entries before 9:30 AM are likely GMT and need +5:30 adjustment
+    try {
+      const dbService = require('./services/database.service');
+      const db = dbService.db;
 
-        const db = dbService.db;
-        const runMigration = db.transaction(() => {
-          // Sync Daily Strategy
-          if (migrationData.dailyStrategy) {
-            const stmt = db.prepare(`
-              INSERT OR REPLACE INTO daily_strategies (
-                date, grid_percentage, target_percentage, stop_loss_percentage, 
-                per_trade_amount, capital, total_trades, buy_count, sell_count, 
-                winning_trades, losing_trades, realized_pnl, total_brokerage, 
-                buy_value, sell_value, win_rate, max_single_win, max_single_loss, 
-                pnl_percent, ending_cash_balance, ending_holdings_count, 
-                ending_holdings_value, status, notes, created_at, completed_at
-              ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-            `);
-            stmt.run(
-              migrationData.dailyStrategy.date, migrationData.dailyStrategy.grid_percentage, migrationData.dailyStrategy.target_percentage,
-              migrationData.dailyStrategy.stop_loss_percentage, migrationData.dailyStrategy.per_trade_amount, migrationData.dailyStrategy.capital,
-              migrationData.dailyStrategy.total_trades, migrationData.dailyStrategy.buy_count, migrationData.dailyStrategy.sell_count,
-              migrationData.dailyStrategy.winning_trades, migrationData.dailyStrategy.losing_trades, migrationData.dailyStrategy.realized_pnl,
-              migrationData.dailyStrategy.total_brokerage, migrationData.dailyStrategy.buy_value, migrationData.dailyStrategy.sell_value,
-              migrationData.dailyStrategy.win_rate, migrationData.dailyStrategy.max_single_win, migrationData.dailyStrategy.max_single_loss,
-              migrationData.dailyStrategy.pnl_percent, migrationData.dailyStrategy.ending_cash_balance, migrationData.dailyStrategy.ending_holdings_count,
-              migrationData.dailyStrategy.ending_holdings_value, migrationData.dailyStrategy.status, migrationData.dailyStrategy.notes,
-              migrationData.dailyStrategy.created_at, migrationData.dailyStrategy.completed_at
-            );
-          }
+      // Find transactions with time before 9:30 AM (likely recorded in GMT)
+      const gmtTransactions = db.prepare(`
+        SELECT id, created_at FROM transactions
+        WHERE time(created_at) < '09:30:00'
+      `).all();
 
-          // Sync Daily PnL
-          if (migrationData.dailyPnl) {
-            const stmt = db.prepare(`
-              INSERT OR REPLACE INTO daily_pnl (date, realized_pnl, trades_count, buy_value, sell_value)
-              VALUES (?, ?, ?, ?, ?)
-            `);
-            stmt.run(
-              migrationData.dailyPnl.date, migrationData.dailyPnl.realized_pnl, migrationData.dailyPnl.trades_count,
-              migrationData.dailyPnl.buy_value, migrationData.dailyPnl.sell_value
-            );
-          }
+      if (gmtTransactions.length > 0) {
+        logger.info(`Found ${gmtTransactions.length} transactions before 9:30 AM, adjusting to IST (+5:30)...`);
 
-          // Sync Transactions
-          const txnStmt = db.prepare(`
-            INSERT OR IGNORE INTO transactions (
-              type, token, symbol, qty, price, value, brokerage, pnl, pnl_percent, balance_after, grid_level, created_at
-            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-          `);
-          for (const txn of migrationData.transactions) {
-            txnStmt.run(
-              txn.type, txn.token, txn.symbol, txn.qty, txn.price, txn.value,
-              txn.brokerage, txn.pnl, txn.pnl_percent, txn.balance_after,
-              txn.grid_level, txn.created_at
-            );
-          }
+        const updateStmt = db.prepare(`
+          UPDATE transactions
+          SET created_at = datetime(created_at, '+5 hours', '+30 minutes')
+          WHERE id = ?
+        `);
 
-          // Sync Portfolio State - ONLY if no trades have happened today yet
-          // This prevents overwriting your live cash balance if you're already trading
-          const todayTxns = db.prepare("SELECT COUNT(*) as count FROM transactions WHERE date(created_at) = date('now', 'localtime')").get();
-          if (migrationData.portfolioState && todayTxns.count === 0) {
-            const stmt = db.prepare(`
-              UPDATE portfolio_state SET cash_balance = ?, initial_capital = ?, realized_pnl = ? WHERE id = 1
-            `);
-            stmt.run(migrationData.portfolioState.cash_balance, migrationData.portfolioState.initial_capital, migrationData.portfolioState.realized_pnl);
-            logger.info('Portfolio state synced (initial state).');
-          } else {
-            logger.info('Skipping portfolio state sync to protect live running entries.');
+        const runFix = db.transaction(() => {
+          for (const txn of gmtTransactions) {
+            updateStmt.run(txn.id);
           }
         });
 
-        runMigration();
-        logger.info(`Successfully migrated ${migrationData.transactions.length} transactions!`);
-
-        // Try to delete file after migration to prevent re-runs
-        try {
-          fs.unlinkSync(migrationFile);
-          logger.info('Migration file deleted.');
-        } catch (e) {
-          logger.warn('Could not delete migration file (this is normal if running in a read-only container)');
-        }
-      } catch (err) {
-        logger.error('Migration failed:', err);
+        runFix();
+        logger.info(`Fixed ${gmtTransactions.length} transaction timestamps to IST`);
       }
+    } catch (err) {
+      logger.error('Timezone fix migration failed:', err);
     }
 
     // Initialize grid strategy
