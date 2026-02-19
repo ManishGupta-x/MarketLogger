@@ -26,7 +26,9 @@
       "Bash(git commit:*)",
       "Bash(ls -la \"c:\\\\Users\\\\Admin\\\\OneDrive\\\\Documents\\\\Automations\\\\MarketLogger\\\\src\"\" 2>/dev/null || dir \"c:UsersAdminOneDriveDocumentsAutomationsMarketLoggersrc\"\")",
       "Bash(node:*)",
-      "Bash(echo:*)"
+      "Bash(echo:*)",
+      "Bash(del:*)",
+      "Bash(railway link:*)"
     ]
   }
 }
