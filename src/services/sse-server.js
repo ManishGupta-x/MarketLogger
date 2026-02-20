@@ -68,6 +68,8 @@ class SSEServer {
         this.handleStrategies(req, res);
       } else if (req.url === '/api/strategies/today') {
         this.handleTodayStrategy(req, res);
+      } else if (req.url === '/api/calendar') {
+        this.handleCalendar(req, res);
       } else if (req.url === '/health') {
         res.writeHead(200, { 'Content-Type': 'application/json' });
         res.end(JSON.stringify({ status: 'ok', clients: this.tickClients.size }));
@@ -366,6 +368,13 @@ class SSEServer {
     const strategy = database.getTodayStrategy();
     res.writeHead(200, { 'Content-Type': 'application/json' });
     res.end(JSON.stringify(strategy || { status: 'none' }));
+  }
+
+  handleCalendar(req, res) {
+    const database = require('./database.service');
+    const calendar = database.getUpcomingCalendarStrategies(14);
+    res.writeHead(200, { 'Content-Type': 'application/json' });
+    res.end(JSON.stringify(calendar));
   }
 
   updatePortfolio(portfolioData) {

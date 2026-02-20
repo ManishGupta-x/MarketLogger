@@ -7,7 +7,9 @@
     "dev": "nodemon src/app.js",
     "strategy": "node src/scripts/set-strategy.js",
     "strategy:close": "node src/scripts/close-strategy.js",
-    "strategy:backfill": "node src/scripts/backfill-today.js"
+    "strategy:backfill": "node src/scripts/backfill-today.js",
+    "calendar:feed": "node src/scripts/feed-calendar.js",
+    "calendar:list": "node src/scripts/feed-calendar.js --list"
   },
   "keywords": [],
   "author": "",

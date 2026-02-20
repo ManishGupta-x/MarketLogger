@@ -5,13 +5,16 @@ async function closeStrategy() {
   console.log('Initializing database...');
   database.initialize();
 
-  const today = new Date().toISOString().split('T')[0];
-  console.log(`Closing strategy for date: ${today}`);
+  // Allow passing date as argument: npm run strategy:close -- --date=2026-02-19
+  const args = process.argv.slice(2);
+  const dateArg = args.find(a => a.startsWith('--date='));
+  const targetDate = dateArg ? dateArg.split('=')[1] : new Date().toISOString().split('T')[0];
+  console.log(`Closing strategy for date: ${targetDate}`);
 
   // Check if strategy exists
-  const existing = database.getDailyStrategy(today);
+  const existing = database.getDailyStrategy(targetDate);
   if (!existing) {
-    console.error(`Error: No strategy found for ${today}`);
+    console.error(`Error: No strategy found for ${targetDate}`);
     console.log('Run set-strategy.js first to create a strategy entry');
     database.close();
     process.exit(1);
@@ -23,13 +26,13 @@ async function closeStrategy() {
     process.exit(0);
   }
 
-  // Get today's transactions
+  // Get targetDate's transactions
   const transactions = database.getTodayTransactions();
   const dailyPnl = database.getTodayPnl();
   const holdings = database.getAllHoldings();
   const portfolioState = database.getPortfolioState();
 
-  console.log(`Found ${transactions.length} transactions today`);
+  console.log(`Found ${transactions.length} transactions targetDate`);
 
   const sellTrades = transactions.filter(t => t.type === 'SELL');
   const buyTrades = transactions.filter(t => t.type === 'BUY');
@@ -63,10 +66,10 @@ async function closeStrategy() {
     : 0;
 
   // Update strategy record
-  database.updateDailyStrategy(today, metrics);
+  database.updateDailyStrategy(targetDate, metrics);
 
   // Fetch and display the final record
-  const finalRecord = database.getDailyStrategy(today);
+  const finalRecord = database.getDailyStrategy(targetDate);
 
   console.log('\n=== Strategy Closed ===');
   console.log(`Date: ${finalRecord.date}`);

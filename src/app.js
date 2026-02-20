@@ -67,6 +67,9 @@ async function start() {
     await gridStrategy.initialize();
     logger.info('Grid strategy initialized');
 
+    // Set service references for scheduled auth (for applying calendar strategies)
+    scheduledAuth.setServices(gridStrategy, paperTrading);
+
     // Start SSE server for website
     const SSE_PORT = process.env.SSE_PORT || 34000;
     await sseServer.start(SSE_PORT);

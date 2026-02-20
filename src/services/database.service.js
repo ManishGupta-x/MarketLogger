@@ -113,11 +113,29 @@ class DatabaseService {
       )
     `);
 
+    // Strategy calendar table - for pre-feeding strategies
+    this.db.exec(`
+      CREATE TABLE IF NOT EXISTS strategy_calendar (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        date TEXT UNIQUE NOT NULL,
+        grid_percentage REAL NOT NULL,
+        target_percentage REAL NOT NULL,
+        stop_loss_percentage REAL NOT NULL,
+        per_trade_amount REAL NOT NULL,
+        capital REAL NOT NULL,
+        is_holiday INTEGER DEFAULT 0,
+        notes TEXT,
+        created_at TEXT DEFAULT (datetime('now', 'localtime')),
+        updated_at TEXT DEFAULT (datetime('now', 'localtime'))
+      )
+    `);
+
     // Create indexes for faster queries
     this.db.exec(`
       CREATE INDEX IF NOT EXISTS idx_transactions_symbol ON transactions(symbol);
       CREATE INDEX IF NOT EXISTS idx_transactions_created_at ON transactions(created_at);
       CREATE INDEX IF NOT EXISTS idx_transactions_type ON transactions(type);
+      CREATE INDEX IF NOT EXISTS idx_strategy_calendar_date ON strategy_calendar(date);
     `);
   }
 
@@ -350,6 +368,132 @@ class DatabaseService {
       LIMIT ?
     `);
     return stmt.all(limit);
+  }
+
+  // Strategy Calendar Methods
+
+  /**
+   * Add or update a strategy in the calendar
+   * @param {string} date - Date in YYYY-MM-DD format
+   * @param {Object} params - Strategy parameters
+   */
+  upsertCalendarStrategy(date, params) {
+    const stmt = this.db.prepare(`
+      INSERT INTO strategy_calendar (date, grid_percentage, target_percentage, stop_loss_percentage, per_trade_amount, capital, is_holiday, notes)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+      ON CONFLICT(date) DO UPDATE SET
+        grid_percentage = excluded.grid_percentage,
+        target_percentage = excluded.target_percentage,
+        stop_loss_percentage = excluded.stop_loss_percentage,
+        per_trade_amount = excluded.per_trade_amount,
+        capital = excluded.capital,
+        is_holiday = excluded.is_holiday,
+        notes = excluded.notes,
+        updated_at = datetime('now', 'localtime')
+    `);
+    return stmt.run(
+      date,
+      params.gridPercentage,
+      params.targetPercentage,
+      params.stopLossPercentage,
+      params.perTradeAmount,
+      params.capital,
+      params.isHoliday ? 1 : 0,
+      params.notes || null
+    );
+  }
+
+  /**
+   * Get strategy from calendar for a specific date
+   * @param {string} date - Date in YYYY-MM-DD format
+   * @returns {Object|null} Strategy params or null
+   */
+  getCalendarStrategy(date) {
+    const stmt = this.db.prepare('SELECT * FROM strategy_calendar WHERE date = ?');
+    return stmt.get(date);
+  }
+
+  /**
+   * Get the most recent strategy before a given date (fallback logic)
+   * @param {string} date - Date in YYYY-MM-DD format
+   * @returns {Object|null} Most recent strategy or null
+   */
+  getLastCalendarStrategy(date) {
+    const stmt = this.db.prepare(`
+      SELECT * FROM strategy_calendar
+      WHERE date < ? AND is_holiday = 0
+      ORDER BY date DESC
+      LIMIT 1
+    `);
+    return stmt.get(date);
+  }
+
+  /**
+   * Get strategy for a date with fallback to the most recent strategy
+   * @param {string} date - Date in YYYY-MM-DD format
+   * @returns {Object} Strategy with source indicator
+   */
+  getCalendarStrategyWithFallback(date) {
+    // First check if date is marked as holiday
+    const calendarEntry = this.getCalendarStrategy(date);
+    if (calendarEntry && calendarEntry.is_holiday === 1) {
+      return { strategy: null, source: 'holiday', date: date };
+    }
+
+    // If strategy exists for this date, use it
+    if (calendarEntry) {
+      return { strategy: calendarEntry, source: 'calendar', date: date };
+    }
+
+    // Fallback to the most recent strategy
+    const fallbackStrategy = this.getLastCalendarStrategy(date);
+    if (fallbackStrategy) {
+      return { strategy: fallbackStrategy, source: 'fallback', date: fallbackStrategy.date };
+    }
+
+    return { strategy: null, source: 'none', date: null };
+  }
+
+  /**
+   * Get upcoming calendar entries
+   * @param {number} days - Number of days to look ahead
+   * @returns {Array} List of upcoming strategies
+   */
+  getUpcomingCalendarStrategies(days = 7) {
+    const today = new Date(new Date().toLocaleString('en-US', { timeZone: 'Asia/Kolkata' })).toISOString().split('T')[0];
+    const stmt = this.db.prepare(`
+      SELECT * FROM strategy_calendar
+      WHERE date >= ?
+      ORDER BY date ASC
+      LIMIT ?
+    `);
+    return stmt.all(today, days);
+  }
+
+  /**
+   * Delete a calendar entry
+   * @param {string} date - Date in YYYY-MM-DD format
+   */
+  deleteCalendarStrategy(date) {
+    const stmt = this.db.prepare('DELETE FROM strategy_calendar WHERE date = ?');
+    return stmt.run(date);
+  }
+
+  /**
+   * Mark a date as a market holiday
+   * @param {string} date - Date in YYYY-MM-DD format
+   * @param {string} notes - Optional reason
+   */
+  markAsHoliday(date, notes = null) {
+    const stmt = this.db.prepare(`
+      INSERT INTO strategy_calendar (date, grid_percentage, target_percentage, stop_loss_percentage, per_trade_amount, capital, is_holiday, notes)
+      VALUES (?, 0, 0, 0, 0, 0, 1, ?)
+      ON CONFLICT(date) DO UPDATE SET
+        is_holiday = 1,
+        notes = ?,
+        updated_at = datetime('now', 'localtime')
+    `);
+    return stmt.run(date, notes, notes);
   }
 
   // Reset portfolio (for testing)

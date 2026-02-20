@@ -33,7 +33,10 @@
       "Bash(railway list:*)",
       "Bash(railway status:*)",
       "Bash(railway:*)",
-      "Bash(ls:*)"
+      "Bash(ls:*)",
+      "Bash(npm run strategy:close:*)",
+      "Bash(npm run calendar:feed:*)",
+      "Bash(npm run calendar:list:*)"
     ]
   }
 }
