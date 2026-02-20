@@ -27,9 +27,9 @@ class SSEServer {
 
   async start(port = 8080) {
     this.server = http.createServer((req, res) => {
-      // CORS headers - allow all origins and ngrok header
+      // CORS headers - allow all origins
       res.setHeader('Access-Control-Allow-Origin', '*');
-      res.setHeader('Access-Control-Allow-Headers', 'Content-Type, ngrok-skip-browser-warning');
+      res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
       res.setHeader('Access-Control-Allow-Methods', 'GET, POST, OPTIONS');
       res.setHeader('Access-Control-Max-Age', '86400');
 
@@ -68,8 +68,10 @@ class SSEServer {
         this.handleStrategies(req, res);
       } else if (req.url === '/api/strategies/today') {
         this.handleTodayStrategy(req, res);
-      } else if (req.url === '/api/calendar') {
+      } else if (req.url === '/api/calendar' && req.method === 'GET') {
         this.handleCalendar(req, res);
+      } else if (req.url === '/api/calendar' && req.method === 'POST') {
+        this.handleCalendarPost(req, res);
       } else if (req.url === '/health') {
         res.writeHead(200, { 'Content-Type': 'application/json' });
         res.end(JSON.stringify({ status: 'ok', clients: this.tickClients.size }));
@@ -375,6 +377,54 @@ class SSEServer {
     const calendar = database.getUpcomingCalendarStrategies(14);
     res.writeHead(200, { 'Content-Type': 'application/json' });
     res.end(JSON.stringify(calendar));
+  }
+
+  handleCalendarPost(req, res) {
+    let body = '';
+    req.on('data', chunk => {
+      body += chunk.toString();
+    });
+    req.on('end', () => {
+      try {
+        const data = JSON.parse(body);
+        const database = require('./database.service');
+
+        // Validate required fields
+        const required = ['date', 'gridPercentage', 'targetPercentage', 'stopLossPercentage', 'perTradeAmount', 'capital'];
+        const missing = required.filter(f => data[f] === undefined || data[f] === null);
+
+        if (missing.length > 0) {
+          res.writeHead(400, { 'Content-Type': 'application/json' });
+          res.end(JSON.stringify({ error: `Missing fields: ${missing.join(', ')}` }));
+          return;
+        }
+
+        // Handle holiday
+        if (data.isHoliday) {
+          database.markAsHoliday(data.date, data.notes || null);
+          res.writeHead(200, { 'Content-Type': 'application/json' });
+          res.end(JSON.stringify({ success: true, message: `Marked ${data.date} as holiday` }));
+          return;
+        }
+
+        // Add/update calendar entry
+        database.upsertCalendarStrategy(data.date, {
+          gridPercentage: parseFloat(data.gridPercentage),
+          targetPercentage: parseFloat(data.targetPercentage),
+          stopLossPercentage: parseFloat(data.stopLossPercentage),
+          perTradeAmount: parseFloat(data.perTradeAmount),
+          capital: parseFloat(data.capital),
+          isHoliday: false,
+          notes: data.notes || null
+        });
+
+        res.writeHead(200, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ success: true, message: `Strategy scheduled for ${data.date}` }));
+      } catch (err) {
+        res.writeHead(500, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ error: err.message }));
+      }
+    });
   }
 
   updatePortfolio(portfolioData) {

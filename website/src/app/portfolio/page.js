@@ -12,9 +12,7 @@ export default function PortfolioPage() {
 
   // Fetch today's orders for win rate calculation
   useEffect(() => {
-    fetch(`${process.env.NEXT_PUBLIC_SSE_URL || 'http://localhost:8080'}/api/orders/today`, {
-      headers: { 'ngrok-skip-browser-warning': 'true' }
-    })
+    fetch(`${process.env.NEXT_PUBLIC_SSE_URL || 'http://localhost:8080'}/api/orders/today`)
       .then(res => res.json())
       .then(data => setTodayOrders(data))
       .catch(err => console.error('Failed to fetch today orders:', err))

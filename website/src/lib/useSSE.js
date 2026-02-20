@@ -6,11 +6,6 @@ import { toast } from 'react-toastify'
 
 const SSE_BASE_URL = process.env.NEXT_PUBLIC_SSE_URL || 'http://localhost:8080'
 
-// Headers to bypass ngrok browser warning
-const NGROK_HEADERS = {
-  'ngrok-skip-browser-warning': 'true'
-}
-
 export function useTicksSSE() {
   const [stocks, setStocks] = useState(new Map())
   const [connected, setConnected] = useState(false)
@@ -18,7 +13,7 @@ export function useTicksSSE() {
 
   useEffect(() => {
     // Fetch initial data
-    fetch(`${SSE_BASE_URL}/api/ticks/latest`, { headers: NGROK_HEADERS })
+    fetch(`${SSE_BASE_URL}/api/ticks/latest`)
       .then(res => res.json())
       .then(ticks => {
         const stockMap = new Map()
@@ -30,12 +25,11 @@ export function useTicksSSE() {
       })
       .catch(err => console.error('Failed to fetch initial ticks:', err))
 
-    // Connect to SSE with custom headers (works with ngrok)
+    // Connect to SSE for real-time updates
     const controller = new AbortController()
     controllerRef.current = controller
 
     fetchEventSource(`${SSE_BASE_URL}/api/ticks/stream`, {
-      headers: NGROK_HEADERS,
       signal: controller.signal,
       onopen(response) {
         if (response.ok) {
@@ -80,7 +74,6 @@ export function useLogsSSE() {
     controllerRef.current = controller
 
     fetchEventSource(`${SSE_BASE_URL}/api/logs/stream`, {
-      headers: NGROK_HEADERS,
       signal: controller.signal,
       onopen(response) {
         if (response.ok) {
@@ -145,7 +138,7 @@ export function usePortfolioSSE() {
 
   useEffect(() => {
     // Fetch initial portfolio data
-    fetch(`${SSE_BASE_URL}/api/portfolio`, { headers: NGROK_HEADERS })
+    fetch(`${SSE_BASE_URL}/api/portfolio`)
       .then(res => res.json())
       .then(data => {
         setPortfolio(prev => ({ ...prev, ...data }))
@@ -158,7 +151,6 @@ export function usePortfolioSSE() {
     controllerRef.current = controller
 
     fetchEventSource(`${SSE_BASE_URL}/api/portfolio/stream`, {
-      headers: NGROK_HEADERS,
       signal: controller.signal,
       onopen(response) {
         if (response.ok) {
@@ -194,7 +186,7 @@ export function useOrders() {
     setLoading(true)
     try {
       const endpoint = today ? '/api/orders/today' : '/api/orders'
-      const res = await fetch(`${SSE_BASE_URL}${endpoint}`, { headers: NGROK_HEADERS })
+      const res = await fetch(`${SSE_BASE_URL}${endpoint}`)
       const data = await res.json()
       setOrders(data)
     } catch (err) {
@@ -224,7 +216,7 @@ export function useStats() {
   const [loading, setLoading] = useState(true)
 
   useEffect(() => {
-    fetch(`${SSE_BASE_URL}/api/stats`, { headers: NGROK_HEADERS })
+    fetch(`${SSE_BASE_URL}/api/stats`)
       .then(res => res.json())
       .then(data => {
         setStats(data)
@@ -246,7 +238,7 @@ export function useStrategies() {
   const fetchStrategies = useCallback(async () => {
     setLoading(true)
     try {
-      const res = await fetch(`${SSE_BASE_URL}/api/strategies`, { headers: NGROK_HEADERS })
+      const res = await fetch(`${SSE_BASE_URL}/api/strategies`)
       const data = await res.json()
       setStrategies(data)
     } catch (err) {
@@ -263,6 +255,50 @@ export function useStrategies() {
   return { strategies, loading, fetchStrategies }
 }
 
+export function useCalendar() {
+  const [calendar, setCalendar] = useState([])
+  const [loading, setLoading] = useState(true)
+
+  const fetchCalendar = useCallback(async () => {
+    setLoading(true)
+    try {
+      const res = await fetch(`${SSE_BASE_URL}/api/calendar`)
+      const data = await res.json()
+      setCalendar(data)
+    } catch (err) {
+      console.error('Failed to fetch calendar:', err)
+    } finally {
+      setLoading(false)
+    }
+  }, [])
+
+  const addStrategy = useCallback(async (strategyData) => {
+    try {
+      const res = await fetch(`${SSE_BASE_URL}/api/calendar`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify(strategyData)
+      })
+      const data = await res.json()
+      if (data.success) {
+        await fetchCalendar()
+        return { success: true, message: data.message }
+      }
+      return { success: false, message: data.error }
+    } catch (err) {
+      return { success: false, message: err.message }
+    }
+  }, [fetchCalendar])
+
+  useEffect(() => {
+    fetchCalendar()
+  }, [fetchCalendar])
+
+  return { calendar, loading, fetchCalendar, addStrategy }
+}
+
 export function useOrderNotifications() {
   const controllerRef = useRef(null)
 
@@ -271,7 +307,6 @@ export function useOrderNotifications() {
     controllerRef.current = controller
 
     fetchEventSource(`${SSE_BASE_URL}/api/orders/stream`, {
-      headers: NGROK_HEADERS,
       signal: controller.signal,
       onmessage(event) {
         if (event.event === 'order') {
