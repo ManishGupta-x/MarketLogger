@@ -1,14 +1,23 @@
 'use client'
 
 import { useState, useMemo, useEffect } from 'react'
-import { usePortfolioSSE, useOrders } from '@/lib/useSSE'
+import { usePortfolioSSE, useOrders, useRegimeSSE, useAdaptiveInfo } from '@/lib/useSSE'
 
 export default function PortfolioPage() {
   const { portfolio, connected } = usePortfolioSSE()
   const { orders, loading: ordersLoading, fetchOrders } = useOrders()
+  const { regime } = useRegimeSSE()
+  const { adaptiveInfo } = useAdaptiveInfo()
   const [activeTab, setActiveTab] = useState('holdings')
   const [showTodayOnly, setShowTodayOnly] = useState(false)
   const [todayOrders, setTodayOrders] = useState([])
+
+  const regimeColors = {
+    BULLISH: { bg: 'bg-green-900/30', text: 'text-green-400', border: 'border-green-500' },
+    BEARISH: { bg: 'bg-red-900/30', text: 'text-red-400', border: 'border-red-500' },
+    SIDEWAYS: { bg: 'bg-yellow-900/30', text: 'text-yellow-400', border: 'border-yellow-500' }
+  }
+  const currentRegimeStyle = regimeColors[regime.current] || regimeColors.SIDEWAYS
 
   // Fetch today's orders for win rate calculation
   useEffect(() => {
@@ -62,30 +71,32 @@ export default function PortfolioPage() {
 
   return (
     <div className="max-w-7xl mx-auto">
-      {/* Strategy Info Banner */}
-      <div className="dashboard-card p-4 mb-6 border-l-4 border-l-blue-500">
+      {/* Strategy Info Banner - Adaptive Mode */}
+      <div className={`dashboard-card p-4 mb-6 border-l-4 ${currentRegimeStyle.border}`}>
         <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
           <div>
             <div className="flex items-center gap-2 mb-1">
-              <span className="text-blue-400 text-lg font-bold">Grid Trading Strategy</span>
+              <span className="text-blue-400 text-lg font-bold">Adaptive Trading</span>
               <span className="px-2 py-0.5 text-xs bg-blue-900/50 text-blue-400 rounded">PAPER</span>
+              <span className={`px-2 py-0.5 text-xs rounded ${currentRegimeStyle.bg} ${currentRegimeStyle.text}`}>
+                {regime.current || 'DETECTING'}
+              </span>
+              {regime.confidence && (
+                <span className="text-xs text-gray-500">{regime.confidence}% conf</span>
+              )}
             </div>
             <p className="text-gray-400 text-sm">
-              Automated buy/sell at fixed percentage intervals from reference price
+              Market-adaptive strategy with intelligent exits • Trailing stops & rapid decline detection
             </p>
           </div>
           <div className="flex flex-wrap gap-4 text-sm">
             <div className="flex items-center gap-2">
-              <span className="text-gray-500">Grid:</span>
-              <span className="text-blue-400 font-medium">-{portfolio.gridPercentage || 0.25}%</span>
+              <span className="text-gray-500">Trail:</span>
+              <span className="text-green-400 font-medium">{adaptiveInfo.trailingStopDistance || 0.3}%</span>
             </div>
             <div className="flex items-center gap-2">
-              <span className="text-gray-500">Target:</span>
-              <span className="text-green-400 font-medium">+{portfolio.targetPercentage || portfolio.gridPercentage || 0.25}%</span>
-            </div>
-            <div className="flex items-center gap-2">
-              <span className="text-gray-500">SL:</span>
-              <span className="text-red-400 font-medium">-{portfolio.stopLossPercentage || 1}%</span>
+              <span className="text-gray-500">Backstop:</span>
+              <span className="text-red-400 font-medium">-{adaptiveInfo.backstopStopLoss || 2}%</span>
             </div>
             <div className="flex items-center gap-2">
               <span className="text-gray-500">Per Trade:</span>
@@ -245,13 +256,13 @@ export default function PortfolioPage() {
                         P&L
                       </th>
                       <th className="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">
-                        Target
+                        Trailing Stop
                       </th>
                       <th className="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">
-                        Stop Loss
+                        Backstop
                       </th>
                       <th className="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">
-                        Status
+                        Exit Status
                       </th>
                     </tr>
                   </thead>
@@ -284,22 +295,33 @@ export default function PortfolioPage() {
                             {isProfit ? '+' : ''}{formatPrice(holding.unrealizedPnl)}
                           </td>
                           <td className="px-4 py-4 whitespace-nowrap text-right">
-                            <div className="tabular-nums text-green-400 font-medium">{formatPrice(holding.targetPrice)}</div>
-                            <div className="text-xs text-gray-500">{holding.distanceToTarget?.toFixed(2)}% away</div>
+                            {holding.trailingStop ? (
+                              <>
+                                <div className="tabular-nums text-cyan-400 font-medium">{formatPrice(holding.trailingStop)}</div>
+                                <div className="text-xs text-gray-500">
+                                  {holding.highestPrice && `High: ${formatPrice(holding.highestPrice)}`}
+                                </div>
+                              </>
+                            ) : (
+                              <>
+                                <div className="tabular-nums text-gray-500">Not active</div>
+                                <div className="text-xs text-gray-600">Need +{adaptiveInfo.trailingStopActivation || 0.5}%</div>
+                              </>
+                            )}
                           </td>
                           <td className="px-4 py-4 whitespace-nowrap text-right">
                             <div className="tabular-nums text-red-400 font-medium">{formatPrice(holding.stopLossPrice)}</div>
                             <div className="text-xs text-gray-500">{holding.distanceToStopLoss?.toFixed(2)}% away</div>
                           </td>
                           <td className="px-4 py-4 whitespace-nowrap text-right">
-                            {holding.distanceToTarget <= 0 ? (
-                              <span className="px-2 py-1 text-xs font-bold bg-green-900/50 text-green-400 rounded animate-pulse">TARGET!</span>
+                            {holding.trailingStop && holding.currentPrice <= holding.trailingStop ? (
+                              <span className="px-2 py-1 text-xs font-bold bg-cyan-900/50 text-cyan-400 rounded animate-pulse">TRAILING!</span>
                             ) : holding.distanceToStopLoss <= 0 ? (
-                              <span className="px-2 py-1 text-xs font-bold bg-red-900/50 text-red-400 rounded animate-pulse">STOP LOSS!</span>
-                            ) : holding.minDistance < 0.1 ? (
-                              <span className="px-2 py-1 text-xs font-bold bg-yellow-900/50 text-yellow-400 rounded animate-pulse">CLOSE!</span>
+                              <span className="px-2 py-1 text-xs font-bold bg-red-900/50 text-red-400 rounded animate-pulse">BACKSTOP!</span>
+                            ) : holding.unrealizedPnlPercent >= (adaptiveInfo.trailingStopActivation || 0.5) ? (
+                              <span className="px-2 py-1 text-xs font-medium bg-green-900/50 text-green-400 rounded">TRAILING</span>
                             ) : (
-                              <span className="text-gray-500 text-sm">{holding.minDistance?.toFixed(2)}%</span>
+                              <span className="text-gray-500 text-sm">{holding.unrealizedPnlPercent?.toFixed(2) || '0.00'}%</span>
                             )}
                           </td>
                         </tr>
@@ -339,22 +361,28 @@ export default function PortfolioPage() {
                           <span className="ml-2 text-white tabular-nums">{formatPrice(holding.currentPrice)}</span>
                         </div>
                         <div>
-                          <span className="text-gray-500">Target:</span>
-                          <span className="ml-2 text-green-400 tabular-nums">{formatPrice(holding.targetPrice)}</span>
+                          <span className="text-gray-500">Trail:</span>
+                          <span className="ml-2 text-cyan-400 tabular-nums">
+                            {holding.trailingStop ? formatPrice(holding.trailingStop) : 'Inactive'}
+                          </span>
                         </div>
                         <div>
-                          <span className="text-gray-500">SL:</span>
+                          <span className="text-gray-500">Backstop:</span>
                           <span className="ml-2 text-red-400 tabular-nums">{formatPrice(holding.stopLossPrice)}</span>
                         </div>
                       </div>
                       <div className="mt-2 text-center">
-                        {holding.distanceToTarget <= 0 ? (
-                          <span className="px-3 py-1 text-xs font-bold bg-green-900/50 text-green-400 rounded animate-pulse">TARGET REACHED!</span>
+                        {holding.trailingStop && holding.currentPrice <= holding.trailingStop ? (
+                          <span className="px-3 py-1 text-xs font-bold bg-cyan-900/50 text-cyan-400 rounded animate-pulse">TRAILING STOP HIT!</span>
                         ) : holding.distanceToStopLoss <= 0 ? (
-                          <span className="px-3 py-1 text-xs font-bold bg-red-900/50 text-red-400 rounded animate-pulse">STOP LOSS HIT!</span>
+                          <span className="px-3 py-1 text-xs font-bold bg-red-900/50 text-red-400 rounded animate-pulse">BACKSTOP HIT!</span>
+                        ) : holding.trailingStop ? (
+                          <span className="text-cyan-400 text-xs">
+                            Trailing active • High: {formatPrice(holding.highestPrice)}
+                          </span>
                         ) : (
                           <span className="text-gray-500 text-xs">
-                            Target: {holding.distanceToTarget?.toFixed(2)}% | SL: {holding.distanceToStopLoss?.toFixed(2)}%
+                            Need +{adaptiveInfo.trailingStopActivation || 0.5}% to activate trailing
                           </span>
                         )}
                       </div>
@@ -433,12 +461,24 @@ export default function PortfolioPage() {
                       <th className="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">
                         P&L
                       </th>
+                      <th className="px-4 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider">
+                        Exit Reason
+                      </th>
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-gray-800">
                     {filteredOrders.map((order) => {
                       const isBuy = order.type === 'BUY'
                       const hasPnl = order.type === 'SELL' && order.pnl !== 0
+                      const exitReasonStyles = {
+                        TARGET: { bg: 'bg-green-900/50', text: 'text-green-400' },
+                        TRAILING_STOP: { bg: 'bg-cyan-900/50', text: 'text-cyan-400' },
+                        RAPID_DECLINE: { bg: 'bg-orange-900/50', text: 'text-orange-400' },
+                        MOMENTUM_EXIT: { bg: 'bg-purple-900/50', text: 'text-purple-400' },
+                        STOPLOSS: { bg: 'bg-red-900/50', text: 'text-red-400' },
+                        BACKSTOP: { bg: 'bg-red-900/50', text: 'text-red-400' }
+                      }
+                      const exitStyle = exitReasonStyles[order.exitReason] || { bg: 'bg-gray-800', text: 'text-gray-400' }
                       return (
                         <tr key={order.id} className="table-row-hover transition-colors">
                           <td className="px-4 py-3 whitespace-nowrap text-gray-400 text-sm">
@@ -480,6 +520,17 @@ export default function PortfolioPage() {
                               </>
                             ) : '-'}
                           </td>
+                          <td className="px-4 py-3 whitespace-nowrap text-center">
+                            {order.type === 'SELL' && order.exitReason ? (
+                              <span className={`px-2 py-1 text-xs font-medium rounded ${exitStyle.bg} ${exitStyle.text}`}>
+                                {order.exitReason.replace('_', ' ')}
+                              </span>
+                            ) : order.type === 'BUY' ? (
+                              <span className="text-gray-600 text-xs">-</span>
+                            ) : (
+                              <span className="text-gray-600 text-xs">-</span>
+                            )}
+                          </td>
                         </tr>
                       )
                     })}
@@ -492,6 +543,15 @@ export default function PortfolioPage() {
                 {filteredOrders.map((order) => {
                   const isBuy = order.type === 'BUY'
                   const hasPnl = order.type === 'SELL' && order.pnl !== 0
+                  const exitReasonStyles = {
+                    TARGET: { bg: 'bg-green-900/50', text: 'text-green-400' },
+                    TRAILING_STOP: { bg: 'bg-cyan-900/50', text: 'text-cyan-400' },
+                    RAPID_DECLINE: { bg: 'bg-orange-900/50', text: 'text-orange-400' },
+                    MOMENTUM_EXIT: { bg: 'bg-purple-900/50', text: 'text-purple-400' },
+                    STOPLOSS: { bg: 'bg-red-900/50', text: 'text-red-400' },
+                    BACKSTOP: { bg: 'bg-red-900/50', text: 'text-red-400' }
+                  }
+                  const exitStyle = exitReasonStyles[order.exitReason] || { bg: 'bg-gray-800', text: 'text-gray-400' }
                   return (
                     <div key={order.id} className="mobile-card">
                       <div className="flex justify-between items-start mb-2">
@@ -502,6 +562,11 @@ export default function PortfolioPage() {
                             {order.type}
                           </span>
                           <span className="font-medium text-white">{order.symbol}</span>
+                          {order.type === 'SELL' && order.exitReason && (
+                            <span className={`px-2 py-0.5 text-xs font-medium rounded ${exitStyle.bg} ${exitStyle.text}`}>
+                              {order.exitReason.replace('_', ' ')}
+                            </span>
+                          )}
                         </div>
                         <div className="text-xs text-gray-500">
                           {new Date(order.timestamp).toLocaleString('en-IN', {

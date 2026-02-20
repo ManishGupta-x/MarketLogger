@@ -4,6 +4,7 @@ const zerodhaService = require('./zerodha.service');
 const logger = require('../utils/logger');
 const fs = require('fs');
 const path = require('path');
+const adaptiveConfig = require('../config/adaptive-config');
 
 class GridWebSocketService {
   constructor() {
@@ -53,7 +54,21 @@ class GridWebSocketService {
         return numToken;
       });
 
-      logger.info(`📥 Loaded ${this.tokens.length} tokens from token.json`);
+      // Add NIFTY 50 and NIFTY Bank tokens for regime detection
+      const nifty50Token = adaptiveConfig.regime.nifty50Token;
+      const niftyBankToken = adaptiveConfig.regime.niftyBankToken;
+
+      if (!this.tokens.includes(nifty50Token)) {
+        this.tokens.push(nifty50Token);
+        logger.info(`📊 Added NIFTY 50 token (${nifty50Token}) for regime detection`);
+      }
+
+      if (!this.tokens.includes(niftyBankToken)) {
+        this.tokens.push(niftyBankToken);
+        logger.info(`📊 Added NIFTY Bank token (${niftyBankToken}) for regime detection`);
+      }
+
+      logger.info(`📥 Loaded ${this.tokens.length} tokens (including index tokens for regime detection)`);
     } catch (error) {
       logger.error('❌ Error loading tokens:', error);
       throw error;

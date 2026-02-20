@@ -1,6 +1,13 @@
 const Decimal = require('decimal.js');
 const zerodhaService = require('./zerodha.service');
 const logger = require('../utils/logger');
+const marketRegimeService = require('./market-regime.service');
+const stockScreenerService = require('./stock-screener.service');
+const adaptiveExitService = require('./adaptive-exit.service');
+const technicalIndicatorsService = require('./technical-indicators.service');
+const adaptiveConfig = require('../config/adaptive-config');
+const portfolioRiskService = require('./portfolio-risk.service');
+const costCalculatorService = require('./cost-calculator.service');
 
 class GridStrategyService {
   constructor() {
@@ -15,6 +22,16 @@ class GridStrategyService {
     this.minIntervalMs = 5000; // Minimum 5 seconds between trades for same stock
     this.paperTradingService = null;
     this.sseServer = null;
+    this.database = null;
+
+    // Adaptive trading properties
+    this.adaptiveMode = process.env.ADAPTIVE_MODE !== 'false'; // Default enabled
+    this.currentRegime = 'SIDEWAYS';
+    this.activeStockList = [];
+    this.regimeCheckInterval = null;
+    this.lastRegimeCheck = 0;
+    this.regimeCheckFrequency = adaptiveConfig.regime.checkFrequency;
+    this.screeningInterval = null;
   }
 
   setPaperTradingService(paperTradingService) {
@@ -23,6 +40,15 @@ class GridStrategyService {
 
   setSSEServer(sseServer) {
     this.sseServer = sseServer;
+  }
+
+  setDatabase(database) {
+    this.database = database;
+    // Pass database to adaptive services
+    marketRegimeService.setDatabase(database);
+    stockScreenerService.setDatabase(database);
+    adaptiveExitService.setDatabase(database);
+    portfolioRiskService.setDatabase(database);
   }
 
   restoreGridsFromHoldings() {
@@ -116,6 +142,11 @@ class GridStrategyService {
       // Restore grids for existing holdings
       this.restoreGridsFromHoldings();
 
+      // Initialize adaptive trading services
+      if (this.adaptiveMode) {
+        await this.initializeAdaptiveMode();
+      }
+
       logger.info('Grid Strategy Service initialized');
 
       return true;
@@ -123,6 +154,132 @@ class GridStrategyService {
       logger.error('Failed to initialize grid strategy:', error);
       throw error;
     }
+  }
+
+  async initializeAdaptiveMode() {
+    logger.info('Initializing Adaptive Trading Mode...');
+
+    try {
+      // Initialize market regime service
+      marketRegimeService.initialize();
+
+      // Initialize stock screener with token mapping
+      stockScreenerService.initialize(this.tokenToSymbolMap);
+
+      // Initialize adaptive exit service
+      adaptiveExitService.initialize();
+
+      // Initialize portfolio risk service
+      if (this.paperTradingService) {
+        portfolioRiskService.initialize(this.paperTradingService);
+      }
+
+      // Initialize cost calculator
+      costCalculatorService.initialize();
+
+      // Start regime monitoring
+      this.startRegimeMonitoring();
+
+      // Start periodic stock screening
+      this.startStockScreening();
+
+      logger.info('Adaptive Trading Mode initialized');
+      logger.info(`Regime check frequency: ${this.regimeCheckFrequency / 1000}s`);
+      logger.info(`Stock screening frequency: ${adaptiveConfig.screening.screenFrequency / 1000}s`);
+      logger.info(`Sector diversification: ${process.env.SECTOR_DIVERSIFICATION !== 'false' ? 'enabled' : 'disabled'}`);
+
+    } catch (error) {
+      logger.error('Failed to initialize adaptive mode:', error);
+      // Fall back to non-adaptive mode
+      this.adaptiveMode = false;
+    }
+  }
+
+  startRegimeMonitoring() {
+    // Clear existing interval if any
+    if (this.regimeCheckInterval) {
+      clearInterval(this.regimeCheckInterval);
+    }
+
+    this.regimeCheckInterval = setInterval(() => {
+      this.updateRegimeAndStocks();
+    }, this.regimeCheckFrequency);
+
+    logger.info('Regime monitoring started');
+  }
+
+  startStockScreening() {
+    // Clear existing interval if any
+    if (this.screeningInterval) {
+      clearInterval(this.screeningInterval);
+    }
+
+    // Run initial screening after a delay (allow price data to accumulate)
+    setTimeout(async () => {
+      await this.runStockScreening();
+    }, 60000); // Wait 1 minute for initial data
+
+    this.screeningInterval = setInterval(async () => {
+      await this.runStockScreening();
+    }, adaptiveConfig.screening.screenFrequency);
+
+    logger.info('Stock screening started');
+  }
+
+  async runStockScreening() {
+    try {
+      const results = await stockScreenerService.screenStocks();
+      if (results) {
+        this.updateActiveStocksForRegime(this.currentRegime);
+      }
+    } catch (error) {
+      logger.error('Stock screening failed:', error);
+    }
+  }
+
+  updateRegimeAndStocks() {
+    if (!this.adaptiveMode) return;
+
+    try {
+      const regimeResult = marketRegimeService.updateRegime();
+
+      if (regimeResult.changed) {
+        const previousRegime = this.currentRegime;
+        this.currentRegime = regimeResult.newRegime;
+
+        logger.info(`Market regime changed: ${previousRegime} -> ${this.currentRegime} (confidence: ${regimeResult.confidence.toFixed(1)}%)`);
+
+        // Update active stocks for new regime
+        this.updateActiveStocksForRegime(this.currentRegime);
+
+        // Broadcast regime change via SSE
+        if (this.sseServer) {
+          this.sseServer.broadcastRegimeChange({
+            previousRegime,
+            newRegime: this.currentRegime,
+            confidence: regimeResult.confidence,
+            activeStocks: this.activeStockList.map(s => s.symbol),
+            timestamp: Date.now()
+          });
+        }
+      }
+    } catch (error) {
+      logger.error('Error updating regime:', error);
+    }
+  }
+
+  updateActiveStocksForRegime(regime) {
+    this.activeStockList = stockScreenerService.getTopStocks(regime);
+    const symbols = this.activeStockList.map(s => s.symbol).join(', ');
+    logger.info(`Active stocks for ${regime}: ${symbols || 'None (screening pending)'}`);
+  }
+
+  isStockActiveForTrading(token) {
+    // If adaptive mode is off or no screening done yet, allow all stocks
+    if (!this.adaptiveMode || this.activeStockList.length === 0) {
+      return true;
+    }
+    return this.activeStockList.some(s => s.token === token);
   }
 
   initializeGridForToken(token, symbol, currentPrice) {
@@ -150,6 +307,12 @@ class GridStrategyService {
       return;
     }
 
+    // Feed ticks to adaptive services if enabled
+    if (this.adaptiveMode) {
+      marketRegimeService.processTicks(ticks);
+      stockScreenerService.processTicks(ticks);
+    }
+
     ticks.forEach(tick => {
       const token = tick.instrument_token.toString();
       const currentPrice = tick.last_price;
@@ -162,9 +325,21 @@ class GridStrategyService {
         return;
       }
 
+      // Skip index tokens for trading (only used for regime detection)
+      const nifty50Token = adaptiveConfig.regime.nifty50Token.toString();
+      const niftyBankToken = adaptiveConfig.regime.niftyBankToken.toString();
+      if (token === nifty50Token || token === niftyBankToken) {
+        return;
+      }
+
       // Update holding price if we have it
       if (this.paperTradingService && this.paperTradingService.hasHolding(token)) {
         this.paperTradingService.updateHoldingPrice(token, currentPrice);
+
+        // Update adaptive exit service
+        if (this.adaptiveMode) {
+          adaptiveExitService.updatePosition(token, currentPrice);
+        }
       }
 
       // Check if we should skip this tick (too soon after last trade)
@@ -197,11 +372,18 @@ class GridStrategyService {
     const buyThreshold = refPrice.mul(new Decimal(1).minus(gridPercent));
 
     if (price.lte(buyThreshold)) {
+      // In adaptive mode, only buy stocks in active list
+      if (this.adaptiveMode && !this.isStockActiveForTrading(token)) {
+        // Update reference price but don't buy
+        gridData.referencePrice = currentPrice;
+        this.grids.set(token, gridData);
+        return;
+      }
       this.triggerBuy(token, symbol, price.toNumber(), gridData);
       return;
     }
 
-    // Check for SELL trigger (X% rise from last buy price or avg price)
+    // Check for SELL trigger
     if (this.paperTradingService && this.paperTradingService.hasHolding(token)) {
       // If we don't have lastBuyPrice (e.g., after restart), use the holding's avgPrice
       let buyPriceToUse = gridData.lastBuyPrice;
@@ -216,22 +398,34 @@ class GridStrategyService {
       }
 
       if (buyPriceToUse) {
-        const lastBuyPrice = new Decimal(buyPriceToUse);
-        const targetPercent = new Decimal(this.targetPercentage).div(100);
-        const sellThreshold = lastBuyPrice.mul(new Decimal(1).plus(targetPercent));
-        const stopLossPercent = new Decimal(this.stopLossPercentage).div(100);
-        const stopLossThreshold = lastBuyPrice.mul(new Decimal(1).minus(stopLossPercent));
+        // Use adaptive exit logic if enabled
+        if (this.adaptiveMode) {
+          const exitResult = adaptiveExitService.evaluateExit(token, currentPrice);
 
-        // Check for profit target
-        if (price.gte(sellThreshold)) {
-          this.triggerSell(token, symbol, price.toNumber(), gridData, 'TARGET');
-          return;
-        }
+          if (exitResult.shouldExit) {
+            // Pass the full exit result for slippage tracking
+            this.triggerSell(token, symbol, exitResult.exitPrice, gridData, exitResult.reason, exitResult);
+            return;
+          }
+        } else {
+          // Original fixed stop loss / target logic
+          const lastBuyPrice = new Decimal(buyPriceToUse);
+          const targetPercent = new Decimal(this.targetPercentage).div(100);
+          const sellThreshold = lastBuyPrice.mul(new Decimal(1).plus(targetPercent));
+          const stopLossPercent = new Decimal(this.stopLossPercentage).div(100);
+          const stopLossThreshold = lastBuyPrice.mul(new Decimal(1).minus(stopLossPercent));
 
-        // Check for stop loss
-        if (price.lte(stopLossThreshold)) {
-          this.triggerSell(token, symbol, price.toNumber(), gridData, 'STOPLOSS');
-          return;
+          // Check for profit target
+          if (price.gte(sellThreshold)) {
+            this.triggerSell(token, symbol, price.toNumber(), gridData, 'TARGET');
+            return;
+          }
+
+          // Check for stop loss
+          if (price.lte(stopLossThreshold)) {
+            this.triggerSell(token, symbol, price.toNumber(), gridData, 'STOPLOSS');
+            return;
+          }
         }
       }
     }
@@ -246,6 +440,35 @@ class GridStrategyService {
     if (!this.paperTradingService) {
       logger.warn('Paper trading service not set');
       return;
+    }
+
+    // Check portfolio risk before buying
+    if (this.adaptiveMode) {
+      const portfolio = this.paperTradingService.getPortfolio();
+      const riskCheck = portfolioRiskService.updateAndCheck(portfolio);
+
+      if (!riskCheck.tradingAllowed) {
+        logger.warn(`BUY blocked by risk management: ${riskCheck.haltReason}`);
+        // Update reference price but don't buy
+        gridData.referencePrice = currentPrice;
+        this.grids.set(token, gridData);
+        return;
+      }
+
+      // Check if this specific buy is allowed
+      const orderValue = this.paperTradingService.amountPerTrade;
+      const canBuyResult = portfolioRiskService.canBuy(orderValue);
+      if (!canBuyResult.allowed) {
+        logger.warn(`BUY blocked: ${canBuyResult.reason} - ${canBuyResult.message}`);
+        gridData.referencePrice = currentPrice;
+        this.grids.set(token, gridData);
+        return;
+      }
+
+      // Log any warnings
+      if (riskCheck.warnings && riskCheck.warnings.length > 0) {
+        riskCheck.warnings.forEach(w => logger.info(`Risk warning: ${w.message}`));
+      }
     }
 
     const result = await this.paperTradingService.executeVirtualOrder(
@@ -264,6 +487,11 @@ class GridStrategyService {
       this.grids.set(token, gridData);
       logger.info(`BUY executed: ${symbol} @ ${currentPrice} | Grid level ${gridData.buyCount}`);
 
+      // Track position for adaptive exits
+      if (this.adaptiveMode) {
+        adaptiveExitService.onPositionEntry(token, symbol, currentPrice, result.qty);
+      }
+
       // Broadcast order notification
       if (this.sseServer) {
         this.sseServer.broadcastOrder({
@@ -272,6 +500,7 @@ class GridStrategyService {
           price: currentPrice,
           qty: result.qty,
           value: result.value,
+          regime: this.currentRegime,
           timestamp: Date.now()
         });
       }
@@ -284,16 +513,26 @@ class GridStrategyService {
     }
   }
 
-  async triggerSell(token, symbol, currentPrice, gridData, reason = 'TARGET') {
+  async triggerSell(token, symbol, currentPrice, gridData, reason = 'TARGET', exitData = null) {
     if (!this.paperTradingService || !this.paperTradingService.hasHolding(token)) {
       return;
     }
 
     this.lastProcessedTime.set(token, Date.now());
 
-    const changePercent = ((currentPrice - gridData.lastBuyPrice) / gridData.lastBuyPrice * 100).toFixed(2);
-    const reasonText = reason === 'STOPLOSS' ? 'STOP LOSS' : 'TARGET';
-    logger.info(`SELL [${reasonText}]: ${symbol} ${changePercent}% (${gridData.lastBuyPrice} -> ${currentPrice})`);
+    // Use slippage-adjusted price if provided
+    const effectivePrice = exitData?.exitPrice || currentPrice;
+    const originalPrice = exitData?.originalPrice || currentPrice;
+    const slippage = exitData?.slippage || 0;
+
+    const changePercent = ((effectivePrice - gridData.lastBuyPrice) / gridData.lastBuyPrice * 100).toFixed(2);
+    const reasonText = reason === 'STOPLOSS' || reason === 'BACKSTOP_STOPLOSS' ? 'STOP LOSS' : reason;
+
+    let logMessage = `SELL [${reasonText}]: ${symbol} ${changePercent}% (${gridData.lastBuyPrice} -> ${effectivePrice})`;
+    if (slippage > 0) {
+      logMessage += ` [slippage: ${slippage.toFixed(2)}]`;
+    }
+    logger.info(logMessage);
 
     const result = await this.paperTradingService.executeVirtualOrder(
       token,
@@ -313,6 +552,11 @@ class GridStrategyService {
       const pnlText = result.pnl >= 0 ? `+${result.pnl?.toFixed(2)}` : result.pnl?.toFixed(2);
       logger.info(`SELL [${reasonText}] executed: ${symbol} @ ${currentPrice} | P&L: ${pnlText}`);
 
+      // Close position tracking for adaptive exits
+      if (this.adaptiveMode) {
+        adaptiveExitService.closePosition(token, currentPrice, reason);
+      }
+
       // Broadcast order notification
       if (this.sseServer) {
         this.sseServer.broadcastOrder({
@@ -324,6 +568,7 @@ class GridStrategyService {
           value: result.value,
           pnl: result.pnl,
           pnlPercent: result.pnlPercent,
+          regime: this.currentRegime,
           timestamp: Date.now()
         });
       }
@@ -371,13 +616,27 @@ class GridStrategyService {
   }
 
   getStatus() {
-    return {
+    const status = {
       initialized: this.isInitialized,
       active: this.isActive,
       gridPercentage: this.gridPercentage,
       totalGrids: this.grids.size,
-      tokensMapped: this.tokenToSymbolMap.size
+      tokensMapped: this.tokenToSymbolMap.size,
+      adaptiveMode: this.adaptiveMode
     };
+
+    if (this.adaptiveMode) {
+      status.regime = {
+        current: this.currentRegime,
+        ...marketRegimeService.getRegime()
+      };
+      status.activeStocks = this.activeStockList.map(s => s.symbol);
+      status.adaptiveExit = adaptiveExitService.getStatus();
+      status.portfolioRisk = portfolioRiskService.getStatus();
+      status.costCalculator = costCalculatorService.getStatus();
+    }
+
+    return status;
   }
 
   start() {
@@ -387,7 +646,54 @@ class GridStrategyService {
 
   stop() {
     this.isActive = false;
+
+    // Clean up adaptive mode intervals
+    if (this.regimeCheckInterval) {
+      clearInterval(this.regimeCheckInterval);
+      this.regimeCheckInterval = null;
+    }
+    if (this.screeningInterval) {
+      clearInterval(this.screeningInterval);
+      this.screeningInterval = null;
+    }
+
     logger.info('Grid strategy stopped');
+  }
+
+  // Get adaptive trading info
+  getAdaptiveInfo() {
+    if (!this.adaptiveMode) {
+      return { enabled: false };
+    }
+
+    return {
+      enabled: true,
+      regime: marketRegimeService.getRegime(),
+      regimeHistory: marketRegimeService.getRegimeHistory(10),
+      activeStocks: this.activeStockList,
+      rankings: stockScreenerService.getAllRankings(),
+      positions: adaptiveExitService.getAllPositions(),
+      dataStatus: marketRegimeService.getDataStatus(),
+      riskMetrics: portfolioRiskService.getMetrics(),
+      gapStatus: adaptiveExitService.getGapStatus(),
+      costInfo: costCalculatorService.getChargeRates()
+    };
+  }
+
+  // Get risk status for API
+  getRiskStatus() {
+    return portfolioRiskService.getStatus();
+  }
+
+  // Manually resume trading after halt
+  forceResumeTrading() {
+    portfolioRiskService.forceResumeTrading();
+    return { success: true, message: 'Trading resumed' };
+  }
+
+  // Estimate costs for a trade
+  estimateTradeCosts(price, qty, targetPercent = 0.25) {
+    return costCalculatorService.estimateTradeCosts(price, qty, targetPercent);
   }
 }
 

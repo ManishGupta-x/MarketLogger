@@ -137,6 +137,115 @@ class DatabaseService {
       CREATE INDEX IF NOT EXISTS idx_transactions_type ON transactions(type);
       CREATE INDEX IF NOT EXISTS idx_strategy_calendar_date ON strategy_calendar(date);
     `);
+
+    // Market regime history table
+    this.db.exec(`
+      CREATE TABLE IF NOT EXISTS market_regime_history (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        regime TEXT NOT NULL CHECK(regime IN ('BULLISH', 'BEARISH', 'SIDEWAYS')),
+        confidence REAL NOT NULL,
+        nifty_price REAL,
+        nifty_bank_price REAL,
+        ema20 REAL,
+        ema50 REAL,
+        adx REAL,
+        rsi REAL,
+        signals TEXT,
+        is_manual_override INTEGER DEFAULT 0,
+        created_at TEXT DEFAULT (datetime('now', 'localtime'))
+      )
+    `);
+
+    // Stock rankings snapshot
+    this.db.exec(`
+      CREATE TABLE IF NOT EXISTS stock_rankings (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        date TEXT NOT NULL,
+        regime TEXT NOT NULL CHECK(regime IN ('BULLISH', 'BEARISH', 'SIDEWAYS')),
+        rank INTEGER NOT NULL,
+        token INTEGER NOT NULL,
+        symbol TEXT NOT NULL,
+        score REAL NOT NULL,
+        momentum_score REAL,
+        rsi REAL,
+        relative_strength REAL,
+        beta REAL,
+        volatility REAL,
+        created_at TEXT DEFAULT (datetime('now', 'localtime'))
+      )
+    `);
+
+    // Position tracking for adaptive exits
+    this.db.exec(`
+      CREATE TABLE IF NOT EXISTS position_tracking (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        token INTEGER NOT NULL,
+        symbol TEXT NOT NULL,
+        entry_price REAL NOT NULL,
+        entry_time TEXT NOT NULL,
+        current_trailing_stop REAL,
+        highest_price REAL NOT NULL,
+        lowest_price REAL NOT NULL,
+        exit_price REAL,
+        exit_time TEXT,
+        exit_reason TEXT,
+        pnl REAL,
+        pnl_percent REAL,
+        is_open INTEGER DEFAULT 1,
+        created_at TEXT DEFAULT (datetime('now', 'localtime'))
+      )
+    `);
+
+    // Risk events table for portfolio risk management
+    this.db.exec(`
+      CREATE TABLE IF NOT EXISTS risk_events (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        event_type TEXT NOT NULL,
+        message TEXT NOT NULL,
+        portfolio_value REAL,
+        daily_pnl REAL,
+        daily_pnl_percent REAL,
+        drawdown_percent REAL,
+        resolved_at TEXT,
+        resolution_notes TEXT,
+        created_at TEXT DEFAULT (datetime('now', 'localtime'))
+      )
+    `);
+
+    // Create indexes for new tables
+    this.db.exec(`
+      CREATE INDEX IF NOT EXISTS idx_regime_history_created ON market_regime_history(created_at);
+      CREATE INDEX IF NOT EXISTS idx_stock_rankings_date ON stock_rankings(date);
+      CREATE INDEX IF NOT EXISTS idx_stock_rankings_regime ON stock_rankings(regime);
+      CREATE INDEX IF NOT EXISTS idx_position_tracking_token ON position_tracking(token);
+      CREATE INDEX IF NOT EXISTS idx_position_tracking_open ON position_tracking(is_open);
+      CREATE INDEX IF NOT EXISTS idx_risk_events_type ON risk_events(event_type);
+      CREATE INDEX IF NOT EXISTS idx_risk_events_created ON risk_events(created_at);
+    `);
+
+    // Add market_regime and exit_reason columns to transactions if not exist
+    try {
+      this.db.exec(`ALTER TABLE transactions ADD COLUMN market_regime TEXT`);
+    } catch (e) {
+      // Column already exists
+    }
+    try {
+      this.db.exec(`ALTER TABLE transactions ADD COLUMN exit_reason TEXT`);
+    } catch (e) {
+      // Column already exists
+    }
+
+    // Add dominant_regime to daily_strategies if not exist
+    try {
+      this.db.exec(`ALTER TABLE daily_strategies ADD COLUMN dominant_regime TEXT`);
+    } catch (e) {
+      // Column already exists
+    }
+    try {
+      this.db.exec(`ALTER TABLE daily_strategies ADD COLUMN regime_changes INTEGER DEFAULT 0`);
+    } catch (e) {
+      // Column already exists
+    }
   }
 
   // Portfolio State Methods
@@ -174,8 +283,8 @@ class DatabaseService {
   // Transaction Methods
   recordTransaction(transaction) {
     const stmt = this.db.prepare(`
-      INSERT INTO transactions (type, token, symbol, qty, price, value, brokerage, pnl, pnl_percent, balance_after, grid_level)
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      INSERT INTO transactions (type, token, symbol, qty, price, value, brokerage, pnl, pnl_percent, balance_after, grid_level, market_regime, exit_reason)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     `);
 
     const result = stmt.run(
@@ -189,7 +298,9 @@ class DatabaseService {
       transaction.pnl || 0,
       transaction.pnlPercent || 0,
       transaction.balanceAfter,
-      transaction.gridLevel || 0
+      transaction.gridLevel || 0,
+      transaction.marketRegime || null,
+      transaction.exitReason || null
     );
 
     // Update daily PnL
@@ -503,6 +614,324 @@ class DatabaseService {
     this.db.exec('DELETE FROM daily_pnl');
     this.initializePortfolio(initialCapital);
     logger.info('Portfolio reset in database');
+  }
+
+  // ==========================================
+  // Market Regime Methods
+  // ==========================================
+
+  /**
+   * Record a market regime change
+   * @param {Object} regimeData - Regime change data
+   */
+  recordRegimeChange(regimeData) {
+    const stmt = this.db.prepare(`
+      INSERT INTO market_regime_history (regime, confidence, nifty_price, nifty_bank_price, ema20, ema50, adx, rsi, signals, is_manual_override)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    `);
+    return stmt.run(
+      regimeData.newRegime,
+      regimeData.confidence,
+      regimeData.nifty50Price || null,
+      regimeData.niftyBankPrice || null,
+      regimeData.indicators?.nifty50?.ema20 || null,
+      regimeData.indicators?.nifty50?.ema50 || null,
+      regimeData.indicators?.nifty50?.adx || null,
+      regimeData.indicators?.nifty50?.rsi || null,
+      JSON.stringify(regimeData.signals || []),
+      regimeData.isManualOverride ? 1 : 0
+    );
+  }
+
+  /**
+   * Get regime history
+   * @param {number} hours - Hours to look back
+   * @returns {Array} Regime history
+   */
+  getRegimeHistory(hours = 24) {
+    const stmt = this.db.prepare(`
+      SELECT * FROM market_regime_history
+      WHERE created_at >= datetime('now', 'localtime', '-' || ? || ' hours')
+      ORDER BY created_at DESC
+    `);
+    return stmt.all(hours);
+  }
+
+  /**
+   * Get current/latest regime from database
+   * @returns {Object|null} Latest regime entry
+   */
+  getLatestRegime() {
+    const stmt = this.db.prepare(`
+      SELECT * FROM market_regime_history
+      ORDER BY created_at DESC
+      LIMIT 1
+    `);
+    return stmt.get();
+  }
+
+  /**
+   * Get regime statistics for a date range
+   * @param {number} days - Days to look back
+   * @returns {Object} Regime stats
+   */
+  getRegimeStats(days = 7) {
+    const stmt = this.db.prepare(`
+      SELECT regime, COUNT(*) as count
+      FROM market_regime_history
+      WHERE created_at >= datetime('now', 'localtime', '-' || ? || ' days')
+      GROUP BY regime
+    `);
+    return stmt.all(days);
+  }
+
+  // ==========================================
+  // Stock Rankings Methods
+  // ==========================================
+
+  /**
+   * Save stock rankings for a regime
+   * @param {string} date - Date in YYYY-MM-DD format
+   * @param {string} regime - BULLISH, BEARISH, or SIDEWAYS
+   * @param {Array} rankings - Array of ranked stocks
+   */
+  saveStockRankings(date, regime, rankings) {
+    // Delete existing rankings for this date and regime
+    const deleteStmt = this.db.prepare('DELETE FROM stock_rankings WHERE date = ? AND regime = ?');
+    deleteStmt.run(date, regime);
+
+    // Insert new rankings
+    const insertStmt = this.db.prepare(`
+      INSERT INTO stock_rankings (date, regime, rank, token, symbol, score, momentum_score, rsi, relative_strength, beta, volatility)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    `);
+
+    rankings.forEach((stock, index) => {
+      insertStmt.run(
+        date,
+        regime,
+        index + 1,
+        stock.token,
+        stock.symbol,
+        stock.score,
+        stock.roc || null,
+        stock.rsi || null,
+        stock.relativeStrength || null,
+        stock.beta || null,
+        stock.volatility || null
+      );
+    });
+  }
+
+  /**
+   * Get stock rankings for a date and regime
+   * @param {string} date - Date in YYYY-MM-DD format
+   * @param {string} regime - BULLISH, BEARISH, or SIDEWAYS
+   * @returns {Array} Ranked stocks
+   */
+  getStockRankings(date, regime) {
+    const stmt = this.db.prepare(`
+      SELECT * FROM stock_rankings
+      WHERE date = ? AND regime = ?
+      ORDER BY rank ASC
+    `);
+    return stmt.all(date, regime);
+  }
+
+  /**
+   * Get top stocks for a regime (latest rankings)
+   * @param {string} regime - BULLISH, BEARISH, or SIDEWAYS
+   * @param {number} count - Number of stocks
+   * @returns {Array} Top stocks
+   */
+  getTopStocksForRegime(regime, count = 10) {
+    const stmt = this.db.prepare(`
+      SELECT * FROM stock_rankings
+      WHERE regime = ?
+      AND date = (SELECT MAX(date) FROM stock_rankings WHERE regime = ?)
+      ORDER BY rank ASC
+      LIMIT ?
+    `);
+    return stmt.all(regime, regime, count);
+  }
+
+  // ==========================================
+  // Position Tracking Methods
+  // ==========================================
+
+  /**
+   * Create position tracking record
+   * @param {Object} positionData - Position data
+   */
+  createPositionTracking(positionData) {
+    const stmt = this.db.prepare(`
+      INSERT INTO position_tracking (token, symbol, entry_price, entry_time, highest_price, lowest_price, is_open)
+      VALUES (?, ?, ?, ?, ?, ?, 1)
+    `);
+    return stmt.run(
+      positionData.token,
+      positionData.symbol,
+      positionData.entryPrice,
+      positionData.entryTime,
+      positionData.highestPrice || positionData.entryPrice,
+      positionData.lowestPrice || positionData.entryPrice
+    );
+  }
+
+  /**
+   * Update position tracking
+   * @param {string} token - Instrument token
+   * @param {Object} updates - Fields to update
+   */
+  updatePositionTracking(token, updates) {
+    const fields = Object.keys(updates).map(k => `${k} = ?`).join(', ');
+    const stmt = this.db.prepare(`
+      UPDATE position_tracking SET ${fields}
+      WHERE token = ? AND is_open = 1
+    `);
+    return stmt.run(...Object.values(updates), token);
+  }
+
+  /**
+   * Close position tracking
+   * @param {string} token - Instrument token
+   * @param {Object} exitData - Exit data
+   */
+  closePositionTracking(token, exitData) {
+    const stmt = this.db.prepare(`
+      UPDATE position_tracking
+      SET exit_price = ?, exit_time = ?, exit_reason = ?, pnl_percent = ?,
+          highest_price = ?, lowest_price = ?, is_open = 0
+      WHERE token = ? AND is_open = 1
+    `);
+    return stmt.run(
+      exitData.exitPrice,
+      exitData.exitTime,
+      exitData.exitReason,
+      exitData.pnlPercent,
+      exitData.highestPrice,
+      exitData.lowestPrice,
+      token
+    );
+  }
+
+  /**
+   * Get open positions
+   * @returns {Array} Open positions
+   */
+  getOpenPositions() {
+    const stmt = this.db.prepare('SELECT * FROM position_tracking WHERE is_open = 1');
+    return stmt.all();
+  }
+
+  /**
+   * Get position history
+   * @param {number} days - Days to look back
+   * @returns {Array} Position history
+   */
+  getPositionHistory(days = 30) {
+    const stmt = this.db.prepare(`
+      SELECT * FROM position_tracking
+      WHERE created_at >= datetime('now', 'localtime', '-' || ? || ' days')
+      ORDER BY created_at DESC
+    `);
+    return stmt.all(days);
+  }
+
+  /**
+   * Get exit reason statistics
+   * @param {number} days - Days to look back
+   * @returns {Array} Exit reason stats
+   */
+  getExitReasonStats(days = 30) {
+    const stmt = this.db.prepare(`
+      SELECT exit_reason, COUNT(*) as count, AVG(pnl_percent) as avg_pnl
+      FROM position_tracking
+      WHERE is_open = 0 AND exit_reason IS NOT NULL
+        AND created_at >= datetime('now', 'localtime', '-' || ? || ' days')
+      GROUP BY exit_reason
+    `);
+    return stmt.all(days);
+  }
+
+  /**
+   * Get regime performance statistics
+   * @param {number} days - Days to look back
+   * @returns {Array} Performance by regime
+   */
+  getRegimePerformanceStats(days = 30) {
+    const stmt = this.db.prepare(`
+      SELECT market_regime, COUNT(*) as trades, AVG(pnl) as avg_pnl, SUM(pnl) as total_pnl
+      FROM transactions
+      WHERE type = 'SELL' AND market_regime IS NOT NULL
+        AND created_at >= datetime('now', 'localtime', '-' || ? || ' days')
+      GROUP BY market_regime
+    `);
+    return stmt.all(days);
+  }
+
+  // ==========================================
+  // Risk Event Methods
+  // ==========================================
+
+  /**
+   * Record a risk event
+   * @param {Object} eventData - Risk event data
+   */
+  recordRiskEvent(eventData) {
+    const stmt = this.db.prepare(`
+      INSERT INTO risk_events (event_type, message, portfolio_value, daily_pnl, daily_pnl_percent, drawdown_percent)
+      VALUES (?, ?, ?, ?, ?, ?)
+    `);
+    return stmt.run(
+      eventData.type,
+      eventData.message,
+      eventData.portfolioValue || null,
+      eventData.dailyPnL || null,
+      eventData.dailyPnLPercent || null,
+      eventData.drawdownPercent || null
+    );
+  }
+
+  /**
+   * Get recent risk events
+   * @param {number} days - Days to look back
+   * @returns {Array} Risk events
+   */
+  getRiskEvents(days = 30) {
+    const stmt = this.db.prepare(`
+      SELECT * FROM risk_events
+      WHERE created_at >= datetime('now', 'localtime', '-' || ? || ' days')
+      ORDER BY created_at DESC
+    `);
+    return stmt.all(days);
+  }
+
+  /**
+   * Get today's risk events
+   * @returns {Array} Today's risk events
+   */
+  getTodayRiskEvents() {
+    const stmt = this.db.prepare(`
+      SELECT * FROM risk_events
+      WHERE date(created_at, '+5 hours', '30 minutes') = date('now', '+5 hours', '30 minutes')
+      ORDER BY created_at DESC
+    `);
+    return stmt.all();
+  }
+
+  /**
+   * Resolve a risk event
+   * @param {number} eventId - Event ID
+   * @param {string} notes - Resolution notes
+   */
+  resolveRiskEvent(eventId, notes) {
+    const stmt = this.db.prepare(`
+      UPDATE risk_events
+      SET resolved_at = datetime('now', 'localtime'), resolution_notes = ?
+      WHERE id = ?
+    `);
+    return stmt.run(notes, eventId);
   }
 
   close() {

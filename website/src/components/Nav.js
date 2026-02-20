@@ -47,14 +47,14 @@ export default function Nav() {
               Logs
             </Link>
             <Link
-              href="/strategies"
+              href="/dashboard"
               className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
-                pathname === '/strategies'
+                pathname === '/dashboard'
                   ? 'bg-blue-600 text-white'
                   : 'text-gray-400 hover:text-white hover:bg-gray-800'
               }`}
             >
-              Strategies
+              Dashboard
             </Link>
           </div>
         </div>

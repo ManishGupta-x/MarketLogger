@@ -358,3 +358,177 @@ export function useOrderNotifications() {
     }
   }, [])
 }
+
+// Adaptive Trading Hooks
+export function useAdaptiveInfo() {
+  const [adaptiveInfo, setAdaptiveInfo] = useState({
+    enabled: false,
+    regime: null,
+    activeStocks: [],
+    rankings: {},
+    positions: [],
+    riskMetrics: {},
+    gapStatus: {},
+    costInfo: {}
+  })
+  const [loading, setLoading] = useState(true)
+
+  const fetchAdaptiveInfo = useCallback(async () => {
+    try {
+      const res = await fetch(`${SSE_BASE_URL}/api/adaptive-info`)
+      const data = await res.json()
+      setAdaptiveInfo(data)
+    } catch (err) {
+      console.error('Failed to fetch adaptive info:', err)
+    } finally {
+      setLoading(false)
+    }
+  }, [])
+
+  useEffect(() => {
+    fetchAdaptiveInfo()
+    // Refresh every 30 seconds
+    const interval = setInterval(fetchAdaptiveInfo, 30000)
+    return () => clearInterval(interval)
+  }, [fetchAdaptiveInfo])
+
+  return { adaptiveInfo, loading, fetchAdaptiveInfo }
+}
+
+export function useRiskStatus() {
+  const [riskStatus, setRiskStatus] = useState({
+    initialized: false,
+    tradingHalted: false,
+    dailyPnL: 0,
+    dailyPnLPercent: 0,
+    currentDrawdown: 0,
+    recentEvents: []
+  })
+  const [loading, setLoading] = useState(true)
+
+  const fetchRiskStatus = useCallback(async () => {
+    try {
+      const res = await fetch(`${SSE_BASE_URL}/api/risk-status`)
+      const data = await res.json()
+      setRiskStatus(data)
+    } catch (err) {
+      console.error('Failed to fetch risk status:', err)
+    } finally {
+      setLoading(false)
+    }
+  }, [])
+
+  const resumeTrading = useCallback(async () => {
+    try {
+      const res = await fetch(`${SSE_BASE_URL}/api/risk-resume`, { method: 'POST' })
+      const data = await res.json()
+      if (data.success) {
+        await fetchRiskStatus()
+        toast.success('Trading resumed')
+      }
+      return data
+    } catch (err) {
+      toast.error('Failed to resume trading')
+      return { success: false, message: err.message }
+    }
+  }, [fetchRiskStatus])
+
+  useEffect(() => {
+    fetchRiskStatus()
+    const interval = setInterval(fetchRiskStatus, 10000)
+    return () => clearInterval(interval)
+  }, [fetchRiskStatus])
+
+  return { riskStatus, loading, fetchRiskStatus, resumeTrading }
+}
+
+export function useExitStats() {
+  const [exitStats, setExitStats] = useState({ exitStats: [], regimeStats: [] })
+  const [loading, setLoading] = useState(true)
+
+  const fetchExitStats = useCallback(async () => {
+    try {
+      const res = await fetch(`${SSE_BASE_URL}/api/exit-stats`)
+      const data = await res.json()
+      setExitStats(data)
+    } catch (err) {
+      console.error('Failed to fetch exit stats:', err)
+    } finally {
+      setLoading(false)
+    }
+  }, [])
+
+  useEffect(() => {
+    fetchExitStats()
+  }, [fetchExitStats])
+
+  return { exitStats, loading, fetchExitStats }
+}
+
+export function useRegimeSSE() {
+  const [regime, setRegime] = useState({
+    current: 'SIDEWAYS',
+    confidence: 0,
+    lastChange: null
+  })
+  const [connected, setConnected] = useState(false)
+  const controllerRef = useRef(null)
+
+  useEffect(() => {
+    // Fetch initial regime
+    fetch(`${SSE_BASE_URL}/api/regime`)
+      .then(res => res.json())
+      .then(data => {
+        setRegime({
+          current: data.regime || 'SIDEWAYS',
+          confidence: data.confidence || 0,
+          lastChange: data.lastChange
+        })
+        setConnected(true)
+      })
+      .catch(err => console.error('Failed to fetch regime:', err))
+
+    // Connect to SSE for regime changes
+    const controller = new AbortController()
+    controllerRef.current = controller
+
+    fetchEventSource(`${SSE_BASE_URL}/api/regime/stream`, {
+      signal: controller.signal,
+      onopen(response) {
+        if (response.ok) {
+          setConnected(true)
+        }
+      },
+      onmessage(event) {
+        if (event.event === 'regime_change') {
+          const data = JSON.parse(event.data)
+          setRegime({
+            current: data.newRegime,
+            confidence: data.confidence,
+            lastChange: data.timestamp
+          })
+          // Show toast for regime change
+          const regimeColors = {
+            BULLISH: '#22c55e',
+            BEARISH: '#ef4444',
+            SIDEWAYS: '#f59e0b'
+          }
+          toast.info(`Market regime changed to ${data.newRegime}`, {
+            style: { background: '#1f2937', color: regimeColors[data.newRegime] }
+          })
+        }
+      },
+      onerror(err) {
+        setConnected(false)
+        console.error('Regime SSE error:', err)
+      },
+      openWhenHidden: true
+    })
+
+    return () => {
+      controller.abort()
+    }
+  }, [])
+
+  return { regime, connected }
+}

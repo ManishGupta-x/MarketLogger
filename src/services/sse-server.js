@@ -7,12 +7,14 @@ class SSEServer {
     this.logClients = new Set();
     this.portfolioClients = new Set();
     this.orderClients = new Set();
+    this.regimeClients = new Set(); // New: regime change SSE clients
     this.server = null;
     this.latestTicks = new Map(); // token -> tick data
     this.logBuffer = []; // Recent logs for logs page
     this.maxLogBuffer = 1000;
     this.tokenToSymbolMap = null; // Will be set by grid-strategy
     this.paperTradingService = null; // Reference to paper trading service
+    this.gridStrategyService = null; // Reference to grid strategy service
     this.lastPortfolioBroadcast = 0;
     this.portfolioBroadcastInterval = 1000; // Broadcast portfolio every 1 second max
   }
@@ -23,6 +25,10 @@ class SSEServer {
 
   setPaperTradingService(service) {
     this.paperTradingService = service;
+  }
+
+  setGridStrategyService(service) {
+    this.gridStrategyService = service;
   }
 
   async start(port = 8080) {
@@ -72,6 +78,26 @@ class SSEServer {
         this.handleCalendar(req, res);
       } else if (req.url === '/api/calendar' && req.method === 'POST') {
         this.handleCalendarPost(req, res);
+      } else if (req.url === '/api/regime') {
+        this.handleRegime(req, res);
+      } else if (req.url === '/api/regime/stream') {
+        this.handleRegimeSSE(req, res);
+      } else if (req.url === '/api/regime/history') {
+        this.handleRegimeHistory(req, res);
+      } else if (req.url === '/api/active-stocks') {
+        this.handleActiveStocks(req, res);
+      } else if (req.url.startsWith('/api/stock-rankings')) {
+        this.handleStockRankings(req, res);
+      } else if (req.url === '/api/adaptive-info') {
+        this.handleAdaptiveInfo(req, res);
+      } else if (req.url === '/api/exit-stats') {
+        this.handleExitStats(req, res);
+      } else if (req.url === '/api/risk-status') {
+        this.handleRiskStatus(req, res);
+      } else if (req.url === '/api/risk-resume' && req.method === 'POST') {
+        this.handleRiskResume(req, res);
+      } else if (req.url === '/api/cost-estimate') {
+        this.handleCostEstimate(req, res);
       } else if (req.url === '/health') {
         res.writeHead(200, { 'Content-Type': 'application/json' });
         res.end(JSON.stringify({ status: 'ok', clients: this.tickClients.size }));
@@ -431,6 +457,151 @@ class SSEServer {
     this.portfolioData = portfolioData;
     // Also broadcast to portfolio SSE clients
     this.broadcastPortfolio();
+  }
+
+  // ==========================================
+  // Adaptive Trading Endpoints
+  // ==========================================
+
+  handleRegime(req, res) {
+    const marketRegime = require('./market-regime.service');
+    const regime = marketRegime.getRegime();
+    const dataStatus = marketRegime.getDataStatus();
+
+    res.writeHead(200, { 'Content-Type': 'application/json' });
+    res.end(JSON.stringify({ ...regime, dataStatus }));
+  }
+
+  handleRegimeSSE(req, res) {
+    res.writeHead(200, {
+      'Content-Type': 'text/event-stream',
+      'Cache-Control': 'no-cache',
+      'Connection': 'keep-alive',
+      'Access-Control-Allow-Origin': '*'
+    });
+
+    this.regimeClients.add(res);
+
+    // Send initial regime state
+    const marketRegime = require('./market-regime.service');
+    const regime = marketRegime.getRegime();
+    res.write(`event: regime\ndata: ${JSON.stringify(regime)}\n\n`);
+
+    req.on('close', () => {
+      this.regimeClients.delete(res);
+    });
+  }
+
+  handleRegimeHistory(req, res) {
+    const marketRegime = require('./market-regime.service');
+    const history = marketRegime.getRegimeHistory(50);
+
+    res.writeHead(200, { 'Content-Type': 'application/json' });
+    res.end(JSON.stringify(history));
+  }
+
+  handleActiveStocks(req, res) {
+    const stockScreener = require('./stock-screener.service');
+    const activeStocks = stockScreener.getActiveStocks();
+    const status = stockScreener.getStatus();
+
+    res.writeHead(200, { 'Content-Type': 'application/json' });
+    res.end(JSON.stringify({ activeStocks, ...status }));
+  }
+
+  handleStockRankings(req, res) {
+    const stockScreener = require('./stock-screener.service');
+    const url = new URL(req.url, `http://${req.headers.host}`);
+    const regime = url.searchParams.get('regime');
+
+    let rankings;
+    if (regime && ['BULLISH', 'BEARISH', 'SIDEWAYS'].includes(regime.toUpperCase())) {
+      rankings = { [regime.toUpperCase()]: stockScreener.getTopStocks(regime.toUpperCase()) };
+    } else {
+      rankings = stockScreener.getAllRankings();
+    }
+
+    res.writeHead(200, { 'Content-Type': 'application/json' });
+    res.end(JSON.stringify(rankings));
+  }
+
+  handleAdaptiveInfo(req, res) {
+    let adaptiveInfo = { enabled: false };
+
+    if (this.gridStrategyService) {
+      adaptiveInfo = this.gridStrategyService.getAdaptiveInfo();
+    }
+
+    res.writeHead(200, { 'Content-Type': 'application/json' });
+    res.end(JSON.stringify(adaptiveInfo));
+  }
+
+  handleExitStats(req, res) {
+    const database = require('./database.service');
+    const exitStats = database.getExitReasonStats(30);
+    const regimeStats = database.getRegimePerformanceStats(30);
+
+    res.writeHead(200, { 'Content-Type': 'application/json' });
+    res.end(JSON.stringify({ exitStats, regimeStats }));
+  }
+
+  handleRiskStatus(req, res) {
+    let riskStatus = { initialized: false };
+
+    if (this.gridStrategyService) {
+      riskStatus = this.gridStrategyService.getRiskStatus();
+    }
+
+    // Also get recent risk events
+    const database = require('./database.service');
+    const recentEvents = database.getTodayRiskEvents();
+
+    res.writeHead(200, { 'Content-Type': 'application/json' });
+    res.end(JSON.stringify({ ...riskStatus, recentEvents }));
+  }
+
+  handleRiskResume(req, res) {
+    if (!this.gridStrategyService) {
+      res.writeHead(400, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ success: false, message: 'Grid strategy not initialized' }));
+      return;
+    }
+
+    const result = this.gridStrategyService.forceResumeTrading();
+    res.writeHead(200, { 'Content-Type': 'application/json' });
+    res.end(JSON.stringify(result));
+  }
+
+  handleCostEstimate(req, res) {
+    const url = new URL(req.url, `http://${req.headers.host}`);
+    const price = parseFloat(url.searchParams.get('price')) || 100;
+    const qty = parseInt(url.searchParams.get('qty')) || 50;
+    const targetPercent = parseFloat(url.searchParams.get('target')) || 0.25;
+
+    if (!this.gridStrategyService) {
+      res.writeHead(400, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ error: 'Grid strategy not initialized' }));
+      return;
+    }
+
+    const estimate = this.gridStrategyService.estimateTradeCosts(price, qty, targetPercent);
+    res.writeHead(200, { 'Content-Type': 'application/json' });
+    res.end(JSON.stringify(estimate));
+  }
+
+  broadcastRegimeChange(regimeData) {
+    if (this.regimeClients.size === 0) return;
+
+    const data = JSON.stringify(regimeData);
+    this.regimeClients.forEach(client => {
+      try {
+        client.write(`event: regime_change\ndata: ${data}\n\n`);
+      } catch (err) {
+        this.regimeClients.delete(client);
+      }
+    });
+
+    logger.info(`Broadcast regime change to ${this.regimeClients.size} clients`);
   }
 
   stop() {

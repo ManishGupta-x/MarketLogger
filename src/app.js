@@ -62,8 +62,10 @@ async function start() {
       logger.error('Timezone fix migration failed:', err);
     }
 
-    // Initialize grid strategy
+    // Initialize grid strategy with database reference
+    const database = require('./services/database.service');
     gridStrategy.setPaperTradingService(paperTrading);
+    gridStrategy.setDatabase(database);
     await gridStrategy.initialize();
     logger.info('Grid strategy initialized');
 
@@ -75,6 +77,7 @@ async function start() {
     await sseServer.start(SSE_PORT);
     sseServer.setTokenMap(gridStrategy.tokenToSymbolMap);
     sseServer.setPaperTradingService(paperTrading);
+    sseServer.setGridStrategyService(gridStrategy);
     gridStrategy.setSSEServer(sseServer);
     logger.info(`SSE server started on port ${SSE_PORT}`);
 
@@ -104,6 +107,17 @@ async function start() {
     logger.info(`Grid percentage: ${gridStrategy.gridPercentage}%`);
     logger.info(`Initial capital: ${paperTrading.initialCapital}`);
     logger.info(`Amount per trade: ${paperTrading.amountPerTrade}`);
+
+    // Log adaptive mode status
+    if (gridStrategy.adaptiveMode) {
+      logger.info('Adaptive Trading Mode: ENABLED');
+      logger.info('- Market regime detection: NIFTY 50 (60%) + NIFTY Bank (40%)');
+      logger.info('- Intelligent exits: Trailing stops + Rapid decline detection');
+      logger.info('- Stock screening: Top 10 stocks per regime');
+    } else {
+      logger.info('Adaptive Trading Mode: DISABLED (using fixed grid strategy)');
+    }
+
     logger.info('Grid Trading Bot ready!');
 
   } catch (error) {

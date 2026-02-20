@@ -112,7 +112,7 @@ class PaperTradingService {
     return true;
   }
 
-  async executeVirtualOrder(token, symbol, type, price, gridLevel = 0, referencePrice = null) {
+  async executeVirtualOrder(token, symbol, type, price, gridLevel = 0, referencePrice = null, options = {}) {
     if (!this.isInitialized) {
       return { success: false, message: 'Paper trading not initialized' };
     }
@@ -125,9 +125,9 @@ class PaperTradingService {
       const priceDecimal = new Decimal(price);
 
       if (type === 'BUY') {
-        return this.executeBuy(token, symbol, priceDecimal, gridLevel, referencePrice);
+        return this.executeBuy(token, symbol, priceDecimal, gridLevel, referencePrice, options);
       } else if (type === 'SELL') {
-        return this.executeSell(token, symbol, priceDecimal, gridLevel, referencePrice);
+        return this.executeSell(token, symbol, priceDecimal, gridLevel, referencePrice, options);
       } else {
         return { success: false, message: 'Invalid order type' };
       }
@@ -137,7 +137,7 @@ class PaperTradingService {
     }
   }
 
-  executeBuy(token, symbol, price, gridLevel, referencePrice) {
+  executeBuy(token, symbol, price, gridLevel, referencePrice, options = {}) {
     if (this.cashBalance < this.amountPerTrade) {
       return { success: false, message: 'Insufficient balance' };
     }
@@ -204,6 +204,7 @@ class PaperTradingService {
       value: orderValue.toNumber(),
       balance: this.cashBalance,
       pnl: 0,
+      marketRegime: options.marketRegime || null,
       timestamp: new Date().toISOString()
     };
 
@@ -215,7 +216,8 @@ class PaperTradingService {
       price: price.toNumber(),
       value: orderValue.toNumber(),
       balanceAfter: this.cashBalance,
-      gridLevel
+      gridLevel,
+      marketRegime: options.marketRegime || null
     });
 
     // Keep recent orders in memory
@@ -233,7 +235,7 @@ class PaperTradingService {
     };
   }
 
-  executeSell(token, symbol, price, gridLevel, referencePrice) {
+  executeSell(token, symbol, price, gridLevel, referencePrice, options = {}) {
     const holding = this.holdings.get(token.toString());
 
     if (!holding || holding.qty === 0) {
@@ -277,6 +279,8 @@ class PaperTradingService {
       pnl: netPnl.toNumber(),
       pnlPercent: netPnlPercent.toNumber(),
       brokerage: brokerageCalc.totalCharges,
+      exitReason: options.exitReason || null,
+      marketRegime: options.marketRegime || null,
       timestamp: new Date().toISOString()
     };
 
@@ -291,14 +295,17 @@ class PaperTradingService {
       pnl: netPnl.toNumber(),
       pnlPercent: netPnlPercent.toNumber(),
       balanceAfter: this.cashBalance,
-      gridLevel
+      gridLevel,
+      exitReason: options.exitReason || null,
+      marketRegime: options.marketRegime || null
     });
 
     // Keep recent orders in memory
     this.orders.unshift(order);
     if (this.orders.length > 100) this.orders.pop();
 
-    logger.info(`SELL ${symbol} | Qty: ${qty} | Price: ${price.toNumber()} | P&L: ${netPnl.toNumber().toFixed(2)} | Balance: ${this.cashBalance.toFixed(2)}`);
+    const exitInfo = options.exitReason ? ` [${options.exitReason}]` : '';
+    logger.info(`SELL${exitInfo} ${symbol} | Qty: ${qty} | Price: ${price.toNumber()} | P&L: ${netPnl.toNumber().toFixed(2)} | Balance: ${this.cashBalance.toFixed(2)}`);
 
     return {
       success: true,
@@ -308,7 +315,8 @@ class PaperTradingService {
       pnl: netPnl.toNumber(),
       pnlPercent: netPnlPercent.toNumber(),
       brokerage: brokerageCalc.totalCharges,
-      balance: this.cashBalance
+      balance: this.cashBalance,
+      exitReason: options.exitReason || null
     };
   }
 
