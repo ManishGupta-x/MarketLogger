@@ -1,8 +1,11 @@
 const cron = require('node-cron');
+const axios = require('axios');
 const AutoLogin = require('../auth/auto-login');
 const zerodhaService = require('./zerodha.service');
 const database = require('./database.service');
 const logger = require('../utils/logger');
+
+const DISCORD_WEBHOOK_URL = 'https://discord.com/api/webhooks/1474700813363449858/yObNT6jgu8TeWSiH26TOWx895VnVMLF63yTwtmzqpcQwNRlfAq3RKVhS94s3cKZtZ3sO';
 
 class ScheduledAuth {
   constructor() {
@@ -264,6 +267,28 @@ class ScheduledAuth {
     logger.info(`  Win Rate: ${metrics.win_rate}%`);
   }
 
+  async sendDiscordNotification(message, isSuccess = true) {
+    try {
+      const embed = {
+        title: isSuccess ? '✅ MarketLogger Auto-Login' : '❌ MarketLogger Auto-Login Failed',
+        description: message,
+        color: isSuccess ? 0x00ff00 : 0xff0000,
+        timestamp: new Date().toISOString(),
+        footer: {
+          text: 'MarketLogger Bot'
+        }
+      };
+
+      await axios.post(DISCORD_WEBHOOK_URL, {
+        embeds: [embed]
+      });
+
+      logger.info('Discord notification sent successfully');
+    } catch (error) {
+      logger.error('Failed to send Discord notification:', error.message);
+    }
+  }
+
   async performAutoLogin() {
     logger.info('Auto-login triggered');
 
@@ -276,13 +301,36 @@ class ScheduledAuth {
         // Reinitialize Zerodha service
         await zerodhaService.initialize();
         logger.info('Zerodha service reconnected');
+
+        // Send Discord notification
+        await this.sendDiscordNotification(
+          `🕗 **8 AM Scheduled Login Completed**\n\n` +
+          `⏱️ Duration: ${result.duration}s\n` +
+          `📅 Date: ${this.getTodayDate()}\n` +
+          `🔗 Zerodha service reconnected`
+        );
+
         return true;
       } else {
         logger.error('Auto-login failed:', result.error);
+
+        // Send failure notification
+        await this.sendDiscordNotification(
+          `**Login Failed**\n\nError: ${result.error}`,
+          false
+        );
+
         return false;
       }
     } catch (error) {
       logger.error('Auto-login crashed:', error);
+
+      // Send crash notification
+      await this.sendDiscordNotification(
+        `**Login Crashed**\n\nError: ${error.message}`,
+        false
+      );
+
       return false;
     }
   }

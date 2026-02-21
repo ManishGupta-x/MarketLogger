@@ -55,32 +55,35 @@ export default function LogsPage() {
           </p>
         </div>
 
-        <div className="flex gap-2 items-center">
+        <div className="flex flex-wrap gap-2 items-center">
           <input
             type="text"
             placeholder="Filter by symbol..."
             value={filter}
             onChange={(e) => setFilter(e.target.value)}
-            className="px-4 py-2 bg-gray-900 border border-gray-700 rounded-lg text-white placeholder-gray-500 focus:outline-none focus:border-blue-500 w-48"
+            className="px-4 py-2 bg-gray-900 border border-gray-700 rounded-lg text-white placeholder-gray-500 focus:outline-none focus:border-blue-500 w-full sm:w-48"
           />
 
-          <button
-            onClick={() => setAutoScroll(!autoScroll)}
-            className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
-              autoScroll
-                ? 'bg-green-600 text-white'
-                : 'bg-gray-800 text-gray-400 hover:bg-gray-700'
-            }`}
-          >
-            {autoScroll ? 'Auto-scroll ON' : 'Auto-scroll OFF'}
-          </button>
+          <div className="flex gap-2 w-full sm:w-auto">
+            <button
+              onClick={() => setAutoScroll(!autoScroll)}
+              className={`flex-1 sm:flex-none px-3 sm:px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
+                autoScroll
+                  ? 'bg-green-600 text-white'
+                  : 'bg-gray-800 text-gray-400 hover:bg-gray-700'
+              }`}
+            >
+              <span className="hidden sm:inline">{autoScroll ? 'Auto-scroll ON' : 'Auto-scroll OFF'}</span>
+              <span className="sm:hidden">{autoScroll ? 'Auto ON' : 'Auto OFF'}</span>
+            </button>
 
-          <button
-            onClick={clearLogs}
-            className="px-4 py-2 bg-gray-800 hover:bg-gray-700 text-gray-300 rounded-lg text-sm font-medium transition-colors"
-          >
-            Clear
-          </button>
+            <button
+              onClick={clearLogs}
+              className="flex-1 sm:flex-none px-3 sm:px-4 py-2 bg-gray-800 hover:bg-gray-700 text-gray-300 rounded-lg text-sm font-medium transition-colors"
+            >
+              Clear
+            </button>
+          </div>
         </div>
       </div>
 

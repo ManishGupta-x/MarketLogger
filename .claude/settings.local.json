@@ -36,7 +36,8 @@
       "Bash(ls:*)",
       "Bash(npm run strategy:close:*)",
       "Bash(npm run calendar:feed:*)",
-      "Bash(npm run calendar:list:*)"
+      "Bash(npm run calendar:list:*)",
+      "Bash(npm run build:*)"
     ]
   }
 }

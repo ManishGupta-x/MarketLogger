@@ -203,8 +203,8 @@ export default function DashboardPage() {
                   ))}
                 </div>
 
-                {/* Stocks Table */}
-                <div className="overflow-x-auto">
+                {/* Desktop Stocks Table */}
+                <div className="hidden md:block overflow-x-auto">
                   <table className="w-full">
                     <thead>
                       <tr className="border-b border-gray-800">
@@ -239,6 +239,32 @@ export default function DashboardPage() {
                       ))}
                     </tbody>
                   </table>
+                </div>
+
+                {/* Mobile Cards */}
+                <div className="md:hidden space-y-2">
+                  {(adaptiveInfo.activeStocks || []).map((stock, idx) => (
+                    <div key={stock.symbol} className="mobile-card">
+                      <div className="flex items-center justify-between mb-2">
+                        <div className="flex items-center gap-2">
+                          <span className="text-gray-500 text-sm">#{idx + 1}</span>
+                          <span className="font-medium text-white">{stock.symbol}</span>
+                          <span className="px-2 py-0.5 text-xs bg-gray-800 text-gray-400 rounded">
+                            {stock.sector || 'OTHER'}
+                          </span>
+                        </div>
+                        <span className="text-blue-400 font-bold">
+                          {typeof stock.score === 'number' ? stock.score.toFixed(1) : stock.score}
+                        </span>
+                      </div>
+                      <div className="flex justify-between text-sm">
+                        <span className="text-gray-500">RSI: <span className="text-white">{stock.rsi?.toFixed(1) || '-'}</span></span>
+                        <span className={`${(stock.roc || 0) >= 0 ? 'text-green-400' : 'text-red-400'}`}>
+                          ROC: {stock.roc?.toFixed(2) || '-'}%
+                        </span>
+                      </div>
+                    </div>
+                  ))}
                 </div>
               </>
             ) : (

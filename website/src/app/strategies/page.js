@@ -291,58 +291,102 @@ export default function StrategiesPage() {
           {calendarLoading ? (
             <div className="text-center py-12 text-gray-500">Loading calendar...</div>
           ) : calendar.length > 0 ? (
-            <div className="overflow-x-auto">
-              <table className="w-full">
-                <thead>
-                  <tr className="border-b border-gray-800">
-                    <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Date</th>
-                    <th className="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">Grid %</th>
-                    <th className="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">Target %</th>
-                    <th className="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">SL %</th>
-                    <th className="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">Per Trade</th>
-                    <th className="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">Capital</th>
-                    <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Notes</th>
-                    <th className="px-4 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider">Type</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-gray-800">
-                  {calendar.map((entry) => (
-                    <tr key={entry.id} className="table-row-hover transition-colors">
-                      <td className="px-4 py-4 whitespace-nowrap">
-                        <div className="font-medium text-white">{formatDate(entry.date)}</div>
-                      </td>
-                      <td className="px-4 py-4 whitespace-nowrap text-right tabular-nums text-blue-400">
-                        {entry.is_holiday ? '-' : `${entry.grid_percentage}%`}
-                      </td>
-                      <td className="px-4 py-4 whitespace-nowrap text-right tabular-nums text-green-400">
-                        {entry.is_holiday ? '-' : `${entry.target_percentage}%`}
-                      </td>
-                      <td className="px-4 py-4 whitespace-nowrap text-right tabular-nums text-red-400">
-                        {entry.is_holiday ? '-' : `${entry.stop_loss_percentage}%`}
-                      </td>
-                      <td className="px-4 py-4 whitespace-nowrap text-right tabular-nums text-gray-400">
-                        {entry.is_holiday ? '-' : formatPrice(entry.per_trade_amount)}
-                      </td>
-                      <td className="px-4 py-4 whitespace-nowrap text-right tabular-nums text-white">
-                        {entry.is_holiday ? '-' : formatPrice(entry.capital)}
-                      </td>
-                      <td className="px-4 py-4 whitespace-nowrap text-gray-400 text-sm">
-                        {entry.notes || '-'}
-                      </td>
-                      <td className="px-4 py-4 whitespace-nowrap text-center">
-                        <span className={`px-2 py-1 text-xs font-medium rounded ${
-                          entry.is_holiday
-                            ? 'bg-red-900/50 text-red-400'
-                            : 'bg-blue-900/50 text-blue-400'
-                        }`}>
-                          {entry.is_holiday ? 'HOLIDAY' : 'SCHEDULED'}
-                        </span>
-                      </td>
+            <>
+              {/* Desktop Table */}
+              <div className="hidden md:block overflow-x-auto">
+                <table className="w-full">
+                  <thead>
+                    <tr className="border-b border-gray-800">
+                      <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Date</th>
+                      <th className="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">Grid %</th>
+                      <th className="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">Target %</th>
+                      <th className="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">SL %</th>
+                      <th className="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">Per Trade</th>
+                      <th className="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">Capital</th>
+                      <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Notes</th>
+                      <th className="px-4 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider">Type</th>
                     </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
+                  </thead>
+                  <tbody className="divide-y divide-gray-800">
+                    {calendar.map((entry) => (
+                      <tr key={entry.id} className="table-row-hover transition-colors">
+                        <td className="px-4 py-4 whitespace-nowrap">
+                          <div className="font-medium text-white">{formatDate(entry.date)}</div>
+                        </td>
+                        <td className="px-4 py-4 whitespace-nowrap text-right tabular-nums text-blue-400">
+                          {entry.is_holiday ? '-' : `${entry.grid_percentage}%`}
+                        </td>
+                        <td className="px-4 py-4 whitespace-nowrap text-right tabular-nums text-green-400">
+                          {entry.is_holiday ? '-' : `${entry.target_percentage}%`}
+                        </td>
+                        <td className="px-4 py-4 whitespace-nowrap text-right tabular-nums text-red-400">
+                          {entry.is_holiday ? '-' : `${entry.stop_loss_percentage}%`}
+                        </td>
+                        <td className="px-4 py-4 whitespace-nowrap text-right tabular-nums text-gray-400">
+                          {entry.is_holiday ? '-' : formatPrice(entry.per_trade_amount)}
+                        </td>
+                        <td className="px-4 py-4 whitespace-nowrap text-right tabular-nums text-white">
+                          {entry.is_holiday ? '-' : formatPrice(entry.capital)}
+                        </td>
+                        <td className="px-4 py-4 whitespace-nowrap text-gray-400 text-sm">
+                          {entry.notes || '-'}
+                        </td>
+                        <td className="px-4 py-4 whitespace-nowrap text-center">
+                          <span className={`px-2 py-1 text-xs font-medium rounded ${
+                            entry.is_holiday
+                              ? 'bg-red-900/50 text-red-400'
+                              : 'bg-blue-900/50 text-blue-400'
+                          }`}>
+                            {entry.is_holiday ? 'HOLIDAY' : 'SCHEDULED'}
+                          </span>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+
+              {/* Mobile Cards */}
+              <div className="md:hidden p-4 space-y-3">
+                {calendar.map((entry) => (
+                  <div key={entry.id} className="mobile-card">
+                    <div className="flex justify-between items-start mb-2">
+                      <div>
+                        <div className="font-medium text-white text-lg">{formatDate(entry.date)}</div>
+                        {entry.notes && <div className="text-xs text-gray-500">{entry.notes}</div>}
+                      </div>
+                      <span className={`px-2 py-1 text-xs font-medium rounded ${
+                        entry.is_holiday
+                          ? 'bg-red-900/50 text-red-400'
+                          : 'bg-blue-900/50 text-blue-400'
+                      }`}>
+                        {entry.is_holiday ? 'HOLIDAY' : 'SCHEDULED'}
+                      </span>
+                    </div>
+                    {!entry.is_holiday && (
+                      <div className="grid grid-cols-2 gap-2 text-sm">
+                        <div>
+                          <span className="text-gray-500">Grid:</span>
+                          <span className="ml-1 text-blue-400">{entry.grid_percentage}%</span>
+                        </div>
+                        <div>
+                          <span className="text-gray-500">Target:</span>
+                          <span className="ml-1 text-green-400">{entry.target_percentage}%</span>
+                        </div>
+                        <div>
+                          <span className="text-gray-500">SL:</span>
+                          <span className="ml-1 text-red-400">{entry.stop_loss_percentage}%</span>
+                        </div>
+                        <div>
+                          <span className="text-gray-500">Capital:</span>
+                          <span className="ml-1 text-white">{formatPrice(entry.capital)}</span>
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                ))}
+              </div>
+            </>
           ) : (
             <div className="text-center py-16 text-gray-500">
               <div className="text-4xl mb-4">📅</div>
