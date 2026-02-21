@@ -457,7 +457,7 @@ export default function HelpPage() {
               </div>
 
               <p className="text-gray-300 mb-4">
-                When a stock rises too fast and becomes <span className="text-purple-400">overbought</span> (RSI > 80),
+                When a stock rises too fast and becomes <span className="text-purple-400">overbought</span> (RSI &gt; 80),
                 exit before the pullback.
               </p>
             </div>
