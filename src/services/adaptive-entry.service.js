@@ -237,7 +237,8 @@ class AdaptiveEntryService {
     const reasons = [];
 
     // RSI oversold (< 30) - primary signal - 50 points
-    if (indicators.rsi !== null) {
+    // Note: RSI 0 or 100 exactly indicates edge case data - skip
+    if (indicators.rsi !== null && indicators.rsi > 0 && indicators.rsi < 100) {
       if (indicators.rsi < cfg.rsiOversold) {
         score += 50;
         reasons.push(`RSI ${indicators.rsi.toFixed(1)} oversold`);
@@ -247,6 +248,9 @@ class AdaptiveEntryService {
       } else {
         reasons.push(`RSI ${indicators.rsi.toFixed(1)} not oversold`);
       }
+    } else if (indicators.rsi === 0 || indicators.rsi === 100) {
+      reasons.push(`RSI ${indicators.rsi} (edge case, skipping)`);
+      return { shouldEnter: false, score: 0, reasons, indicators };
     }
 
     // ADX confirms range-bound (< 25) - 25 points
@@ -283,7 +287,9 @@ class AdaptiveEntryService {
    */
   getIndicators(token, currentPrice) {
     const buffer = technicalIndicators.getPriceBuffer(token);
-    if (!buffer || buffer.prices.length < 20) {
+    // Require at least 30 data points for reliable indicator calculations
+    // (EMA-20 needs 20, RSI needs 15, but we want margin for accuracy)
+    if (!buffer || buffer.prices.length < 30) {
       return null;
     }
 

@@ -475,20 +475,32 @@ class AdaptiveExitService {
       return { shouldExit: false };
     }
 
+    // Minimum holding time before momentum exit can trigger (30 seconds)
+    const minHoldingTime = 30000;
+    const holdingTime = Date.now() - position.entryTime;
+    if (holdingTime < minHoldingTime) {
+      return { shouldExit: false };
+    }
+
     // Get RSI from technical indicators
     const buffer = technicalIndicators.getPriceBuffer(position.token);
-    if (!buffer || buffer.prices.length < 15) {
+    if (!buffer || buffer.prices.length < 20) {
       return { shouldExit: false };
     }
 
     const rsi = technicalIndicators.calculateRSI(buffer.prices, 14);
 
+    // RSI must be valid and above threshold
     if (rsi !== null && rsi > momentumExit.rsiThreshold) {
       const pnlPercent = ((currentPrice - position.entryPrice) / position.entryPrice) * 100;
 
-      // Only exit on momentum exhaustion if we're in profit
-      if (pnlPercent > 0) {
+      // Only exit on momentum exhaustion if we have meaningful profit (at least 0.3%)
+      // This prevents exiting on tiny gains that get wiped out by slippage
+      const minProfitForMomentumExit = 0.3;
+      if (pnlPercent >= minProfitForMomentumExit) {
         const slippage = this.applyExitSlippage(currentPrice, position);
+
+        logger.debug(`Momentum exit: ${position.symbol} RSI=${rsi.toFixed(1)}, P&L=${pnlPercent.toFixed(2)}%`);
 
         return {
           shouldExit: true,
@@ -500,7 +512,8 @@ class AdaptiveExitService {
             entryPrice: position.entryPrice,
             rsi,
             rsiThreshold: momentumExit.rsiThreshold,
-            pnlPercent
+            pnlPercent,
+            holdingTimeMs: holdingTime
           }
         };
       }
