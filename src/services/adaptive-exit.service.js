@@ -440,8 +440,16 @@ class AdaptiveExitService {
     if (dropPercent >= rapidDecline.threshold) {
       const pnlPercent = ((currentPrice - position.entryPrice) / position.entryPrice) * 100;
 
+      // Only trigger rapid decline exit when in LOSS
+      // If in profit, let trailing stop handle it instead
+      if (pnlPercent >= 0) {
+        return { shouldExit: false };
+      }
+
       // Apply slippage (likely higher during rapid decline)
       const slippage = this.applyExitSlippage(currentPrice, position);
+
+      logger.debug(`Rapid decline exit: ${position.symbol} dropped ${dropPercent.toFixed(2)}% in ${rapidDecline.window}ms, P&L=${pnlPercent.toFixed(2)}%`);
 
       return {
         shouldExit: true,

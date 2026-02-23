@@ -478,7 +478,11 @@ class AdaptiveStrategyService {
       'SELL',
       currentPrice,
       positionData.sellCount + 1,
-      positionData.lastBuyPrice
+      positionData.lastBuyPrice,
+      {
+        exitReason: reason,
+        marketRegime: this.currentRegime
+      }
     );
 
     if (result.success) {
