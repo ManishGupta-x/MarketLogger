@@ -77,6 +77,7 @@ class AdaptiveStrategyService {
       const token = holding.token.toString();
       const symbol = holding.symbol;
       const avgPrice = holding.avgPrice;
+      const qty = holding.qty || 1;
 
       const positionData = {
         symbol: symbol,
@@ -89,7 +90,11 @@ class AdaptiveStrategyService {
       };
 
       this.positions.set(token, positionData);
-      logger.info(`Restored position for ${symbol}: avgPrice=${avgPrice.toFixed(2)}`);
+
+      // Also restore position tracking in adaptive exit service for trailing stops
+      adaptiveExitService.onPositionEntry(token, symbol, avgPrice, qty);
+
+      logger.info(`Restored position for ${symbol}: avgPrice=${avgPrice.toFixed(2)}, qty=${qty}`);
     });
   }
 
