@@ -119,7 +119,8 @@ class AdaptiveEntryService {
     const reasons = [];
 
     // RSI in momentum zone (50-70) - 40 points
-    if (indicators.rsi !== null) {
+    // Note: RSI 0 or 100 indicates edge case data - skip
+    if (indicators.rsi !== null && indicators.rsi > 0 && indicators.rsi < 100) {
       if (indicators.rsi >= cfg.rsiMin && indicators.rsi <= cfg.rsiMax) {
         score += 40;
         reasons.push(`RSI ${indicators.rsi.toFixed(1)} in momentum zone`);
@@ -130,6 +131,9 @@ class AdaptiveEntryService {
       } else {
         reasons.push(`RSI ${indicators.rsi.toFixed(1)} below momentum zone`);
       }
+    } else if (indicators.rsi === 0 || indicators.rsi === 100) {
+      reasons.push(`RSI ${indicators.rsi} (edge case, skipping)`);
+      return { shouldEnter: false, score: 0, reasons, indicators };
     }
 
     // Price above EMA-20 - 30 points
@@ -179,13 +183,17 @@ class AdaptiveEntryService {
     const reasons = [];
 
     // RSI in stable zone (40-60) - 35 points
-    if (indicators.rsi !== null) {
+    // Note: RSI 0 or 100 indicates edge case data - skip
+    if (indicators.rsi !== null && indicators.rsi > 0 && indicators.rsi < 100) {
       if (indicators.rsi >= cfg.rsiMin && indicators.rsi <= cfg.rsiMax) {
         score += 35;
         reasons.push(`RSI ${indicators.rsi.toFixed(1)} stable`);
       } else {
         reasons.push(`RSI ${indicators.rsi.toFixed(1)} outside stable zone`);
       }
+    } else if (indicators.rsi === 0 || indicators.rsi === 100) {
+      reasons.push(`RSI ${indicators.rsi} (edge case, skipping)`);
+      return { shouldEnter: false, score: 0, reasons, indicators };
     }
 
     // Low volatility - 25 points

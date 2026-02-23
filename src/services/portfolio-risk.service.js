@@ -322,7 +322,7 @@ class PortfolioRiskService {
 
     // Check portfolio heat after this order
     const portfolio = this.paperTradingService?.getPortfolio();
-    if (portfolio) {
+    if (portfolio && portfolio.totalValue > 0) {
       const newInvestedValue = portfolio.investedValue + orderValue;
       const newHeat = (newInvestedValue / portfolio.totalValue) * 100;
 
@@ -333,6 +333,12 @@ class PortfolioRiskService {
           message: `Order would increase portfolio heat to ${newHeat.toFixed(1)}% (limit: ${this.maxPortfolioHeat}%)`
         };
       }
+    } else if (portfolio && portfolio.totalValue <= 0) {
+      return {
+        allowed: false,
+        reason: 'ZERO_PORTFOLIO_VALUE',
+        message: 'Cannot buy with zero or negative portfolio value'
+      };
     }
 
     return { allowed: true };

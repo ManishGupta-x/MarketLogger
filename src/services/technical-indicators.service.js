@@ -136,8 +136,17 @@ class TechnicalIndicatorsService {
     const avgGain = gains / period;
     const avgLoss = losses / period;
 
+    // Handle edge cases
+    if (avgGain === 0 && avgLoss === 0) {
+      return 50; // No movement = neutral RSI
+    }
+
     if (avgLoss === 0) {
-      return 100; // No losses = RSI 100
+      return 100; // All gains, no losses = overbought
+    }
+
+    if (avgGain === 0) {
+      return 0; // All losses, no gains = oversold
     }
 
     const rs = avgGain / avgLoss;
