@@ -494,19 +494,16 @@ class AdaptiveExitService {
     if (rsi !== null && rsi > momentumExit.rsiThreshold) {
       const pnlPercent = ((currentPrice - position.entryPrice) / position.entryPrice) * 100;
 
-      // Different thresholds for profit vs loss when momentum exhausted (RSI > 80)
-      // - In LOSS: exit if loss >= 0.5% (cut losses when momentum dying)
-      // - In PROFIT: exit only if profit >= 1.5% (let winners run)
+      // Momentum exit only triggers in LOSS case (cut losses when momentum dying)
+      // In PROFIT: let trailing stop handle the exit instead
       const minLossForExit = -0.5;
-      const minProfitForExit = 1.5;
 
-      const shouldExit = pnlPercent <= minLossForExit || pnlPercent >= minProfitForExit;
+      const shouldExit = pnlPercent <= minLossForExit;
 
       if (shouldExit) {
         const slippage = this.applyExitSlippage(currentPrice, position);
-        const exitType = pnlPercent < 0 ? 'loss cut' : 'profit take';
 
-        logger.debug(`Momentum exit (${exitType}): ${position.symbol} RSI=${rsi.toFixed(1)}, P&L=${pnlPercent.toFixed(2)}%`);
+        logger.debug(`Momentum exit (loss cut): ${position.symbol} RSI=${rsi.toFixed(1)}, P&L=${pnlPercent.toFixed(2)}%`);
 
         return {
           shouldExit: true,
@@ -519,8 +516,7 @@ class AdaptiveExitService {
             rsi,
             rsiThreshold: momentumExit.rsiThreshold,
             pnlPercent,
-            holdingTimeMs: holdingTime,
-            exitType
+            holdingTimeMs: holdingTime
           }
         };
       }
