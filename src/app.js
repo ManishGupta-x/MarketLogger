@@ -1,16 +1,15 @@
 require('dotenv').config();
 const zerodhaService = require('./services/zerodha.service');
 const scheduledAuth = require('./services/scheduled-auth.service');
-const gridWebSocketService = require('./services/grid-websocket.service');
-const gridStrategy = require('./services/grid-strategy.service');
+const websocketService = require('./services/grid-websocket.service');
+const adaptiveStrategy = require('./services/adaptive-strategy.service');
 const paperTrading = require('./services/paper-trading.service');
 const sseServer = require('./services/sse-server');
 const logger = require('./utils/logger');
 
 async function start() {
   try {
-    logger.info('Starting Grid Trading Bot...');
-
+    logger.info('Starting Adaptive Trading Bot...');
 
     // Start scheduled authentication (will check and auto-login if needed)
     await scheduledAuth.start();
@@ -29,12 +28,10 @@ async function start() {
     logger.info('Paper trading initialized');
 
     // One-time migration: Fix timestamps that were recorded in GMT instead of IST
-    // Entries before 9:30 AM are likely GMT and need +5:30 adjustment
     try {
       const dbService = require('./services/database.service');
       const db = dbService.db;
 
-      // Find transactions with time before 9:30 AM (likely recorded in GMT)
       const gmtTransactions = db.prepare(`
         SELECT id, created_at FROM transactions
         WHERE time(created_at) < '09:30:00'
@@ -62,29 +59,29 @@ async function start() {
       logger.error('Timezone fix migration failed:', err);
     }
 
-    // Initialize grid strategy with database reference
+    // Initialize adaptive strategy with database reference
     const database = require('./services/database.service');
-    gridStrategy.setPaperTradingService(paperTrading);
-    gridStrategy.setDatabase(database);
-    await gridStrategy.initialize();
-    logger.info('Grid strategy initialized');
+    adaptiveStrategy.setPaperTradingService(paperTrading);
+    adaptiveStrategy.setDatabase(database);
+    await adaptiveStrategy.initialize();
+    logger.info('Adaptive strategy initialized');
 
     // Set service references for scheduled auth (for applying calendar strategies)
-    scheduledAuth.setServices(gridStrategy, paperTrading);
+    scheduledAuth.setServices(adaptiveStrategy, paperTrading);
 
     // Start SSE server for website
     const SSE_PORT = process.env.SSE_PORT || 34000;
     await sseServer.start(SSE_PORT);
-    sseServer.setTokenMap(gridStrategy.tokenToSymbolMap);
+    sseServer.setTokenMap(adaptiveStrategy.tokenToSymbolMap);
     sseServer.setPaperTradingService(paperTrading);
-    sseServer.setGridStrategyService(gridStrategy);
-    gridStrategy.setSSEServer(sseServer);
+    sseServer.setGridStrategyService(adaptiveStrategy);
+    adaptiveStrategy.setSSEServer(sseServer);
     logger.info(`SSE server started on port ${SSE_PORT}`);
 
     // Initialize WebSocket with callbacks
-    await gridWebSocketService.initialize((ticks) => {
-      // Process ticks for grid trading
-      gridStrategy.processTicks(ticks);
+    await websocketService.initialize((ticks) => {
+      // Process ticks for adaptive trading
+      adaptiveStrategy.processTicks(ticks);
 
       // Broadcast ticks to website via SSE
       sseServer.broadcastTicks(ticks);
@@ -97,28 +94,24 @@ async function start() {
         holdings
       });
     });
-    logger.info('Grid WebSocket connected');
+    logger.info('WebSocket connected');
 
     // Start trading
-    gridStrategy.start();
-    logger.info('Grid trading started');
+    adaptiveStrategy.start();
+    logger.info('Adaptive trading started');
 
-    logger.info(`Monitoring ${gridWebSocketService.tokens?.length || 0} stocks`);
-    logger.info(`Grid percentage: ${gridStrategy.gridPercentage}%`);
+    logger.info(`Monitoring ${websocketService.tokens?.length || 0} stocks`);
     logger.info(`Initial capital: ${paperTrading.initialCapital}`);
     logger.info(`Amount per trade: ${paperTrading.amountPerTrade}`);
 
     // Log adaptive mode status
-    if (gridStrategy.adaptiveMode) {
-      logger.info('Adaptive Trading Mode: ENABLED');
-      logger.info('- Market regime detection: NIFTY 50 (60%) + NIFTY Bank (40%)');
-      logger.info('- Intelligent exits: Trailing stops + Rapid decline detection');
-      logger.info('- Stock screening: Top 10 stocks per regime');
-    } else {
-      logger.info('Adaptive Trading Mode: DISABLED (using fixed grid strategy)');
-    }
+    logger.info('Adaptive Trading Mode: ENABLED');
+    logger.info('- Market regime detection: NIFTY 50 (60%) + NIFTY Bank (40%)');
+    logger.info('- Signal-based entries: RSI, EMA, momentum');
+    logger.info('- Intelligent exits: Trailing stops + Rapid decline detection');
+    logger.info('- Stock screening: Top 10 stocks per regime');
 
-    logger.info('Grid Trading Bot ready!');
+    logger.info('Adaptive Trading Bot ready!');
 
   } catch (error) {
     logger.error('Failed to start application:', error);
@@ -128,14 +121,14 @@ async function start() {
 
 process.on('SIGTERM', async () => {
   logger.info('SIGTERM received, shutting down...');
-  await gridWebSocketService.stop();
+  await websocketService.stop();
   sseServer.stop();
   setTimeout(() => process.exit(0), 1000);
 });
 
 process.on('SIGINT', async () => {
   logger.info('SIGINT received, shutting down...');
-  await gridWebSocketService.stop();
+  await websocketService.stop();
   sseServer.stop();
   setTimeout(() => process.exit(0), 1000);
 });

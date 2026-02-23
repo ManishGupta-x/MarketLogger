@@ -12,7 +12,7 @@ class ScheduledAuth {
     this.autoLogin = new AutoLogin();
     this.isStrategyActive = false;
     this.todayStrategy = null;
-    this.gridStrategy = null;
+    this.adaptiveStrategy = null;
     this.paperTrading = null;
   }
 
@@ -42,11 +42,11 @@ class ScheduledAuth {
   }
 
   /**
-   * Set references to grid strategy and paper trading services
+   * Set references to adaptive strategy and paper trading services
    * Called from app.js after services are initialized
    */
-  setServices(gridStrategy, paperTrading) {
-    this.gridStrategy = gridStrategy;
+  setServices(adaptiveStrategy, paperTrading) {
+    this.adaptiveStrategy = adaptiveStrategy;
     this.paperTrading = paperTrading;
   }
 
@@ -161,34 +161,23 @@ class ScheduledAuth {
 
     this.isStrategyActive = true;
     logger.info('Strategy successfully applied:');
-    logger.info(`  Grid: ${this.todayStrategy.gridPercentage}%`);
-    logger.info(`  Target: ${this.todayStrategy.targetPercentage}%`);
-    logger.info(`  Stop Loss: ${this.todayStrategy.stopLossPercentage}%`);
     logger.info(`  Per Trade: Rs.${this.todayStrategy.perTradeAmount}`);
     logger.info(`  Capital: Rs.${this.todayStrategy.capital}`);
+    logger.info('  Entry/Exit: Adaptive (signal-based)');
   }
 
   async applyStrategy(strategy) {
-    // Update environment variables for compatibility with existing services
-    process.env.GRID_PERCENTAGE = strategy.gridPercentage.toString();
-    process.env.TARGET_PERCENTAGE = strategy.targetPercentage.toString();
-    process.env.STOP_LOSS_PERCENTAGE = strategy.stopLossPercentage.toString();
+    // Update environment variables for compatibility
     process.env.AMOUNT_PER_TRADE = strategy.perTradeAmount.toString();
     process.env.INITIAL_CAPITAL = strategy.capital.toString();
-
-    // Update grid strategy service directly if available
-    if (this.gridStrategy) {
-      this.gridStrategy.gridPercentage = strategy.gridPercentage;
-      this.gridStrategy.targetPercentage = strategy.targetPercentage;
-      this.gridStrategy.stopLossPercentage = strategy.stopLossPercentage;
-      logger.info('Updated grid strategy service with new parameters');
-    }
 
     // Update paper trading service directly if available
     if (this.paperTrading) {
       this.paperTrading.amountPerTrade = strategy.perTradeAmount;
       logger.info('Updated paper trading service with new parameters');
     }
+
+    logger.info('Strategy parameters applied (adaptive mode uses signal-based entry/exit)');
   }
 
   async performEveningRoutine() {

@@ -255,6 +255,9 @@ class MarketRegimeService {
     const detection = this.detectRegime();
     const now = Date.now();
 
+    // Log regime analysis details
+    this.logRegimeAnalysis(detection);
+
     // Check hysteresis period
     const timeSinceLastChange = now - this.lastRegimeChangeTime;
     const canChange = timeSinceLastChange >= config.regime.hysteresisPeriod;
@@ -353,6 +356,53 @@ class MarketRegimeService {
       return this.updateRegime();
     }
     return null;
+  }
+
+  /**
+   * Log detailed regime analysis for debugging
+   * @param {Object} detection - Detection result from detectRegime()
+   */
+  logRegimeAnalysis(detection) {
+    if (detection.source === 'insufficient_data') {
+      const dataStatus = this.getDataStatus();
+      logger.info(`Regime check: Waiting for data (NIFTY50: ${dataStatus.nifty50.dataPoints}/${dataStatus.nifty50.required}, Bank: ${dataStatus.niftyBank.dataPoints}/${dataStatus.niftyBank.required})`);
+      return;
+    }
+
+    if (detection.source === 'manual_override') {
+      logger.info(`Regime: ${detection.regime} (manual override)`);
+      return;
+    }
+
+    // Build detailed log
+    const { indicators, scores } = detection;
+    let niftyLog = '';
+    let bankLog = '';
+
+    if (indicators?.nifty50) {
+      const n = indicators.nifty50;
+      niftyLog = `NIFTY50: ${this.nifty50Price?.toFixed(0) || '?'} | RSI=${n.rsi?.toFixed(1) || '?'} | EMA20=${n.ema20?.toFixed(0) || '?'} | EMA50=${n.ema50?.toFixed(0) || '?'}`;
+    }
+
+    if (indicators?.niftyBank) {
+      const b = indicators.niftyBank;
+      bankLog = `BANK: ${this.niftyBankPrice?.toFixed(0) || '?'} | RSI=${b.rsi?.toFixed(1) || '?'} | EMA20=${b.ema20?.toFixed(0) || '?'} | EMA50=${b.ema50?.toFixed(0) || '?'}`;
+    }
+
+    // Determine what signals say
+    const bullishPct = scores?.bullish?.toFixed(0) || 0;
+    const bearishPct = scores?.bearish?.toFixed(0) || 0;
+
+    let verdict = '';
+    if (detection.regime === 'BULLISH') {
+      verdict = `BULLISH (score: ${bullishPct}%)`;
+    } else if (detection.regime === 'BEARISH') {
+      verdict = `BEARISH (score: ${bearishPct}%)`;
+    } else {
+      verdict = `SIDEWAYS (bull: ${bullishPct}%, bear: ${bearishPct}%)`;
+    }
+
+    logger.info(`Regime check: ${verdict} | ${niftyLog} | ${bankLog}`);
   }
 
   /**

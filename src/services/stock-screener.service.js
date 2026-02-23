@@ -319,16 +319,18 @@ class StockScreenerService {
       const regimes = ['BULLISH', 'BEARISH', 'SIDEWAYS'];
       const results = {
         screened: 0,
-        skipped: 0,
+        insufficientData: 0,
         rankings: {}
       };
 
-      // Calculate metrics for all stocks
+      // Calculate metrics for all stocks that have price data
       const allMetrics = [];
 
-      for (const [token] of this.tokenToSymbolMap.entries()) {
-        const tokenStr = token.toString();
+      // Only check stocks that have price buffers (i.e., stocks we're actually tracking)
+      const trackedTokens = technicalIndicators.getAllTrackedTokens();
+      const totalTracked = trackedTokens.length;
 
+      for (const tokenStr of trackedTokens) {
         // Skip index tokens
         if (tokenStr === config.regime.nifty50Token.toString() ||
             tokenStr === config.regime.niftyBankToken.toString()) {
@@ -342,7 +344,7 @@ class StockScreenerService {
           allMetrics.push(metrics);
           results.screened++;
         } else {
-          results.skipped++;
+          results.insufficientData++;
         }
       }
 
@@ -384,7 +386,7 @@ class StockScreenerService {
       this.lastScreenTime = Date.now();
       const duration = Date.now() - startTime;
 
-      logger.info(`Stock screening completed: ${results.screened} stocks, ${results.skipped} skipped (${duration}ms)`);
+      logger.info(`Stock screening: ${results.screened} stocks ready, ${results.insufficientData} need more data (${totalTracked} tracked, ${duration}ms)`);
 
       // Save rankings to database if available
       if (this.database) {

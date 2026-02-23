@@ -114,6 +114,40 @@ module.exports = {
     backstopStopLoss: parseFloat(process.env.BACKSTOP_STOP_LOSS) || 2.0 // Hard stop at 2% loss
   },
 
+  // Adaptive Entry Configuration
+  entry: {
+    // Minimum interval between entry evaluations per stock
+    minCheckInterval: parseInt(process.env.ENTRY_CHECK_INTERVAL) || 5000,
+
+    // Bullish regime entry conditions
+    bullish: {
+      rsiMin: parseInt(process.env.BULLISH_RSI_MIN) || 50,
+      rsiMax: parseInt(process.env.BULLISH_RSI_MAX) || 70,
+      requireAboveEma20: process.env.BULLISH_REQUIRE_ABOVE_EMA !== 'false',
+      pullbackThreshold: parseFloat(process.env.BULLISH_PULLBACK_THRESHOLD) || 1.0, // % near EMA for pullback bonus
+      minScore: parseInt(process.env.BULLISH_ENTRY_MIN_SCORE) || 60
+    },
+
+    // Bearish regime entry conditions
+    bearish: {
+      rsiMin: parseInt(process.env.BEARISH_RSI_MIN) || 40,
+      rsiMax: parseInt(process.env.BEARISH_RSI_MAX) || 60,
+      maxVolatility: parseFloat(process.env.BEARISH_MAX_VOLATILITY) || 25,
+      maxNegativeRoc: parseFloat(process.env.BEARISH_MAX_NEG_ROC) || -2,
+      emaProximity: parseFloat(process.env.BEARISH_EMA_PROXIMITY) || 2.0, // % near EMA for support bonus
+      minScore: parseInt(process.env.BEARISH_ENTRY_MIN_SCORE) || 60
+    },
+
+    // Sideways regime entry conditions (mean reversion)
+    sideways: {
+      rsiOversold: parseInt(process.env.SIDEWAYS_RSI_OVERSOLD) || 30,
+      rsiNearOversold: parseInt(process.env.SIDEWAYS_RSI_NEAR_OVERSOLD) || 40,
+      maxAdx: parseInt(process.env.SIDEWAYS_MAX_ADX) || 25,
+      supportLookback: parseInt(process.env.SIDEWAYS_SUPPORT_LOOKBACK) || 20,
+      minScore: parseInt(process.env.SIDEWAYS_ENTRY_MIN_SCORE) || 50
+    }
+  },
+
   // Position tracking
   position: {
     maxPriceHistory: 100, // Keep last 100 price points per position

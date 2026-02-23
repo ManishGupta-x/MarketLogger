@@ -37,7 +37,8 @@
       "Bash(npm run strategy:close:*)",
       "Bash(npm run calendar:feed:*)",
       "Bash(npm run calendar:list:*)",
-      "Bash(npm run build:*)"
+      "Bash(npm run build:*)",
+      "Bash(powershell.exe -Command \"Remove-Item -Path ''C:\\\\Users\\\\Admin\\\\OneDrive\\\\Documents\\\\Automations\\\\MarketLogger\\\\src\\\\services\\\\grid-strategy.service.js'' -Force\")"
     ]
   }
 }

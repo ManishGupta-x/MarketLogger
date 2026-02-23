@@ -449,6 +449,14 @@ class TechnicalIndicatorsService {
 
     return stats;
   }
+
+  /**
+   * Get all tokens that have price buffers (i.e., tokens we're tracking)
+   * @returns {Array} Array of token strings
+   */
+  getAllTrackedTokens() {
+    return Array.from(this.priceBuffers.keys());
+  }
 }
 
 module.exports = new TechnicalIndicatorsService();

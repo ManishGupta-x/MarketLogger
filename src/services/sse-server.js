@@ -12,9 +12,9 @@ class SSEServer {
     this.latestTicks = new Map(); // token -> tick data
     this.logBuffer = []; // Recent logs for logs page
     this.maxLogBuffer = 1000;
-    this.tokenToSymbolMap = null; // Will be set by grid-strategy
+    this.tokenToSymbolMap = null; // Will be set by adaptive-strategy
     this.paperTradingService = null; // Reference to paper trading service
-    this.gridStrategyService = null; // Reference to grid strategy service
+    this.adaptiveStrategy = null; // Reference to adaptive strategy service
     this.lastPortfolioBroadcast = 0;
     this.portfolioBroadcastInterval = 1000; // Broadcast portfolio every 1 second max
   }
@@ -28,7 +28,7 @@ class SSEServer {
   }
 
   setGridStrategyService(service) {
-    this.gridStrategyService = service;
+    this.adaptiveStrategy = service;
   }
 
   async start(port = 8080) {
@@ -528,8 +528,8 @@ class SSEServer {
   handleAdaptiveInfo(req, res) {
     let adaptiveInfo = { enabled: false };
 
-    if (this.gridStrategyService) {
-      adaptiveInfo = this.gridStrategyService.getAdaptiveInfo();
+    if (this.adaptiveStrategy) {
+      adaptiveInfo = this.adaptiveStrategy.getAdaptiveInfo();
     }
 
     res.writeHead(200, { 'Content-Type': 'application/json' });
@@ -548,8 +548,8 @@ class SSEServer {
   handleRiskStatus(req, res) {
     let riskStatus = { initialized: false };
 
-    if (this.gridStrategyService) {
-      riskStatus = this.gridStrategyService.getRiskStatus();
+    if (this.adaptiveStrategy) {
+      riskStatus = this.adaptiveStrategy.getRiskStatus();
     }
 
     // Also get recent risk events
@@ -561,13 +561,13 @@ class SSEServer {
   }
 
   handleRiskResume(req, res) {
-    if (!this.gridStrategyService) {
+    if (!this.adaptiveStrategy) {
       res.writeHead(400, { 'Content-Type': 'application/json' });
-      res.end(JSON.stringify({ success: false, message: 'Grid strategy not initialized' }));
+      res.end(JSON.stringify({ success: false, message: 'Adaptive strategy not initialized' }));
       return;
     }
 
-    const result = this.gridStrategyService.forceResumeTrading();
+    const result = this.adaptiveStrategy.forceResumeTrading();
     res.writeHead(200, { 'Content-Type': 'application/json' });
     res.end(JSON.stringify(result));
   }
@@ -578,13 +578,13 @@ class SSEServer {
     const qty = parseInt(url.searchParams.get('qty')) || 50;
     const targetPercent = parseFloat(url.searchParams.get('target')) || 0.25;
 
-    if (!this.gridStrategyService) {
+    if (!this.adaptiveStrategy) {
       res.writeHead(400, { 'Content-Type': 'application/json' });
-      res.end(JSON.stringify({ error: 'Grid strategy not initialized' }));
+      res.end(JSON.stringify({ error: 'Adaptive strategy not initialized' }));
       return;
     }
 
-    const estimate = this.gridStrategyService.estimateTradeCosts(price, qty, targetPercent);
+    const estimate = this.adaptiveStrategy.estimateTradeCosts(price, qty, targetPercent);
     res.writeHead(200, { 'Content-Type': 'application/json' });
     res.end(JSON.stringify(estimate));
   }
