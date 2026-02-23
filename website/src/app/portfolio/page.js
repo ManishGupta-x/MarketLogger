@@ -323,7 +323,7 @@ export default function PortfolioPage() {
                               <span className="px-2 py-1 text-xs font-bold bg-cyan-900/50 text-cyan-400 rounded animate-pulse">TRAILING!</span>
                             ) : holding.distanceToStopLoss <= 0 ? (
                               <span className="px-2 py-1 text-xs font-bold bg-red-900/50 text-red-400 rounded animate-pulse">BACKSTOP!</span>
-                            ) : holding.unrealizedPnlPercent >= (adaptiveInfo.trailingStopActivation || 0.5) ? (
+                            ) : holding.trailingStop ? (
                               <span className="px-2 py-1 text-xs font-medium bg-green-900/50 text-green-400 rounded">TRAILING</span>
                             ) : (
                               <span className="text-gray-500 text-sm">{holding.unrealizedPnlPercent?.toFixed(2) || '0.00'}%</span>
