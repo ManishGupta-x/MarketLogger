@@ -305,7 +305,12 @@ export default function PortfolioPage() {
                             ) : (
                               <>
                                 <div className="tabular-nums text-gray-500">Not active</div>
-                                <div className="text-xs text-gray-600">Need +{adaptiveInfo.trailingStopActivation || 0.5}%</div>
+                                <div className="text-xs text-gray-600">
+                                  Need +{adaptiveInfo.trailingStopActivation || 0.5}%
+                                </div>
+                                <div className="text-xs text-cyan-500">
+                                  ₹{formatPrice(holding.avgPrice * (1 + (adaptiveInfo.trailingStopActivation || 0.5) / 100))}
+                                </div>
                               </>
                             )}
                           </td>
@@ -382,7 +387,7 @@ export default function PortfolioPage() {
                           </span>
                         ) : (
                           <span className="text-gray-500 text-xs">
-                            Need +{adaptiveInfo.trailingStopActivation || 0.5}% to activate trailing
+                            Need +{adaptiveInfo.trailingStopActivation || 0.5}% (₹{formatPrice(holding.avgPrice * (1 + (adaptiveInfo.trailingStopActivation || 0.5) / 100))}) to activate
                           </span>
                         )}
                       </div>
