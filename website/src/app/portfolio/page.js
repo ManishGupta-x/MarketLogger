@@ -11,6 +11,7 @@ export default function PortfolioPage() {
   const [activeTab, setActiveTab] = useState('holdings')
   const [showTodayOnly, setShowTodayOnly] = useState(false)
   const [todayOrders, setTodayOrders] = useState([])
+  const [expandedOrderId, setExpandedOrderId] = useState(null)
 
   const regimeColors = {
     BULLISH: { bg: 'bg-green-900/30', text: 'text-green-400', border: 'border-green-500' },
@@ -475,68 +476,167 @@ export default function PortfolioPage() {
                     {filteredOrders.map((order) => {
                       const isBuy = order.type === 'BUY'
                       const hasPnl = order.type === 'SELL' && order.pnl !== 0
+                      const isExpanded = expandedOrderId === order.id
                       const exitReasonStyles = {
                         TARGET: { bg: 'bg-green-900/50', text: 'text-green-400' },
                         TRAILING_STOP: { bg: 'bg-cyan-900/50', text: 'text-cyan-400' },
                         RAPID_DECLINE: { bg: 'bg-orange-900/50', text: 'text-orange-400' },
                         MOMENTUM_EXIT: { bg: 'bg-purple-900/50', text: 'text-purple-400' },
+                        MOMENTUM_EXHAUSTION: { bg: 'bg-purple-900/50', text: 'text-purple-400' },
                         STOPLOSS: { bg: 'bg-red-900/50', text: 'text-red-400' },
-                        BACKSTOP: { bg: 'bg-red-900/50', text: 'text-red-400' }
+                        BACKSTOP: { bg: 'bg-red-900/50', text: 'text-red-400' },
+                        BACKSTOP_STOPLOSS: { bg: 'bg-red-900/50', text: 'text-red-400' }
                       }
                       const exitStyle = exitReasonStyles[order.exitReason] || { bg: 'bg-gray-800', text: 'text-gray-400' }
+
+                      const exitReasonDescriptions = {
+                        TRAILING_STOP: 'Price dropped below trailing stop level after securing profits',
+                        RAPID_DECLINE: 'Price dropped sharply (0.3%+) within 5 seconds - quick exit to limit losses',
+                        MOMENTUM_EXHAUSTION: 'RSI exceeded 80 indicating overbought conditions with position in loss',
+                        MOMENTUM_EXIT: 'RSI exceeded threshold indicating momentum exhaustion',
+                        BACKSTOP_STOPLOSS: 'Hard stop loss triggered at -2% to prevent further losses',
+                        BACKSTOP: 'Hard stop loss triggered to prevent further losses',
+                        STOPLOSS: 'Stop loss triggered to limit losses',
+                        TARGET: 'Target profit level reached'
+                      }
+
                       return (
-                        <tr key={order.id} className="table-row-hover transition-colors">
-                          <td className="px-4 py-3 whitespace-nowrap text-gray-400 text-sm">
-                            {new Date(order.timestamp).toLocaleString('en-IN', {
-                              day: '2-digit',
-                              month: 'short',
-                              hour: '2-digit',
-                              minute: '2-digit'
-                            })}
-                          </td>
-                          <td className="px-4 py-3 whitespace-nowrap">
-                            <span className={`px-2 py-1 text-xs font-medium rounded ${
-                              isBuy ? 'bg-blue-900/50 text-blue-400' : 'bg-orange-900/50 text-orange-400'
-                            }`}>
-                              {order.type}
-                            </span>
-                          </td>
-                          <td className="px-4 py-3 whitespace-nowrap font-medium text-white">
-                            {order.symbol}
-                          </td>
-                          <td className="px-4 py-3 whitespace-nowrap text-right tabular-nums text-white">
-                            {order.qty}
-                          </td>
-                          <td className="px-4 py-3 whitespace-nowrap text-right tabular-nums text-gray-400">
-                            {formatPrice(order.price)}
-                          </td>
-                          <td className="px-4 py-3 whitespace-nowrap text-right tabular-nums text-white">
-                            {formatPrice(order.value)}
-                          </td>
-                          <td className={`px-4 py-3 whitespace-nowrap text-right tabular-nums font-medium ${
-                            hasPnl ? (order.pnl >= 0 ? 'text-green-400' : 'text-red-400') : 'text-gray-500'
-                          }`}>
-                            {hasPnl ? (
-                              <>
-                                {order.pnl >= 0 ? '+' : ''}{formatPrice(order.pnl)}
-                                <div className="text-xs text-gray-500">
-                                  {order.pnlPercent >= 0 ? '+' : ''}{order.pnlPercent?.toFixed(2)}%
-                                </div>
-                              </>
-                            ) : '-'}
-                          </td>
-                          <td className="px-4 py-3 whitespace-nowrap text-center">
-                            {order.type === 'SELL' && order.exitReason ? (
-                              <span className={`px-2 py-1 text-xs font-medium rounded ${exitStyle.bg} ${exitStyle.text}`}>
-                                {order.exitReason.replace('_', ' ')}
+                        <>
+                          <tr
+                            key={order.id}
+                            className="table-row-hover transition-colors cursor-pointer"
+                            onClick={() => setExpandedOrderId(isExpanded ? null : order.id)}
+                          >
+                            <td className="px-4 py-3 whitespace-nowrap text-gray-400 text-sm">
+                              <div className="flex items-center gap-2">
+                                <span className={`transition-transform ${isExpanded ? 'rotate-90' : ''}`}>▶</span>
+                                {new Date(order.timestamp).toLocaleString('en-IN', {
+                                  day: '2-digit',
+                                  month: 'short',
+                                  hour: '2-digit',
+                                  minute: '2-digit'
+                                })}
+                              </div>
+                            </td>
+                            <td className="px-4 py-3 whitespace-nowrap">
+                              <span className={`px-2 py-1 text-xs font-medium rounded ${
+                                isBuy ? 'bg-blue-900/50 text-blue-400' : 'bg-orange-900/50 text-orange-400'
+                              }`}>
+                                {order.type}
                               </span>
-                            ) : order.type === 'BUY' ? (
-                              <span className="text-gray-600 text-xs">-</span>
-                            ) : (
-                              <span className="text-gray-600 text-xs">-</span>
-                            )}
-                          </td>
-                        </tr>
+                            </td>
+                            <td className="px-4 py-3 whitespace-nowrap font-medium text-white">
+                              {order.symbol}
+                            </td>
+                            <td className="px-4 py-3 whitespace-nowrap text-right tabular-nums text-white">
+                              {order.qty}
+                            </td>
+                            <td className="px-4 py-3 whitespace-nowrap text-right tabular-nums text-gray-400">
+                              {formatPrice(order.price)}
+                            </td>
+                            <td className="px-4 py-3 whitespace-nowrap text-right tabular-nums text-white">
+                              {formatPrice(order.value)}
+                            </td>
+                            <td className={`px-4 py-3 whitespace-nowrap text-right tabular-nums font-medium ${
+                              hasPnl ? (order.pnl >= 0 ? 'text-green-400' : 'text-red-400') : 'text-gray-500'
+                            }`}>
+                              {hasPnl ? (
+                                <>
+                                  {order.pnl >= 0 ? '+' : ''}{formatPrice(order.pnl)}
+                                  <div className="text-xs text-gray-500">
+                                    {order.pnlPercent >= 0 ? '+' : ''}{order.pnlPercent?.toFixed(2)}%
+                                  </div>
+                                </>
+                              ) : '-'}
+                            </td>
+                            <td className="px-4 py-3 whitespace-nowrap text-center">
+                              {order.type === 'SELL' && order.exitReason ? (
+                                <span className={`px-2 py-1 text-xs font-medium rounded ${exitStyle.bg} ${exitStyle.text}`}>
+                                  {order.exitReason.replace(/_/g, ' ')}
+                                </span>
+                              ) : order.type === 'BUY' ? (
+                                <span className="text-gray-600 text-xs">-</span>
+                              ) : (
+                                <span className="text-gray-600 text-xs">-</span>
+                              )}
+                            </td>
+                          </tr>
+                          {isExpanded && (
+                            <tr key={`${order.id}-details`} className="bg-gray-900/50">
+                              <td colSpan={8} className="px-6 py-4">
+                                <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-sm">
+                                  {isBuy ? (
+                                    <>
+                                      <div>
+                                        <div className="text-gray-500 text-xs mb-1">Order Type</div>
+                                        <div className="text-blue-400 font-medium">BUY - Entry Signal</div>
+                                      </div>
+                                      <div>
+                                        <div className="text-gray-500 text-xs mb-1">Market Regime</div>
+                                        <div className={`font-medium ${
+                                          order.marketRegime === 'BULLISH' ? 'text-green-400' :
+                                          order.marketRegime === 'BEARISH' ? 'text-red-400' : 'text-yellow-400'
+                                        }`}>
+                                          {order.marketRegime || 'N/A'}
+                                        </div>
+                                      </div>
+                                      <div>
+                                        <div className="text-gray-500 text-xs mb-1">Entry Score</div>
+                                        <div className="text-white font-medium">{order.entryScore || 'N/A'}/100</div>
+                                      </div>
+                                      <div>
+                                        <div className="text-gray-500 text-xs mb-1">Execution</div>
+                                        <div className="text-gray-400">
+                                          {order.qty} × ₹{formatPrice(order.price)} = ₹{formatPrice(order.value)}
+                                        </div>
+                                      </div>
+                                      <div className="col-span-2 md:col-span-4">
+                                        <div className="text-gray-500 text-xs mb-1">Why This Entry?</div>
+                                        <div className="text-gray-300">
+                                          Stock was in top-ranked list for {order.marketRegime || 'current'} regime with favorable entry conditions (RSI, EMA alignment, momentum score)
+                                        </div>
+                                      </div>
+                                    </>
+                                  ) : (
+                                    <>
+                                      <div>
+                                        <div className="text-gray-500 text-xs mb-1">Exit Reason</div>
+                                        <div className={`font-medium ${exitStyle.text}`}>
+                                          {order.exitReason?.replace(/_/g, ' ') || 'Manual Exit'}
+                                        </div>
+                                      </div>
+                                      <div>
+                                        <div className="text-gray-500 text-xs mb-1">Market Regime</div>
+                                        <div className={`font-medium ${
+                                          order.marketRegime === 'BULLISH' ? 'text-green-400' :
+                                          order.marketRegime === 'BEARISH' ? 'text-red-400' : 'text-yellow-400'
+                                        }`}>
+                                          {order.marketRegime || 'N/A'}
+                                        </div>
+                                      </div>
+                                      <div>
+                                        <div className="text-gray-500 text-xs mb-1">Brokerage</div>
+                                        <div className="text-gray-400">₹{order.brokerage?.toFixed(2) || '0.00'}</div>
+                                      </div>
+                                      <div>
+                                        <div className="text-gray-500 text-xs mb-1">Net P&L</div>
+                                        <div className={`font-medium ${order.pnl >= 0 ? 'text-green-400' : 'text-red-400'}`}>
+                                          {order.pnl >= 0 ? '+' : ''}₹{formatPrice(order.pnl)} ({order.pnlPercent?.toFixed(2)}%)
+                                        </div>
+                                      </div>
+                                      <div className="col-span-2 md:col-span-4">
+                                        <div className="text-gray-500 text-xs mb-1">Why This Exit?</div>
+                                        <div className="text-gray-300">
+                                          {exitReasonDescriptions[order.exitReason] || 'Position was closed based on exit conditions'}
+                                        </div>
+                                      </div>
+                                    </>
+                                  )}
+                                </div>
+                              </td>
+                            </tr>
+                          )}
+                        </>
                       )
                     })}
                   </tbody>
@@ -548,19 +648,39 @@ export default function PortfolioPage() {
                 {filteredOrders.map((order) => {
                   const isBuy = order.type === 'BUY'
                   const hasPnl = order.type === 'SELL' && order.pnl !== 0
+                  const isExpanded = expandedOrderId === order.id
                   const exitReasonStyles = {
                     TARGET: { bg: 'bg-green-900/50', text: 'text-green-400' },
                     TRAILING_STOP: { bg: 'bg-cyan-900/50', text: 'text-cyan-400' },
                     RAPID_DECLINE: { bg: 'bg-orange-900/50', text: 'text-orange-400' },
                     MOMENTUM_EXIT: { bg: 'bg-purple-900/50', text: 'text-purple-400' },
+                    MOMENTUM_EXHAUSTION: { bg: 'bg-purple-900/50', text: 'text-purple-400' },
                     STOPLOSS: { bg: 'bg-red-900/50', text: 'text-red-400' },
-                    BACKSTOP: { bg: 'bg-red-900/50', text: 'text-red-400' }
+                    BACKSTOP: { bg: 'bg-red-900/50', text: 'text-red-400' },
+                    BACKSTOP_STOPLOSS: { bg: 'bg-red-900/50', text: 'text-red-400' }
                   }
                   const exitStyle = exitReasonStyles[order.exitReason] || { bg: 'bg-gray-800', text: 'text-gray-400' }
+
+                  const exitReasonDescriptions = {
+                    TRAILING_STOP: 'Price dropped below trailing stop level after securing profits',
+                    RAPID_DECLINE: 'Price dropped sharply (0.3%+) within 5 seconds',
+                    MOMENTUM_EXHAUSTION: 'RSI > 80 with position in loss',
+                    MOMENTUM_EXIT: 'Momentum exhaustion detected',
+                    BACKSTOP_STOPLOSS: 'Hard stop loss at -2%',
+                    BACKSTOP: 'Hard stop loss triggered',
+                    STOPLOSS: 'Stop loss triggered',
+                    TARGET: 'Target profit reached'
+                  }
+
                   return (
-                    <div key={order.id} className="mobile-card">
+                    <div
+                      key={order.id}
+                      className="mobile-card cursor-pointer"
+                      onClick={() => setExpandedOrderId(isExpanded ? null : order.id)}
+                    >
                       <div className="flex justify-between items-start mb-2">
                         <div className="flex items-center gap-2">
+                          <span className={`transition-transform ${isExpanded ? 'rotate-90' : ''}`}>▶</span>
                           <span className={`px-2 py-1 text-xs font-medium rounded ${
                             isBuy ? 'bg-blue-900/50 text-blue-400' : 'bg-orange-900/50 text-orange-400'
                           }`}>
@@ -569,7 +689,7 @@ export default function PortfolioPage() {
                           <span className="font-medium text-white">{order.symbol}</span>
                           {order.type === 'SELL' && order.exitReason && (
                             <span className={`px-2 py-0.5 text-xs font-medium rounded ${exitStyle.bg} ${exitStyle.text}`}>
-                              {order.exitReason.replace('_', ' ')}
+                              {order.exitReason.replace(/_/g, ' ')}
                             </span>
                           )}
                         </div>
@@ -600,6 +720,51 @@ export default function PortfolioPage() {
                           </div>
                         )}
                       </div>
+                      {isExpanded && (
+                        <div className="mt-3 pt-3 border-t border-gray-700">
+                          {isBuy ? (
+                            <div className="space-y-2 text-sm">
+                              <div className="flex justify-between">
+                                <span className="text-gray-500">Market Regime:</span>
+                                <span className={`font-medium ${
+                                  order.marketRegime === 'BULLISH' ? 'text-green-400' :
+                                  order.marketRegime === 'BEARISH' ? 'text-red-400' : 'text-yellow-400'
+                                }`}>{order.marketRegime || 'N/A'}</span>
+                              </div>
+                              <div className="flex justify-between">
+                                <span className="text-gray-500">Entry Score:</span>
+                                <span className="text-white">{order.entryScore || 'N/A'}/100</span>
+                              </div>
+                              <div className="text-gray-400 text-xs mt-2">
+                                Stock was in top-ranked list with favorable entry conditions (RSI, EMA, momentum)
+                              </div>
+                            </div>
+                          ) : (
+                            <div className="space-y-2 text-sm">
+                              <div className="flex justify-between">
+                                <span className="text-gray-500">Exit Reason:</span>
+                                <span className={`font-medium ${exitStyle.text}`}>
+                                  {order.exitReason?.replace(/_/g, ' ') || 'Manual'}
+                                </span>
+                              </div>
+                              <div className="flex justify-between">
+                                <span className="text-gray-500">Market Regime:</span>
+                                <span className={`font-medium ${
+                                  order.marketRegime === 'BULLISH' ? 'text-green-400' :
+                                  order.marketRegime === 'BEARISH' ? 'text-red-400' : 'text-yellow-400'
+                                }`}>{order.marketRegime || 'N/A'}</span>
+                              </div>
+                              <div className="flex justify-between">
+                                <span className="text-gray-500">Brokerage:</span>
+                                <span className="text-gray-400">₹{order.brokerage?.toFixed(2) || '0.00'}</span>
+                              </div>
+                              <div className="text-gray-400 text-xs mt-2">
+                                {exitReasonDescriptions[order.exitReason] || 'Position closed based on exit conditions'}
+                              </div>
+                            </div>
+                          )}
+                        </div>
+                      )}
                     </div>
                   )
                 })}
