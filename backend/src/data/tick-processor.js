@@ -30,7 +30,7 @@ class TickProcessor {
   removeListener(fn) { this.listeners = this.listeners.filter(l => l !== fn); }
 
   getLatest(token) { return this.latestTicks.get(token) || null; }
-  getAllLatest() { return Object.fromEntries(this.latestTicks); }
+  getAllLatest() { return Array.from(this.latestTicks.values()); }
 
   getStatus() {
     return {
