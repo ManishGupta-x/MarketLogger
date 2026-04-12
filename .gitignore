@@ -20,9 +20,9 @@ yarn-error.log*
 trading.db*
 
 # SQLite database
-data/*.db
-data/*.db-wal
-data/*.db-shm
+*.db
+*.db-wal
+*.db-shm
 
 # OS files
 .DS_Store
@@ -46,6 +46,7 @@ visual-*.js
 # IDE
 .vscode/
 .idea/
+.claude/
 *.swp
 *.swo
 

@@ -4,7 +4,7 @@ import { useState, useEffect, useRef, useCallback } from 'react'
 import { fetchEventSource } from '@microsoft/fetch-event-source'
 import { toast } from 'react-toastify'
 
-const SSE_BASE_URL = process.env.NEXT_PUBLIC_SSE_URL || 'http://localhost:8080'
+const SSE_BASE_URL = ''  // All requests go to /api/* on same origin (Vercel proxy)
 
 export function useTicksSSE() {
   const [stocks, setStocks] = useState(new Map())
