@@ -3,7 +3,7 @@
  * BACKEND_URL and BACKEND_API_KEY are server-side-only env vars.
  * They are never compiled into client-side JS.
  */
-const BACKEND_URL = process.env.BACKEND_URL || 'http://localhost:34000';
+const BACKEND_URL = process.env.BACKEND_URL || 'http://localhost:42069';
 const BACKEND_API_KEY = process.env.BACKEND_API_KEY || '';
 
 /** Fetch a REST endpoint from the backend and return a Response. */

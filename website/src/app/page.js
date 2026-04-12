@@ -57,10 +57,17 @@ export default function StocksPage() {
           <h1 className="text-2xl font-bold text-white">Live Stocks</h1>
           <p className="text-gray-500 mt-1">
             {connected ? (
-              <span className="flex items-center gap-2">
-                <span className="w-2 h-2 bg-green-500 rounded-full animate-pulse"></span>
-                Connected - {stocks.length} stocks
-              </span>
+              stocks.length > 0 ? (
+                <span className="flex items-center gap-2">
+                  <span className="w-2 h-2 bg-green-500 rounded-full animate-pulse"></span>
+                  Connected - {stocks.length} stocks
+                </span>
+              ) : (
+                <span className="flex items-center gap-2">
+                  <span className="w-2 h-2 bg-yellow-500 rounded-full animate-pulse"></span>
+                  Connected - Waiting for market data
+                </span>
+              )
             ) : (
               <span className="flex items-center gap-2">
                 <span className="w-2 h-2 bg-red-500 rounded-full"></span>
