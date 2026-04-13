@@ -7,25 +7,60 @@ const config = require('../../config');
  */
 class Indicators {
   constructor() {
-    // token (number) -> { prices, highs, lows, closes, volumes, timestamps }
+    // token -> { prices, highs, lows, closes, volumes, timestamps } (1-min candles)
     this.buffers = new Map();
-    this.maxSize = config.position.maxPriceHistory; // 100 by default
+    // token -> { open, high, low, close, volume, minuteStart } (current building candle)
+    this.currentCandle = new Map();
+    this.maxSize = config.position.maxPriceHistory; // 100 candles
+    this.candleIntervalMs = 60000; // 1-minute candles
   }
 
   // ── Buffer management ────────────────────────────────────────────────────
 
   updateBuffer(token, tick) {
+    const price = tick.last_price;
+    const now = Date.now();
+    const minuteStart = Math.floor(now / this.candleIntervalMs) * this.candleIntervalMs;
+
+    if (!this.currentCandle.has(token)) {
+      // First tick for this token — start a new candle
+      this.currentCandle.set(token, {
+        open: price, high: price, low: price, close: price,
+        volume: tick.volume_traded || 0, minuteStart
+      });
+      return;
+    }
+
+    const candle = this.currentCandle.get(token);
+
+    if (minuteStart > candle.minuteStart) {
+      // New minute — finalize the previous candle and push to buffer
+      this._pushCandle(token, candle);
+      // Start new candle
+      this.currentCandle.set(token, {
+        open: price, high: price, low: price, close: price,
+        volume: tick.volume_traded || 0, minuteStart
+      });
+    } else {
+      // Same minute — update the current candle
+      if (price > candle.high) candle.high = price;
+      if (price < candle.low) candle.low = price;
+      candle.close = price;
+      candle.volume = tick.volume_traded || 0;
+    }
+  }
+
+  _pushCandle(token, candle) {
     if (!this.buffers.has(token)) {
       this.buffers.set(token, { prices: [], highs: [], lows: [], closes: [], volumes: [], timestamps: [] });
     }
     const b = this.buffers.get(token);
-    const price = tick.last_price;
-    b.prices.push(price);
-    b.highs.push(tick.ohlc?.high || price);
-    b.lows.push(tick.ohlc?.low || price);
-    b.closes.push(tick.ohlc?.close || price);
-    b.volumes.push(tick.volume_traded || 0);
-    b.timestamps.push(Date.now());
+    b.prices.push(candle.close);
+    b.highs.push(candle.high);
+    b.lows.push(candle.low);
+    b.closes.push(candle.close);
+    b.volumes.push(candle.volume);
+    b.timestamps.push(candle.minuteStart);
 
     if (b.prices.length > this.maxSize) {
       b.prices.shift(); b.highs.shift(); b.lows.shift();
