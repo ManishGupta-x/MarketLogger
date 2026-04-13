@@ -12,6 +12,7 @@ package-lock.json
 # Logs
 logs/
 !website/src/app/logs/
+!website/src/app/api/logs/
 *.log
 npm-debug.log*
 yarn-debug.log*
