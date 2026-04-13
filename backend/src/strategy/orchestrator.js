@@ -313,6 +313,7 @@ class Orchestrator {
 
   getAdaptiveInfo() {
     return {
+      enabled: this.initialized && this.active,
       regime: regime.getState(),
       regimeHistory: regime.getHistory(10),
       activeStocks: this.activeStocks,
