@@ -30,8 +30,8 @@ class ZerodhaWebSocket {
   }
 
   async _loadTokens() {
-    const tokenPath = path.join(__dirname, '../../../data/token.json');
-    if (!fs.existsSync(tokenPath)) throw new Error('token.json not found at ' + tokenPath);
+    const tokenPath = path.join(__dirname, '../../../data/tokens.json');
+    if (!fs.existsSync(tokenPath)) throw new Error('tokens.json not found at ' + tokenPath);
 
     const raw = JSON.parse(fs.readFileSync(tokenPath, 'utf8'));
     this.tokens = raw.map(t => typeof t === 'string' ? parseInt(t) : t);
