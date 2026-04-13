@@ -206,7 +206,7 @@ class Orchestrator {
     const pos = this.positions.get(token);
 
     // BUY: only if stock is in active list and not already held
-    const isActive = this.activeStocks.some(s => s.token === token);
+    const isActive = this.activeStocks.some(s => String(s.token) === token);
     if (isActive && this.paperTrading && !this.paperTrading.hasHolding(token)) {
       const sig = entry.evaluate(token, price, this.currentRegime);
       if (sig.shouldEnter) {

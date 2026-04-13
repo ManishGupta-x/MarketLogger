@@ -32,8 +32,7 @@ class Screener {
   // Called by tick-processor listener
   onTicks(ticks) {
     if (!this.initialized) return;
-    const nifty50Token = config.regime.nifty50Token.toString();
-    this.marketBuffer = indicators.getBuffer(nifty50Token);
+    this.marketBuffer = indicators.getBuffer(config.regime.nifty50Token);
   }
 
   _metricsForToken(tokenStr) {
