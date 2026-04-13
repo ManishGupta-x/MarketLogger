@@ -11,12 +11,20 @@ class TickProcessor {
   constructor() {
     this.latestTicks = new Map(); // token -> tick
     this.listeners = [];          // (ticks) => void
+    this.tokenToSymbol = null;    // set by orchestrator
   }
+
+  setTokenToSymbol(map) { this.tokenToSymbol = map; }
 
   process(ticks) {
     for (const tick of ticks) {
       const token = tick.instrument_token;
-      this.latestTicks.set(token, { ...tick, receivedAt: Date.now() });
+      const enriched = { ...tick, receivedAt: Date.now() };
+      if (this.tokenToSymbol) {
+        const sym = this.tokenToSymbol.get(token);
+        if (sym) enriched.symbol = sym.replace('NSE:', '');
+      }
+      this.latestTicks.set(token, enriched);
       indicators.updateBuffer(token, tick);
     }
 

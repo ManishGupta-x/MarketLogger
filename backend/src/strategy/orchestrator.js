@@ -4,6 +4,7 @@ const screener = require('./screener');
 const entry   = require('./entry');
 const exit    = require('./exit');
 const config  = require('../../config');
+const tickProc = require('../data/tick-processor');
 
 /**
  * Wires all strategy modules together.
@@ -53,6 +54,7 @@ class Orchestrator {
 
     // Build token->symbol map from Zerodha instrument list
     await this._loadInstruments();
+    tickProc.setTokenToSymbol(this.tokenToSymbol);
 
     regime.initialize();
     screener.initialize(this.tokenToSymbol);
