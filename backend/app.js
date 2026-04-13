@@ -50,8 +50,15 @@ async function main() {
     for (const tick of ticks) sse.broadcast('tick', tick);
   });
 
-  // 6. Strategy orchestrator initialize (loads instruments, starts regime loop)
-  if (connected) {
+  // 6. Scheduler (daily login + strategy) — may auto-login and fix auth
+  scheduler.setServices(paperTrading);
+  await scheduler.start();
+
+  // Re-check connection after scheduler (auto-login may have succeeded)
+  const isConnected = connected || zerodha.isConnected;
+
+  // 7. Strategy orchestrator initialize (loads instruments, starts regime loop)
+  if (isConnected) {
     try {
       await orchestrator.initialize();
     } catch (err) {
@@ -60,12 +67,8 @@ async function main() {
     }
   }
 
-  // 7. Scheduler (daily login + strategy)
-  scheduler.setServices(paperTrading);
-  await scheduler.start();
-
   // 8. WebSocket (after auth)
-  if (connected) {
+  if (isConnected) {
     try {
       await wsClient.start(ticks => tickProc.process(ticks));
     } catch (err) {
