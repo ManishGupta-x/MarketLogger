@@ -3,11 +3,29 @@
 import { useState, useRef, useEffect } from 'react'
 import { useLogsSSE } from '@/lib/useSSE'
 
+function parseLogLine(line) {
+  // Format: [2026-04-13T07:39:16.093Z] [INFO] Message here
+  const match = line.match(/^\[([^\]]+)\]\s*\[(\w+)\]\s*(.*)$/)
+  if (match) {
+    return { timestamp: match[1], level: match[2], message: match[3] }
+  }
+  return { timestamp: null, level: 'INFO', message: line }
+}
+
+function getLevelColor(level) {
+  switch (level) {
+    case 'ERROR': return 'text-red-400'
+    case 'WARN': return 'text-yellow-400'
+    case 'INFO': return 'text-blue-400'
+    case 'DEBUG': return 'text-gray-500'
+    default: return 'text-gray-400'
+  }
+}
+
 export default function LogsPage() {
   const { logs, connected, clearLogs } = useLogsSSE()
   const [autoScroll, setAutoScroll] = useState(true)
   const [filter, setFilter] = useState('')
-  const [expandedLog, setExpandedLog] = useState(null)
   const containerRef = useRef(null)
 
   // Auto-scroll to bottom
@@ -17,21 +35,25 @@ export default function LogsPage() {
     }
   }, [logs, autoScroll])
 
+  const parsedLogs = logs.map(line => typeof line === 'string' ? parseLogLine(line) : line)
+
   const filteredLogs = filter
-    ? logs.filter(log =>
-        log.ticks?.some(t =>
-          t.symbol?.toLowerCase().includes(filter.toLowerCase())
-        )
+    ? parsedLogs.filter(log =>
+        log.message?.toLowerCase().includes(filter.toLowerCase())
       )
-    : logs
+    : parsedLogs
 
   const formatTime = (timestamp) => {
-    return new Date(timestamp).toLocaleTimeString('en-IN', {
-      hour: '2-digit',
-      minute: '2-digit',
-      second: '2-digit',
-      fractionalSecondDigits: 3
-    })
+    if (!timestamp) return ''
+    try {
+      return new Date(timestamp).toLocaleTimeString('en-IN', {
+        hour: '2-digit',
+        minute: '2-digit',
+        second: '2-digit'
+      })
+    } catch {
+      return timestamp
+    }
   }
 
   return (
@@ -97,54 +119,21 @@ export default function LogsPage() {
             Waiting for log data...
           </div>
         ) : (
-          <div className="space-y-2">
+          <div className="space-y-0.5">
             {filteredLogs.map((log, index) => (
               <div
-                key={`${log.timestamp}-${index}`}
-                className="border-b border-gray-800 pb-2"
+                key={index}
+                className="flex items-start gap-3 py-1 px-2 hover:bg-gray-900 rounded"
               >
-                <div
-                  className="flex items-center gap-4 cursor-pointer hover:bg-gray-900 p-2 rounded"
-                  onClick={() => setExpandedLog(expandedLog === index ? null : index)}
-                >
-                  <span className="text-gray-500 text-xs">{formatTime(log.timestamp)}</span>
-                  <span className="text-blue-400">
-                    {log.count} tick{log.count > 1 ? 's' : ''}
-                  </span>
-                  <span className="text-gray-400 text-xs truncate flex-1">
-                    {log.ticks?.slice(0, 5).map(t => t.symbol).join(', ')}
-                    {log.ticks?.length > 5 ? ` +${log.ticks.length - 5} more` : ''}
-                  </span>
-                  <span className="text-gray-600 text-xs">
-                    {expandedLog === index ? '▼' : '▶'}
-                  </span>
-                </div>
-
-                {expandedLog === index && (
-                  <div className="mt-2 pl-4 space-y-1">
-                    {log.ticks?.map((tick, tickIdx) => (
-                      <div key={tickIdx} className="flex items-center gap-2 text-xs">
-                        <span className="text-white font-medium w-24">{tick.symbol}</span>
-                        <span className="text-gray-400">Price:</span>
-                        <span className="text-white tabular-nums">{tick.last_price?.toFixed(2)}</span>
-                        <span className={tick.change >= 0 ? 'text-green-400' : 'text-red-400'}>
-                          ({tick.change >= 0 ? '+' : ''}{tick.change?.toFixed(2)})
-                        </span>
-                        <span className="text-gray-600">Vol: {tick.volume_traded}</span>
-                        <button
-                          onClick={(e) => {
-                            e.stopPropagation()
-                            console.log('Full tick data:', JSON.stringify(tick, null, 2))
-                            alert(`Logged ${tick.symbol} to console`)
-                          }}
-                          className="ml-auto text-gray-500 hover:text-white"
-                        >
-                          [log]
-                        </button>
-                      </div>
-                    ))}
-                  </div>
-                )}
+                <span className="text-gray-600 text-xs whitespace-nowrap mt-0.5">
+                  {formatTime(log.timestamp)}
+                </span>
+                <span className={`text-xs font-medium w-12 mt-0.5 ${getLevelColor(log.level)}`}>
+                  {log.level}
+                </span>
+                <span className="text-gray-300 break-all">
+                  {log.message}
+                </span>
               </div>
             ))}
           </div>
