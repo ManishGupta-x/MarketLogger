@@ -33,7 +33,9 @@ class Indicators {
     }
   }
 
-  getBuffer(token) { return this.buffers.get(token) || null; }
+  getBuffer(token) {
+    return this.buffers.get(token) || this.buffers.get(typeof token === 'string' ? parseInt(token) : String(token)) || null;
+  }
   clearBuffer(token) { this.buffers.delete(token); }
   clearAll() { this.buffers.clear(); logger.info('All price buffers cleared'); }
 
