@@ -25,6 +25,9 @@ class Orchestrator {
 
     this.currentRegime = 'SIDEWAYS';
     this.activeStocks = [];
+    this.warmupComplete = false;
+    this.tickCount = 0;
+    this.minWarmupTicks = 200;       // don't trade until enough data accumulated
 
     this._regimeTimer = null;
     this._screenTimer = null;
@@ -141,6 +144,27 @@ class Orchestrator {
 
     regime.onTicks(ticks);
     screener.onTicks(ticks);
+
+    // Warmup: accumulate data before allowing trades
+    if (!this.warmupComplete) {
+      this.tickCount += ticks.length;
+      if (this.tickCount < this.minWarmupTicks) {
+        if (this.tickCount % 50 === 0) {
+          logger.info(`Warmup: ${this.tickCount}/${this.minWarmupTicks} ticks collected, not trading yet`);
+        }
+        return;
+      }
+      // Also require regime to be ready (has enough data for indicators)
+      const regimeData = regime.getDataStatus();
+      if (!regimeData || !regimeData.nifty50?.ready || !regimeData.niftyBank?.ready) {
+        if (this.tickCount % 100 === 0) {
+          logger.info(`Warmup: ${this.tickCount} ticks collected, waiting for regime indicators...`);
+        }
+        return;
+      }
+      this.warmupComplete = true;
+      logger.info(`Warmup complete: ${this.tickCount} ticks collected, trading enabled`);
+    }
 
     const indexTokens = new Set([
       config.regime.nifty50Token.toString(),
@@ -275,6 +299,7 @@ class Orchestrator {
   getStatus() {
     return {
       initialized: this.initialized, active: this.active,
+      warmupComplete: this.warmupComplete, tickCount: this.tickCount,
       tokensMapped: this.tokenToSymbol.size,
       regime: { current: this.currentRegime, ...regime.getState() },
       activeStocks: this.activeStocks.map(s => s.symbol),
