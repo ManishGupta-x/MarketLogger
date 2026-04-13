@@ -47,7 +47,7 @@ export default function DashboardPage() {
             {connected ? (
               <span className="flex items-center gap-2">
                 <span className="w-2 h-2 bg-green-500 rounded-full animate-pulse"></span>
-                {adaptiveInfo.enabled ? 'Adaptive Mode Active' : 'Adaptive Mode Disabled'}
+                Adaptive Mode Active
               </span>
             ) : (
               <span className="flex items-center gap-2">
@@ -65,17 +65,7 @@ export default function DashboardPage() {
         </button>
       </div>
 
-      {!adaptiveInfo.enabled ? (
-        <div className="dashboard-card p-12 text-center">
-          <div className="text-4xl mb-4">🤖</div>
-          <div className="text-xl text-white mb-2">Adaptive Mode is Disabled</div>
-          <div className="text-gray-500">
-            Set <code className="bg-gray-800 px-2 py-1 rounded">ADAPTIVE_MODE=true</code> in your .env to enable
-          </div>
-        </div>
-      ) : (
-        <>
-          {/* Top Row - Regime & Risk */}
+      {/* Top Row - Regime & Risk */}
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-6">
             {/* Market Regime Card */}
             <div className={`dashboard-card p-6 border-l-4 ${currentRegimeStyle.border}`}>
@@ -372,8 +362,6 @@ export default function DashboardPage() {
               </div>
             </div>
           )}
-        </>
-      )}
     </div>
   )
 }
