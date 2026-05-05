@@ -51,7 +51,7 @@ async function main() {
   });
 
   // 6. Scheduler (daily login + strategy) — may auto-login and fix auth
-  scheduler.setServices(paperTrading);
+  scheduler.setServices(paperTrading, orchestrator);
   await scheduler.start();
 
   // Re-check connection after scheduler (auto-login may have succeeded)

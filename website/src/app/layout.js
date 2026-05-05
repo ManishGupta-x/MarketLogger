@@ -21,7 +21,7 @@ export default function RootLayout({ children }) {
     <html lang="en" className={signika.variable}>
       <body className="bg-black text-white min-h-screen font-sans">
         <Nav />
-        <main className="min-h-screen p-4 pt-16">
+        <main className="min-h-screen p-3 pt-14 md:p-4 md:pt-16">
           {children}
         </main>
         <ToastProvider />

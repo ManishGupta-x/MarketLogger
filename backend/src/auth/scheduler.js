@@ -4,6 +4,8 @@ const AutoLogin = require('./auto-login');
 const zerodha  = require('./zerodha');
 const db       = require('../database');
 const logger   = require('../../utils/logger');
+const entry    = require('../strategy/entry');
+const exit     = require('../strategy/exit');
 
 const DISCORD_WEBHOOK = process.env.DISCORD_WEBHOOK_URL || '';
 
@@ -11,12 +13,14 @@ class Scheduler {
   constructor() {
     this.autoLogin = new AutoLogin();
     this.paperTrading = null;
+    this.orchestrator = null;
     this.isStrategyActive = false;
     this.todayStrategy = null;
   }
 
-  setServices(paperTrading) {
+  setServices(paperTrading, orchestrator) {
     this.paperTrading = paperTrading;
+    this.orchestrator = orchestrator;
   }
 
   async start() {
@@ -64,6 +68,15 @@ class Scheduler {
 
       const cal = db.getCalendarStrategyWithFallback(today);
       if (cal.source === 'holiday') { logger.info(`${today} is a holiday`); return; }
+
+      // Reset strategy state for new day
+      entry.reset();
+      exit.reset();
+      if (this.orchestrator) {
+        this.orchestrator.warmupComplete = false;
+        this.orchestrator.tickCount = 0;
+        logger.info('Morning reset: entry, exit, warmup cleared for fresh start');
+      }
 
       await this._loadStrategy();
       logger.info('=== Morning routine complete ===');

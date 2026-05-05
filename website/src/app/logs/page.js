@@ -61,7 +61,7 @@ export default function LogsPage() {
       {/* Header */}
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 mb-4">
         <div>
-          <h1 className="text-2xl font-bold text-white">Live Logs</h1>
+          <h1 className="text-xl md:text-2xl font-bold text-white">Live Logs</h1>
           <p className="text-gray-500 mt-1">
             {connected ? (
               <span className="flex items-center gap-2">

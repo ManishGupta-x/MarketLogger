@@ -42,7 +42,7 @@ export default function DashboardPage() {
       {/* Header */}
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 mb-6">
         <div>
-          <h1 className="text-2xl font-bold text-white">Adaptive Trading Dashboard</h1>
+          <h1 className="text-xl md:text-2xl font-bold text-white">Adaptive Trading Dashboard</h1>
           <p className="text-gray-500 mt-1">
             {connected ? (
               <span className="flex items-center gap-2">
@@ -70,7 +70,7 @@ export default function DashboardPage() {
             {/* Market Regime Card */}
             <div className={`dashboard-card p-6 border-l-4 ${currentRegimeStyle.border}`}>
               <div className="flex items-center justify-between mb-4">
-                <h2 className="text-lg font-semibold text-white">Market Regime</h2>
+                <h2 className="text-base md:text-lg font-semibold text-white">Market Regime</h2>
                 <span className={`px-3 py-1 rounded-full text-sm font-bold ${currentRegimeStyle.bg} ${currentRegimeStyle.text}`}>
                   {regime.current}
                 </span>
@@ -79,11 +79,11 @@ export default function DashboardPage() {
               <div className="grid grid-cols-2 gap-4">
                 <div>
                   <div className="text-gray-500 text-sm">Confidence</div>
-                  <div className="text-xl font-bold text-white">{(regime.confidence || 0).toFixed(1)}%</div>
+                  <div className="text-lg md:text-xl font-bold text-white">{(regime.confidence || 0).toFixed(1)}%</div>
                 </div>
                 <div>
                   <div className="text-gray-500 text-sm">Active Stocks</div>
-                  <div className="text-xl font-bold text-white">{(adaptiveInfo.activeStocks || []).length}</div>
+                  <div className="text-lg md:text-xl font-bold text-white">{(adaptiveInfo.activeStocks || []).length}</div>
                 </div>
               </div>
 
@@ -114,7 +114,7 @@ export default function DashboardPage() {
             {/* Portfolio Risk Card */}
             <div className={`dashboard-card p-6 ${riskStatus.tradingHalted ? 'border-l-4 border-red-500' : ''}`}>
               <div className="flex items-center justify-between mb-4">
-                <h2 className="text-lg font-semibold text-white">Portfolio Risk</h2>
+                <h2 className="text-base md:text-lg font-semibold text-white">Portfolio Risk</h2>
                 {riskStatus.tradingHalted ? (
                   <span className="px-3 py-1 rounded-full text-sm font-bold bg-red-900/50 text-red-400 animate-pulse">
                     HALTED
@@ -129,7 +129,7 @@ export default function DashboardPage() {
               <div className="grid grid-cols-2 gap-4">
                 <div>
                   <div className="text-gray-500 text-sm">Day P&L</div>
-                  <div className={`text-xl font-bold ${(riskStatus.dailyPnL || 0) >= 0 ? 'text-green-400' : 'text-red-400'}`}>
+                  <div className={`text-lg md:text-xl font-bold ${(riskStatus.dailyPnL || 0) >= 0 ? 'text-green-400' : 'text-red-400'}`}>
                     {(riskStatus.dailyPnL || 0) >= 0 ? '+' : ''}{formatPrice(riskStatus.dailyPnL)}
                   </div>
                   <div className={`text-sm ${(riskStatus.dailyPnLPercent || 0) >= 0 ? 'text-green-500' : 'text-red-500'}`}>
@@ -138,7 +138,7 @@ export default function DashboardPage() {
                 </div>
                 <div>
                   <div className="text-gray-500 text-sm">Drawdown</div>
-                  <div className="text-xl font-bold text-white">{(riskStatus.currentDrawdown || 0).toFixed(2)}%</div>
+                  <div className="text-lg md:text-xl font-bold text-white">{(riskStatus.currentDrawdown || 0).toFixed(2)}%</div>
                   <div className="text-sm text-gray-500">
                     Limit: {riskStatus.limits?.maxDailyDrawdown || 3}%
                   </div>
@@ -178,7 +178,7 @@ export default function DashboardPage() {
 
           {/* Active Stocks */}
           <div className="dashboard-card p-6 mb-6">
-            <h2 className="text-lg font-semibold text-white mb-4">
+            <h2 className="text-base md:text-lg font-semibold text-white mb-4">
               Active Stocks for {regime.current} Market
             </h2>
 
@@ -270,7 +270,7 @@ export default function DashboardPage() {
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
             {/* Exit Statistics */}
             <div className="dashboard-card p-6">
-              <h2 className="text-lg font-semibold text-white mb-4">Exit Statistics (30 days)</h2>
+              <h2 className="text-base md:text-lg font-semibold text-white mb-4">Exit Statistics (30 days)</h2>
 
               {(exitStats.exitStats || []).length > 0 ? (
                 <div className="space-y-3">
@@ -284,7 +284,7 @@ export default function DashboardPage() {
                       'STOPLOSS': 'bg-red-900/50 text-red-400'
                     }
                     return (
-                      <div key={stat.exit_reason} className="flex items-center justify-between">
+                      <div key={stat.exit_reason} className="flex flex-col sm:flex-row sm:items-center justify-between gap-1 sm:gap-2">
                         <div className="flex items-center gap-2">
                           <span className={`px-2 py-1 text-xs font-medium rounded ${exitColors[stat.exit_reason] || 'bg-gray-800 text-gray-400'}`}>
                             {stat.exit_reason?.replace(/_/g, ' ') || 'UNKNOWN'}
@@ -307,12 +307,12 @@ export default function DashboardPage() {
 
             {/* Regime Performance */}
             <div className="dashboard-card p-6">
-              <h2 className="text-lg font-semibold text-white mb-4">Performance by Regime (30 days)</h2>
+              <h2 className="text-base md:text-lg font-semibold text-white mb-4">Performance by Regime (30 days)</h2>
 
               {(exitStats.regimeStats || []).length > 0 ? (
                 <div className="space-y-3">
                   {(exitStats.regimeStats || []).map(stat => (
-                    <div key={stat.market_regime} className="flex items-center justify-between">
+                    <div key={stat.market_regime} className="flex flex-col sm:flex-row sm:items-center justify-between gap-1 sm:gap-2">
                       <div className="flex items-center gap-2">
                         <span className={`px-2 py-1 text-xs font-medium rounded ${regimeColors[stat.market_regime]?.bg || 'bg-gray-800'} ${regimeColors[stat.market_regime]?.text || 'text-gray-400'}`}>
                           {stat.market_regime}
@@ -341,7 +341,7 @@ export default function DashboardPage() {
           {/* Cost Info */}
           {adaptiveInfo.costInfo && (
             <div className="dashboard-card p-6 mt-6">
-              <h2 className="text-lg font-semibold text-white mb-4">Trading Costs (Per Trade)</h2>
+              <h2 className="text-base md:text-lg font-semibold text-white mb-4">Trading Costs (Per Trade)</h2>
               <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-sm">
                 <div>
                   <div className="text-gray-500">Brokerage</div>

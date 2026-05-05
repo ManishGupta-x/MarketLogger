@@ -77,7 +77,7 @@ export default function PortfolioPage() {
         <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
           <div>
             <div className="flex items-center gap-2 mb-1">
-              <span className="text-blue-400 text-lg font-bold">Adaptive Trading</span>
+              <span className="text-blue-400 text-base md:text-lg font-bold">Adaptive Trading</span>
               <span className="px-2 py-0.5 text-xs bg-blue-900/50 text-blue-400 rounded">PAPER</span>
               <span className={`px-2 py-0.5 text-xs rounded ${currentRegimeStyle.bg} ${currentRegimeStyle.text}`}>
                 {regime.current || 'DETECTING'}
@@ -115,7 +115,7 @@ export default function PortfolioPage() {
       <div className="mb-6">
         <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 mb-4">
           <div>
-            <h1 className="text-2xl font-bold text-white">Portfolio</h1>
+            <h1 className="text-xl md:text-2xl font-bold text-white">Portfolio</h1>
             <p className="text-gray-500 mt-1">
               {connected ? (
                 <span className="flex items-center gap-2">
@@ -137,7 +137,7 @@ export default function PortfolioPage() {
           {/* Total Investment */}
           <div className="dashboard-card p-4">
             <div className="text-gray-500 text-sm mb-1">Invested</div>
-            <div className="text-xl font-bold text-white tabular-nums">
+            <div className="text-lg md:text-xl font-bold text-white tabular-nums">
               {formatPrice(portfolio.investedValue)}
             </div>
           </div>
@@ -145,7 +145,7 @@ export default function PortfolioPage() {
           {/* Current Value */}
           <div className="dashboard-card p-4">
             <div className="text-gray-500 text-sm mb-1">Current</div>
-            <div className="text-xl font-bold text-white tabular-nums">
+            <div className="text-lg md:text-xl font-bold text-white tabular-nums">
               {formatPrice(portfolio.holdingsValue)}
             </div>
           </div>
@@ -153,7 +153,7 @@ export default function PortfolioPage() {
           {/* Day's P&L */}
           <div className="dashboard-card p-4">
             <div className="text-gray-500 text-sm mb-1">Day's P&L</div>
-            <div className={`text-xl font-bold tabular-nums ${portfolio.dayPnl >= 0 ? 'text-green-400' : 'text-red-400'}`}>
+            <div className={`text-lg md:text-xl font-bold tabular-nums ${portfolio.dayPnl >= 0 ? 'text-green-400' : 'text-red-400'}`}>
               {portfolio.dayPnl >= 0 ? '+' : ''}{formatPrice(portfolio.dayPnl)}
             </div>
             <div className="text-xs text-gray-500 mt-1">{portfolio.dayTrades || 0} trades</div>
@@ -162,7 +162,7 @@ export default function PortfolioPage() {
           {/* Total P&L */}
           <div className={`dashboard-card p-4 ${portfolio.totalPnl >= 0 ? 'glow-green' : 'glow-red'}`}>
             <div className="text-gray-500 text-sm mb-1">Total P&L</div>
-            <div className={`text-xl font-bold tabular-nums ${portfolio.totalPnl >= 0 ? 'text-green-400' : 'text-red-400'}`}>
+            <div className={`text-lg md:text-xl font-bold tabular-nums ${portfolio.totalPnl >= 0 ? 'text-green-400' : 'text-red-400'}`}>
               {portfolio.totalPnl >= 0 ? '+' : ''}{formatPrice(portfolio.totalPnl)}
             </div>
             <div className={`text-xs mt-1 ${portfolio.pnlPercent >= 0 ? 'text-green-500' : 'text-red-500'}`}>
@@ -172,30 +172,30 @@ export default function PortfolioPage() {
         </div>
 
         {/* Additional Stats Row */}
-        <div className="grid grid-cols-2 md:grid-cols-5 gap-4 mb-6">
+        <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-5 gap-3 md:gap-4 mb-6">
           <div className="dashboard-card p-3">
             <div className="text-gray-500 text-xs mb-1">Cash Balance</div>
-            <div className="text-lg font-semibold text-white tabular-nums">{formatPrice(portfolio.cash)}</div>
+            <div className="text-base md:text-lg font-semibold text-white tabular-nums">{formatPrice(portfolio.cash)}</div>
           </div>
           <div className="dashboard-card p-3">
             <div className="text-gray-500 text-xs mb-1">Holdings</div>
-            <div className="text-lg font-semibold text-white">{portfolio.holdingsCount || 0}</div>
+            <div className="text-base md:text-lg font-semibold text-white">{portfolio.holdingsCount || 0}</div>
           </div>
           <div className="dashboard-card p-3">
             <div className="text-gray-500 text-xs mb-1">Realized P&L</div>
-            <div className={`text-lg font-semibold tabular-nums ${portfolio.realizedPnl >= 0 ? 'text-green-400' : 'text-red-400'}`}>
+            <div className={`text-base md:text-lg font-semibold tabular-nums ${portfolio.realizedPnl >= 0 ? 'text-green-400' : 'text-red-400'}`}>
               {formatPrice(portfolio.realizedPnl)}
             </div>
           </div>
           <div className="dashboard-card p-3">
             <div className="text-gray-500 text-xs mb-1">Unrealized P&L</div>
-            <div className={`text-lg font-semibold tabular-nums ${portfolio.unrealizedPnl >= 0 ? 'text-green-400' : 'text-red-400'}`}>
+            <div className={`text-base md:text-lg font-semibold tabular-nums ${portfolio.unrealizedPnl >= 0 ? 'text-green-400' : 'text-red-400'}`}>
               {formatPrice(portfolio.unrealizedPnl)}
             </div>
           </div>
           <div className="dashboard-card p-3">
             <div className="text-gray-500 text-xs mb-1">Today's Win Rate</div>
-            <div className="text-lg font-semibold text-white">{todayStats.winRate}%</div>
+            <div className="text-base md:text-lg font-semibold text-white">{todayStats.winRate}%</div>
             <div className="text-xs text-gray-500 mt-1">{todayStats.wins}W / {todayStats.losses}L</div>
           </div>
         </div>

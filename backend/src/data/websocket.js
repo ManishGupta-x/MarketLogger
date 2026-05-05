@@ -8,6 +8,7 @@ const config = require('../../config');
 /**
  * Zerodha KiteConnect binary WebSocket.
  * Calls onTick(ticks[]) for every market update.
+ * Includes tick watchdog for silent disconnect recovery.
  */
 class ZerodhaWebSocket {
   constructor() {
@@ -15,9 +16,15 @@ class ZerodhaWebSocket {
     this.tokens = [];
     this.isConnected = false;
     this.reconnectAttempts = 0;
-    this.maxReconnectAttempts = 10;
     this.reconnectDelay = 5000;
+    this.maxReconnectDelay = 60000;
     this.onTick = null;
+    this._reconnecting = false;
+
+    // Watchdog state
+    this.lastTickTime = 0;
+    this._watchdogTimer = null;
+    this._pingTimer = null;
   }
 
   async start(onTick) {
@@ -26,6 +33,7 @@ class ZerodhaWebSocket {
     await this._connect();
     await this._waitForConnection();
     await this._subscribe();
+    this._startWatchdog();
     logger.info('WebSocket service started');
   }
 
@@ -61,13 +69,16 @@ class ZerodhaWebSocket {
         clearTimeout(timeout);
         this.isConnected = true;
         this.reconnectAttempts = 0;
+        this._startPing();
         logger.info('WebSocket connected');
         resolve();
       });
 
       this.ws.on('close', code => {
+        clearTimeout(timeout);
         logger.warn(`WebSocket closed (code ${code})`);
         this.isConnected = false;
+        this._stopPing();
         this._scheduleReconnect();
       });
 
@@ -99,21 +110,72 @@ class ZerodhaWebSocket {
     }, 1000);
   }
 
-  _scheduleReconnect() {
-    if (this.reconnectAttempts >= this.maxReconnectAttempts) {
-      logger.error('Max reconnect attempts reached');
-      return;
+  // ── Ping keepalive ──────────────────────────────────────────────────────
+
+  _startPing() {
+    this._stopPing();
+    this._pingTimer = setInterval(() => {
+      if (this.ws && this.isConnected) {
+        try { this.ws.ping(); } catch (e) { /* ignore */ }
+      }
+    }, 15000);
+  }
+
+  _stopPing() {
+    if (this._pingTimer) { clearInterval(this._pingTimer); this._pingTimer = null; }
+  }
+
+  // ── Tick watchdog ───────────────────────────────────────────────────────
+
+  _startWatchdog() {
+    if (this._watchdogTimer) clearInterval(this._watchdogTimer);
+    this._watchdogTimer = setInterval(() => {
+      if (!this._isMarketHours()) return;
+      const elapsed = Date.now() - this.lastTickTime;
+      if (this.lastTickTime > 0 && elapsed > 30000) {
+        logger.warn(`Watchdog: no ticks for ${(elapsed / 1000).toFixed(0)}s, forcing reconnect`);
+        this._forceReconnect();
+      }
+    }, 30000);
+  }
+
+  _isMarketHours() {
+    const now = new Date(new Date().toLocaleString('en-US', { timeZone: 'Asia/Kolkata' }));
+    const day = now.getDay();
+    if (day === 0 || day === 6) return false;
+    const h = now.getHours(), m = now.getMinutes();
+    const mins = h * 60 + m;
+    return mins >= 555 && mins <= 930; // 9:15 AM - 3:30 PM IST
+  }
+
+  _forceReconnect() {
+    if (this._reconnecting) return;
+    this._stopPing();
+    if (this.ws) {
+      try { this.ws.terminate(); } catch (e) { /* ignore */ }
+      this.ws = null;
     }
+    this.isConnected = false;
+    this._scheduleReconnect();
+  }
+
+  // ── Reconnect with exponential backoff (no hard limit) ─────────────────
+
+  _scheduleReconnect() {
+    if (this._reconnecting) return;
+    this._reconnecting = true;
     this.reconnectAttempts++;
-    const delay = this.reconnectDelay * this.reconnectAttempts;
-    logger.info(`Reconnecting in ${delay / 1000}s (attempt ${this.reconnectAttempts}/${this.maxReconnectAttempts})`);
+    const delay = Math.min(this.reconnectDelay * Math.pow(1.5, this.reconnectAttempts - 1), this.maxReconnectDelay);
+    logger.info(`Reconnecting in ${(delay / 1000).toFixed(1)}s (attempt ${this.reconnectAttempts})`);
     setTimeout(async () => {
+      this._reconnecting = false;
       try {
         await this._connect();
         await this._subscribe();
-        logger.info('Reconnected');
+        logger.info('Reconnected successfully');
       } catch (err) {
         logger.error('Reconnection failed:', err.message);
+        // Will retry via on('close') or watchdog
       }
     }, delay);
   }
@@ -130,7 +192,10 @@ class ZerodhaWebSocket {
         data = zlib.inflateSync(message);
       }
       const ticks = this._parseTicks(data);
-      if (ticks.length > 0 && this.onTick) this.onTick(ticks);
+      if (ticks.length > 0) {
+        this.lastTickTime = Date.now();
+        if (this.onTick) this.onTick(ticks);
+      }
     } catch (err) {
       logger.error('Message parse error:', err.message);
     }
@@ -178,10 +243,16 @@ class ZerodhaWebSocket {
   }
 
   getStatus() {
-    return { connected: this.isConnected, tokens: this.tokens.length, reconnectAttempts: this.reconnectAttempts };
+    return {
+      connected: this.isConnected, tokens: this.tokens.length,
+      reconnectAttempts: this.reconnectAttempts,
+      lastTickAge: this.lastTickTime ? Math.round((Date.now() - this.lastTickTime) / 1000) : null
+    };
   }
 
   stop() {
+    this._stopPing();
+    if (this._watchdogTimer) { clearInterval(this._watchdogTimer); this._watchdogTimer = null; }
     if (this.ws) { this.ws.close(); this.isConnected = false; logger.info('WebSocket stopped'); }
   }
 

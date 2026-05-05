@@ -131,12 +131,12 @@ class Screener {
     this.inProgress = true;
     const t0 = Date.now();
     try {
-      const indexTokens = new Set([config.regime.nifty50Token.toString(), config.regime.niftyBankToken.toString()]);
+      const indexTokens = new Set([config.regime.nifty50Token, config.regime.niftyBankToken]);
       const allMetrics = [];
       let skipped = 0;
 
       for (const tokenStr of indicators.getTrackedTokens()) {
-        if (indexTokens.has(tokenStr)) continue;
+        if (indexTokens.has(typeof tokenStr === 'string' ? parseInt(tokenStr) : tokenStr)) continue;
         const m = this._metricsForToken(tokenStr);
         if (m) { this.stockMetrics.set(tokenStr, m); allMetrics.push(m); }
         else skipped++;

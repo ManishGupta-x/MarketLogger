@@ -13,6 +13,7 @@ export default function Nav() {
     { href: '/portfolio', label: 'Portfolio' },
     { href: '/logs', label: 'Logs' },
     { href: '/dashboard', label: 'Dashboard' },
+    { href: '/premium-calc', label: 'Premium Calc' },
     { href: '/help', label: 'Help' },
     { href: '/docs', label: 'Docs' },
   ]

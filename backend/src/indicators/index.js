@@ -207,7 +207,8 @@ class Indicators {
   // ── All indicators for a token ────────────────────────────────────────────
 
   forToken(token, marketBuffer = null) {
-    const b = this.buffers.get(token);
+    let b = this.buffers.get(token);
+    if (!b) b = this.buffers.get(typeof token === 'string' ? parseInt(token) : String(token));
     if (!b || b.prices.length < 20) return null;
     const { prices, highs, lows, closes } = b;
     const adxResult = this.adx(highs, lows, closes, 14);
