@@ -1,35 +1,28 @@
 const express = require('express');
-const router = express.Router();
-const fs   = require('fs');
+const fs = require('fs');
 const path = require('path');
-const sse  = require('../sse');
 
 const LOG_DIR = path.join(__dirname, '../../../logs');
+const router = express.Router();
 
-// GET /api/logs/stream — SSE tail of logs
-router.get('/stream', (req, res) => {
-  res.set({ 'Content-Type': 'text/event-stream', 'Cache-Control': 'no-cache', Connection: 'keep-alive' });
-  res.flushHeaders();
-  sse.addClient('logs', res);
-  const hb = setInterval(() => { try { res.write(': heartbeat\n\n'); } catch(e) { clearInterval(hb); } }, 30000);
-  req.on('close', () => clearInterval(hb));
+router.get('/dates', (req, res) => {
+  if (!fs.existsSync(LOG_DIR)) return res.json([]);
+  const dates = fs.readdirSync(LOG_DIR)
+    .filter(f => f.endsWith('.log'))
+    .map(f => f.replace('.log', ''))
+    .sort((a, b) => b.localeCompare(a));
+  res.json(dates);
 });
 
-// GET /api/logs  — last N lines of today's log file
 router.get('/', (req, res) => {
-  const today = new Date().toISOString().split('T')[0];
-  const file  = path.join(LOG_DIR, `${today}.log`);
-  const limit = parseInt(req.query.limit) || 200;
+  const date = req.query.date || new Date().toISOString().split('T')[0];
+  const limit = Math.min(parseInt(req.query.limit, 10) || 500, 2000);
+  const filePath = path.join(LOG_DIR, `${date}.log`);
+  if (!fs.existsSync(filePath)) return res.json({ date, lines: [] });
 
-  if (!fs.existsSync(file)) return res.json({ lines: [] });
-
-  try {
-    const content = fs.readFileSync(file, 'utf8');
-    const lines   = content.split('\n').filter(Boolean).slice(-limit);
-    res.json({ lines, date: today });
-  } catch (e) {
-    res.status(500).json({ error: e.message });
-  }
+  const content = fs.readFileSync(filePath, 'utf8');
+  const lines = content.split('\n').filter(Boolean);
+  res.json({ date, lines: lines.slice(-limit) });
 });
 
 module.exports = router;

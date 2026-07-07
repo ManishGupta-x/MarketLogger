@@ -1,96 +1,64 @@
-# MarketLogger
+# Market — Research-First Trading Platform
 
-Automated Grid Trading Bot with Calendar-Based Strategy Management
+A single-user platform for Indian-market (NSE/BSE) equity research, backtesting,
+and paper trading, with a safely-gated, read-only Zerodha integration.
 
-## System Flow
+**Live order placement does not exist in this codebase.** The broker
+integration only reads holdings/positions/margins. Paper trading is the
+default and only tradeable mode.
 
-```
-┌─────────────────────────────────────────────────────────────────────────────┐
-│                           DAILY AUTOMATION                                   │
-├─────────────────────────────────────────────────────────────────────────────┤
-│                                                                             │
-│   ┌─────────────┐      ┌─────────────┐      ┌─────────────┐                │
-│   │  8:00 AM    │      │  MARKET     │      │  3:40 PM    │                │
-│   │  IST        │      │  HOURS      │      │  IST        │                │
-│   │             │      │             │      │             │                │
-│   │  • Login    │ ───► │  • Monitor  │ ───► │  • Close    │                │
-│   │  • Refresh  │      │  • Trade    │      │  • Report   │                │
-│   │  • Load     │      │  • Log      │      │  • Save     │                │
-│   │    Strategy │      │             │      │             │                │
-│   └─────────────┘      └─────────────┘      └─────────────┘                │
-│                                                                             │
-└─────────────────────────────────────────────────────────────────────────────┘
+## Structure
 
-┌─────────────────────────────────────────────────────────────────────────────┐
-│                         STRATEGY CALENDAR                                    │
-├─────────────────────────────────────────────────────────────────────────────┤
-│                                                                             │
-│   ┌──────────┐   ┌──────────┐   ┌──────────┐   ┌──────────┐                │
-│   │  MON     │   │  TUE     │   │  WED     │   │  THU     │   ...         │
-│   │          │   │          │   │          │   │          │                │
-│   │ Grid: 0.25│   │ Grid: 0.3│   │ HOLIDAY  │   │ Grid: 0.25│               │
-│   │ Target:0.5│   │ Target:0.6│  │          │   │ Target:0.5│               │
-│   │ Capital:1L│   │ Capital:1L│  │ (Holi)   │   │ Capital:1L│               │
-│   └──────────┘   └──────────┘   └──────────┘   └──────────┘                │
-│                                                                             │
-│   Pre-feed strategies → Auto-loads daily → Fallback to previous if missing │
-│                                                                             │
-└─────────────────────────────────────────────────────────────────────────────┘
+- `backend/` — Node.js + Express + better-sqlite3 API server
+- `frontend/` — Next.js dashboard
 
-┌─────────────────────────────────────────────────────────────────────────────┐
-│                          GRID TRADING                                        │
-├─────────────────────────────────────────────────────────────────────────────┤
-│                                                                             │
-│   Price ▲                                                                   │
-│         │     ┌───┐ SELL (Target %)                                        │
-│         │     │   │                                                         │
-│         │  ───┼───┼─── Reference Price                                     │
-│         │     │   │                                                         │
-│         │     └───┘ BUY (Grid %)                                           │
-│         │                                                                   │
-│         └──────────────────────────────► Time                              │
-│                                                                             │
-│   • Buy when price drops by Grid %                                         │
-│   • Sell when price rises by Target % from buy price                       │
-│   • Stop loss at configured %                                              │
-│                                                                             │
-└─────────────────────────────────────────────────────────────────────────────┘
-
-┌─────────────────────────────────────────────────────────────────────────────┐
-│                          ARCHITECTURE                                        │
-├─────────────────────────────────────────────────────────────────────────────┤
-│                                                                             │
-│   ┌─────────────────┐         ┌─────────────────┐                          │
-│   │    FRONTEND     │   SSE   │     BACKEND     │                          │
-│   │    (Vercel)     │ ◄─────► │    (Railway)    │                          │
-│   │                 │         │                 │                          │
-│   │  • Dashboard    │         │  • Trading Bot  │                          │
-│   │  • Portfolio    │         │  • WebSocket    │                          │
-│   │  • Live Logs    │         │  • Cron Jobs    │                          │
-│   │  • Strategies   │         │  • Database     │                          │
-│   └─────────────────┘         └─────────────────┘                          │
-│                                       │                                     │
-│                                       ▼                                     │
-│                               ┌───────────────┐                            │
-│                               │   ZERODHA     │                            │
-│                               │   API         │                            │
-│                               └───────────────┘                            │
-│                                                                             │
-└─────────────────────────────────────────────────────────────────────────────┘
-```
-
-## Quick Commands
+## Setup
 
 ```bash
-# Feed strategy for a week
-npm run calendar:feed -- --range=2026-02-23:2026-02-27 --grid=0.25 --target=0.5 --sl=1 --per-trade=5000 --capital=100000
+cp .env.example .env   # fill in your Zerodha credentials (optional — the app runs without them)
 
-# Mark holiday
-npm run calendar:feed -- --date=2026-03-10 --holiday --notes="Holi"
-
-# View calendar
-npm run calendar:list
-
-# Start bot
-npm start
+cd backend && npm install
+cd ../frontend && npm install
 ```
+
+The root `.env` is read by the backend only (Node doesn't look at parent
+directories). The frontend defaults to `http://localhost:4000` for the API
+with no config needed; to point it elsewhere, create `frontend/.env.local`
+with `NEXT_PUBLIC_API_URL=http://your-host:4000`.
+
+## Running
+
+```bash
+# Terminal 1
+cd backend && npm start        # API on :4000, seeds industries/templates on boot
+
+# Terminal 2
+cd frontend && npm run dev     # dashboard on :3000
+```
+
+## Safety design
+
+- `paper` is the default broker mode. Live modes (`live_readonly`,
+  `live_confirm`, `live_auto`) can't even be selected in the UI unless
+  `LIVE_TRADING_UNLOCKED=true` is set in `.env` — and even then, no live
+  order-placement code exists yet, so selecting a live mode only unlocks
+  read-only account data.
+- Every order (paper included) flows through one choke point
+  (`backend/src/broker/gateway.js`) → risk engine → mode gate, and every
+  attempt is logged to `order_log` with pass/fail reasons, visible on the
+  Risk page.
+- A kill switch halts all order creation instantly, paper included.
+- The logger redacts any field whose key looks like a secret
+  (`api_key`, `secret`, `token`, `password`, `totp`) before it's ever
+  written to console, disk, or an API response.
+
+## Data
+
+`backend/data/market.db` (SQLite, gitignored) holds everything: stocks,
+industries, research notes, prompt templates, candles, strategies,
+backtests, paper account/orders/positions, and the risk/order-log audit
+trail.
+
+Daily candles come from CSV import or Yahoo Finance (free, `.NS`/`.BO`
+suffix) by default. A Kite historical-data adapter exists behind the same
+interface but requires Zerodha's paid Historical Data API add-on.

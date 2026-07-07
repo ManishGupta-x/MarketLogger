@@ -1,92 +1,26 @@
-require('dotenv').config();
-const logger      = require('./utils/logger');
-const db          = require('./src/database');
-const zerodha     = require('./src/auth/zerodha');
-const scheduler   = require('./src/auth/scheduler');
-const wsClient    = require('./src/data/websocket');
-const tickProc    = require('./src/data/tick-processor');
-const paperTrading = require('./src/portfolio/paper-trading');
-const risk        = require('./src/portfolio/risk');
-const orchestrator = require('./src/strategy/orchestrator');
-const sse         = require('./src/api/sse');
-const { start: startServer } = require('./src/api/server');
+require('dotenv').config({ path: require('path').join(__dirname, '../.env') });
+const logger = require('./utils/logger');
+const seed = require('./src/db/seed');
+const scheduler = require('./src/auth/scheduler');
+const { startServer } = require('./src/api/server');
 
-/**
- * MarketLogger Backend — startup sequence
- */
+const PORT = process.env.PORT || 4000;
+
 async function main() {
-  logger.info('=== MarketLogger starting ===');
+  logger.info('=== Market backend starting ===');
 
-  // 1. Database
-  db.initialize();
+  seed();
 
-  // 2. Zerodha auth
-  const connected = await zerodha.initialize();
-  if (!connected) {
-    logger.warn('Zerodha not connected. WebSocket will fail unless token is refreshed.');
+  startServer(PORT);
+
+  if (process.env.ZERODHA_API_KEY) {
+    await scheduler.start();
+  } else {
+    logger.warn('ZERODHA_API_KEY not set — skipping auth scheduler (broker features will be unavailable)');
   }
-
-  // 3. Paper trading
-  paperTrading.initialize();
-
-  // 4. Wire dependencies
-  orchestrator.setPaperTrading(paperTrading);
-  orchestrator.setRisk(risk);
-  orchestrator.setDatabase(db);
-
-  // SSE broadcast function
-  orchestrator.setBroadcast((type, data) => {
-    sse.broadcast(type, data);
-    // Also push portfolio updates after every order
-    if (type === 'order') {
-      try { sse.broadcastPortfolio(paperTrading.getPortfolio()); } catch(e) {}
-    }
-  });
-
-  // 5. Tick processor → orchestrator + SSE
-  tickProc.addListener(ticks => {
-    orchestrator.onTicks(ticks);
-    // Broadcast latest ticks to SSE clients
-    for (const tick of ticks) sse.broadcast('tick', tick);
-  });
-
-  // 6. Scheduler (daily login + strategy) — may auto-login and fix auth
-  scheduler.setServices(paperTrading, orchestrator);
-  await scheduler.start();
-
-  // Re-check connection after scheduler (auto-login may have succeeded)
-  const isConnected = connected || zerodha.isConnected;
-
-  // 7. Strategy orchestrator initialize (loads instruments, starts regime loop)
-  if (isConnected) {
-    try {
-      await orchestrator.initialize();
-    } catch (err) {
-      logger.error('Orchestrator init failed:', err.message);
-      logger.warn('Strategy disabled — continuing without it');
-    }
-  }
-
-  // 8. WebSocket (after auth)
-  if (isConnected) {
-    try {
-      await wsClient.start(ticks => tickProc.process(ticks));
-    } catch (err) {
-      logger.error('WebSocket start failed:', err.message);
-    }
-  }
-
-  // 9. Start HTTP server
-  startServer();
-
-  logger.info('=== MarketLogger started ===');
 }
 
 main().catch(err => {
-  logger.error('Fatal startup error:', err);
+  logger.error('Fatal startup error:', err.message);
   process.exit(1);
 });
-
-// Graceful shutdown
-process.on('SIGINT',  () => { logger.info('SIGINT received, shutting down...'); wsClient.stop(); db.close(); process.exit(0); });
-process.on('SIGTERM', () => { logger.info('SIGTERM received, shutting down...'); wsClient.stop(); db.close(); process.exit(0); });

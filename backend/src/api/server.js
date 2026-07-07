@@ -1,59 +1,42 @@
 const express = require('express');
-const cors    = require('cors');
-const auth    = require('./middleware/auth');
-const config  = require('../../config');
-const logger  = require('../../utils/logger');
+const cors = require('cors');
+const logger = require('../../utils/logger');
 
-// Routes
-const ticksRouter     = require('./routes/ticks');
-const portfolioRouter = require('./routes/portfolio');
-const ordersRouter    = require('./routes/orders');
-const regimeRouter    = require('./routes/regime');
-const strategyRouter  = require('./routes/strategy');
-const riskRouter      = require('./routes/risk');
-const logsRouter      = require('./routes/logs');
+function startServer(port) {
+  const app = express();
+  app.use(cors());
+  app.use(express.json());
 
-const app = express();
+  app.get('/api/health', (req, res) => res.json({ ok: true, time: new Date().toISOString() }));
 
-// CORS — only allow configured origin
-app.use(cors({
-  origin: config.server.allowedOrigin,
-  methods: ['GET', 'POST', 'DELETE'],
-  allowedHeaders: ['Content-Type', 'Authorization']
-}));
+  app.use('/api/stocks', require('./routes/stocks'));
+  app.use('/api/industries', require('./routes/industries'));
+  app.use('/api/research', require('./routes/research'));
+  app.use('/api/prompts', require('./routes/prompts'));
+  app.use('/api/watchlist', require('./routes/watchlist'));
+  app.use('/api/attachments', require('./routes/attachments'));
+  app.use('/api/prices', require('./routes/prices'));
+  app.use('/api/strategies', require('./routes/strategies'));
+  app.use('/api/backtests', require('./routes/backtests'));
+  app.use('/api/paper', require('./routes/paper'));
+  app.use('/api/risk', require('./routes/risk'));
+  app.use('/api/broker', require('./routes/broker'));
+  app.use('/api/logs', require('./routes/logs'));
 
-app.use(express.json());
+  app.use((req, res) => res.status(404).json({ error: 'Not found' }));
 
-// Auth middleware (all routes except /health)
-app.use(auth);
+  // Centralized error handler — never forward raw error objects to the client,
+  // since stack traces or upstream error bodies could carry secret values.
+  app.use((err, req, res, next) => {
+    logger.error(`Unhandled error on ${req.method} ${req.path}:`, err.message);
+    res.status(500).json({ error: 'Internal server error' });
+  });
 
-// Health check (public)
-app.get('/health', (req, res) => res.json({ status: 'ok', uptime: process.uptime() }));
-
-// API routes
-app.use('/api/ticks',         ticksRouter);
-app.use('/api/portfolio',     portfolioRouter);
-app.use('/api/holdings',      (req, res) => res.redirect('/api/portfolio/holdings'));
-app.use('/api/orders',        ordersRouter);
-app.use('/api/regime',        regimeRouter);
-app.use('/api/strategies',    strategyRouter);
-app.use('/api/adaptive-info', strategyRouter);
-app.use('/api/active-stocks', strategyRouter);
-app.use('/api/risk-status',   riskRouter);
-app.use('/api/risk-resume',   riskRouter);
-app.use('/api/logs',          logsRouter);
-
-// 404 fallback
-app.use((req, res) => res.status(404).json({ error: 'Not found' }));
-
-function start() {
-  const port = config.server.port;
   app.listen(port, () => {
     logger.info(`API server listening on port ${port}`);
-    logger.info(`CORS origin: ${config.server.allowedOrigin}`);
-    logger.info(`Auth: ${config.server.internalApiKey ? 'enabled' : 'disabled (no key set)'}`);
   });
+
   return app;
 }
 
-module.exports = { app, start };
+module.exports = { startServer };
