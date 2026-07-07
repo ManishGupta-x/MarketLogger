@@ -20,8 +20,8 @@ backend/data/*.db-shm
 backend/uploads/
 
 # Next.js
-frontend/.next/
-frontend/out/
+website/.next/
+website/out/
 
 # OS files
 .DS_Store

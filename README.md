@@ -10,7 +10,7 @@ default and only tradeable mode.
 ## Structure
 
 - `backend/` — Node.js + Express + better-sqlite3 API server
-- `frontend/` — Next.js dashboard
+- `website/` — Next.js dashboard
 
 ## Setup
 
@@ -18,12 +18,12 @@ default and only tradeable mode.
 cp .env.example .env   # fill in your Zerodha credentials (optional — the app runs without them)
 
 cd backend && npm install
-cd ../frontend && npm install
+cd ../website && npm install
 ```
 
 The root `.env` is read by the backend only (Node doesn't look at parent
-directories). The frontend defaults to `http://localhost:4000` for the API
-with no config needed; to point it elsewhere, create `frontend/.env.local`
+directories). The website defaults to `http://localhost:4000` for the API
+with no config needed; to point it elsewhere, create `website/.env.local`
 with `NEXT_PUBLIC_API_URL=http://your-host:4000`.
 
 ## Running
@@ -33,7 +33,7 @@ with `NEXT_PUBLIC_API_URL=http://your-host:4000`.
 cd backend && npm start        # API on :4000, seeds industries/templates on boot
 
 # Terminal 2
-cd frontend && npm run dev     # dashboard on :3000
+cd website && npm run dev     # dashboard on :3000
 ```
 
 ## Safety design
