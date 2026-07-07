@@ -1,6 +1,7 @@
 import { Geist, Geist_Mono } from "next/font/google";
 import "./globals.css";
 import Nav from "@/components/Nav";
+import ApiKeyGate from "@/components/ApiKeyGate";
 
 const geistSans = Geist({
   variable: "--font-geist-sans",
@@ -25,7 +26,9 @@ export default function RootLayout({ children }) {
     >
       <body className="min-h-full flex flex-col bg-[#f9f9f7] text-[#0b0b0b] dark:bg-[#0d0d0d] dark:text-white">
         <Nav />
-        <main className="mx-auto w-full max-w-7xl flex-1 px-4 py-6">{children}</main>
+        <main className="mx-auto w-full max-w-7xl flex-1 px-4 py-6">
+          <ApiKeyGate>{children}</ApiKeyGate>
+        </main>
       </body>
     </html>
   );

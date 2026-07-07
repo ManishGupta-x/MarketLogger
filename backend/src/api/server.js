@@ -4,10 +4,23 @@ const logger = require('../../utils/logger');
 
 function startServer(port) {
   const app = express();
-  app.use(cors());
+
+  // Comma-separated allowlist (e.g. the deployed dashboard's origin). Unset =
+  // allow all, for plain localhost use.
+  const corsOrigins = (process.env.CORS_ORIGINS || '').split(',').map(s => s.trim()).filter(Boolean);
+  app.use(cors(corsOrigins.length ? { origin: corsOrigins } : {}));
   app.use(express.json());
 
   app.get('/api/health', (req, res) => res.json({ ok: true, time: new Date().toISOString() }));
+
+  // When API_KEY is set, every route except the health probe requires it.
+  // The dashboard sends it as X-API-Key from a value the user enters once.
+  const apiKey = process.env.API_KEY || '';
+  app.use('/api', (req, res, next) => {
+    if (!apiKey) return next();
+    if (req.get('x-api-key') === apiKey) return next();
+    res.status(401).json({ error: 'Invalid or missing API key' });
+  });
 
   app.use('/api/stocks', require('./routes/stocks'));
   app.use('/api/industries', require('./routes/industries'));
@@ -32,8 +45,12 @@ function startServer(port) {
     res.status(500).json({ error: 'Internal server error' });
   });
 
-  app.listen(port, () => {
-    logger.info(`API server listening on port ${port}`);
+  // Loopback by default: the API should only be reachable directly from this
+  // machine (or through the TLS reverse proxy in front of it). Set HOST=0.0.0.0
+  // to expose it on all interfaces deliberately.
+  const host = process.env.HOST || '127.0.0.1';
+  app.listen(port, host, () => {
+    logger.info(`API server listening on ${host}:${port} (auth: ${apiKey ? 'API key required' : 'none — local mode'})`);
   });
 
   return app;

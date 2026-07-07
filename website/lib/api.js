@@ -1,12 +1,35 @@
 const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:4000";
+const KEY_STORAGE = "market_api_key";
+
+export function getApiKey() {
+  if (typeof window === "undefined") return null;
+  return window.localStorage.getItem(KEY_STORAGE);
+}
+
+export function setApiKey(key) {
+  window.localStorage.setItem(KEY_STORAGE, key);
+}
+
+export function clearApiKey() {
+  window.localStorage.removeItem(KEY_STORAGE);
+}
 
 async function request(path, options = {}) {
+  const key = getApiKey();
   const res = await fetch(`${API_URL}${path}`, {
     ...options,
-    headers: options.body instanceof FormData
-      ? options.headers
-      : { "Content-Type": "application/json", ...options.headers },
+    headers: {
+      ...(options.body instanceof FormData ? {} : { "Content-Type": "application/json" }),
+      ...(key ? { "X-API-Key": key } : {}),
+      ...options.headers,
+    },
   });
+
+  if (res.status === 401 && typeof window !== "undefined") {
+    // Backend requires an API key we don't have (or ours is wrong) — let the
+    // ApiKeyGate take over and prompt for it.
+    window.dispatchEvent(new Event("api-unauthorized"));
+  }
 
   if (res.status === 204) return null;
 
